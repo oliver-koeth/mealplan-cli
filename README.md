@@ -38,6 +38,11 @@ Tests follow the same intent and are grouped by scope:
   `.venv/bin/uv run mypy --strict src`
   `.venv/bin/uv run pytest`
 
+## Contributing
+
+Contributor workflow and architecture-boundary expectations are documented in
+`CONTRIBUTING.md`.
+
 ## Dependency Lock Workflow
 
 - Refresh the lockfile after dependency changes:
