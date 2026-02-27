@@ -4,6 +4,7 @@ Started: Fri Feb 27 13:29:43 CET 2026
 ## Codebase Patterns
 - Keep architecture boundaries explicit with package folders under `src/mealplan/`: `cli`, `application`, `domain`, `infrastructure`, `shared`.
 - Keep test scope folders present from the start (`tests/unit`, `tests/integration`, `tests/cli`, `tests/golden`) and maintain at least one smoke test for discovery.
+- Use `.venv/bin/uv` in automation and docs when environment bootstrap is uncertain, because `uv` may not be globally installed.
 
 ## [2026-02-27 13:50:48 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
@@ -13,4 +14,14 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: This repository expects architecture-by-layer package boundaries and mirrored test scope directories from the first iteration.
   - Gotchas encountered: Base quality tools were not preinstalled in the environment; run checks through a local virtualenv when needed.
   - Useful context: `scripts/ralph/progress.txt` should maintain a top-level `Codebase Patterns` section and append iteration notes below it.
+---
+
+## [2026-02-27 13:53:47 CET] - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- What was implemented: Added `pyproject.toml` packaging metadata with a `mealplan` console script, created a minimal Typer-based CLI entrypoint (`mealplan.cli.main`) plus `python -m mealplan` support, added a CLI help smoke test, documented UV setup/install/help/lock workflow, and generated `uv.lock`.
+- Files changed: README.md, pyproject.toml, src/mealplan/__main__.py, src/mealplan/cli/main.py, tests/cli/test_help.py, uv.lock, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: For Typer root apps, define at least one callback/command or `--help` can fail with `RuntimeError: Could not get a command for this Typer instance`.
+  - Gotchas encountered: `uv sync --dev` reads `[dependency-groups]` (not `[project.optional-dependencies]`) for dev tooling installation.
+  - Useful context: The project now uses `pyproject.toml` as pytest root config and package entrypoint source of truth.
 ---

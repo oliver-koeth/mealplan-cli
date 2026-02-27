@@ -18,3 +18,20 @@ Tests follow the same intent and are grouped by scope:
 - `tests/integration`: integration tests across modules.
 - `tests/cli`: command-line behavior tests.
 - `tests/golden`: output snapshot/golden file tests.
+
+## Developer Setup
+
+1. Install Python 3.11+ and `uv`.
+2. Create and sync the environment:
+   `uv sync --dev`
+3. Install the package in editable mode:
+   `uv pip install -e .`
+4. Verify the command entrypoint:
+   `uv run mealplan --help`
+
+## Dependency Lock Workflow
+
+- Refresh the lockfile after dependency changes:
+  `uv lock`
+- Sync to the lockfile contents:
+  `uv sync --dev`
