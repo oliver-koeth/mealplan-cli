@@ -7,6 +7,7 @@ Started: Fri Feb 27 13:29:43 CET 2026
 - Use `.venv/bin/uv` in automation and docs when environment bootstrap is uncertain, because `uv` may not be globally installed.
 - Keep CLI handlers thin: command functions should delegate deterministic placeholder behavior to `application` functions, not embed logic directly in `cli`.
 - Centralize local quality gates behind `make quality`, delegating to `.venv/bin/uv run` for `ruff`, `mypy --strict src`, and `pytest`.
+- Keep CLI failure handling centralized in `mealplan.cli.main:main` by mapping exceptions via `mealplan.shared.exit_codes.map_exception_to_exit_code` and exiting with canonical codes.
 
 ## [2026-02-27 13:50:48 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
@@ -46,4 +47,14 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: Ruff import sorting (`I001`) is enforced by the current rule set, so import order fixes may touch adjacent files when enabling stricter linting.
   - Gotchas encountered: Running quality via `make quality` can surface pre-existing style issues; run lint first to get fast feedback before mypy/pytest.
   - Useful context: pytest discovery is now configured in `pyproject.toml` (`testpaths=tests`), making `uv run pytest` and `make quality` consistent.
+---
+
+## [2026-02-27 14:00:03 CET] - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- What was implemented: Added a shared error hierarchy (`MealPlanError`, `ValidationError`, `DomainRuleError`, `ConfigError`, `OutputError`), canonical exit codes with mapper utility, CLI exception handling that routes through the mapper, and tests for both unit-level mapping and CLI exit-code behavior.
+- Files changed: src/mealplan/application/stub.py, src/mealplan/cli/main.py, src/mealplan/shared/errors.py, src/mealplan/shared/exit_codes.py, tests/cli/test_error_handling.py, tests/unit/test_exit_codes.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: `map_exception_to_exit_code` is the single mapping point for process exit behavior; new controlled failures should be represented with shared error types and mapped there.
+  - Gotchas encountered: Raising `typer.Exit` from outside `app()` resulted in exit code `1` in subprocess tests; use `SystemExit(mapped_code)` in `main()` wrapper instead.
+  - Useful context: The `probe` command now supports `--simulate-error` paths for validation/domain/config/output/runtime, which provides stable scaffolding hooks for CLI failure-path tests.
 ---
