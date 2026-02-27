@@ -2,6 +2,7 @@
 ## Codebase Patterns
 - Canonical domain enums are defined in `src/mealplan/domain/enums.py`; import enum types from `mealplan.domain.enums` to avoid duplicated value definitions.
 - Canonical meal sequencing lives in `src/mealplan/domain/model.py` as `CANONICAL_MEAL_ORDER`; downstream modules should import this constant instead of recreating ordered meal lists.
+- Contract DTOs should subclass `BoundaryModel` at every nesting level so `extra="forbid"` applies recursively; use strict numeric types in DTO fields to prevent string-to-number coercion.
 
 Started: Fri Feb 27 16:44:58 CET 2026
 ---
@@ -30,4 +31,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - The repository has `AGENT.md` (singular) at root rather than `AGENTS.md`; read it as the local agent instruction source.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `make quality` is the required local gate and runs `ruff`, strict `mypy`, and `pytest`.
+---
+## 2026-02-27 16:49:35 CET - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented canonical request DTOs `MealPlanRequest` and nested `TrainingSession` in `src/mealplan/application/contracts.py` with exact Phase 2 field names and enum-backed dimensions.
+- Enforced strict schema boundary behavior: forbidden unknown fields at all levels and strict numeric typing for `age`, `weight_kg`, and `zones_minutes` values.
+- Added contract tests for valid parsing, root/nested unknown-field rejection, and numeric-string rejection while preserving existing probe contract coverage.
+- Files changed: AGENT.md, src/mealplan/application/contracts.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Keep request contract strictness in the DTO layer itself (`BoundaryModel` + strict field types) instead of adding ad-hoc checks in CLI/application services.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - To enforce unknown-field rejection in nested payloads, nested DTOs must inherit `BoundaryModel`; root-level `extra="forbid"` is not enough.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `US-003` intentionally stops at schema-level validation; semantic/business-rule validation belongs to later stories/phases.
 ---

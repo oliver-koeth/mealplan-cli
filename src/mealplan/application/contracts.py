@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
+
+from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
 
 SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtime"]
 
@@ -13,6 +15,25 @@ class BoundaryModel(BaseModel):
     """Shared base contract for application input/output models."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+class TrainingSession(BoundaryModel):
+    """Canonical training-session shape for request payloads."""
+
+    zones_minutes: dict[str, StrictInt]
+    training_before_meal: MealName
+
+
+class MealPlanRequest(BoundaryModel):
+    """Canonical request DTO for CLI/application parsing."""
+
+    age: StrictInt
+    gender: Gender
+    weight_kg: StrictFloat
+    activity_level: ActivityLevel
+    carb_mode: CarbMode
+    training_load_tomorrow: TrainingLoadTomorrow
+    training_session: TrainingSession
 
 
 class ProbeRequest(BoundaryModel):
