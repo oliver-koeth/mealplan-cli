@@ -1,0 +1,16 @@
+# Ralph Progress Log
+Started: Fri Feb 27 13:29:43 CET 2026
+
+## Codebase Patterns
+- Keep architecture boundaries explicit with package folders under `src/mealplan/`: `cli`, `application`, `domain`, `infrastructure`, `shared`.
+- Keep test scope folders present from the start (`tests/unit`, `tests/integration`, `tests/cli`, `tests/golden`) and maintain at least one smoke test for discovery.
+
+## [2026-02-27 13:50:48 CET] - US-001
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
+- What was implemented: Added the architecture-aligned source and test skeleton, package marker files, a placeholder smoke test, and README directory-layout documentation.
+- Files changed: .gitignore, README.md, src/mealplan/__init__.py, src/mealplan/application/__init__.py, src/mealplan/cli/__init__.py, src/mealplan/domain/__init__.py, src/mealplan/infrastructure/__init__.py, src/mealplan/shared/__init__.py, tests/unit/test_smoke.py, tests/integration/.gitkeep, tests/cli/.gitkeep, tests/golden/.gitkeep, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: This repository expects architecture-by-layer package boundaries and mirrored test scope directories from the first iteration.
+  - Gotchas encountered: Base quality tools were not preinstalled in the environment; run checks through a local virtualenv when needed.
+  - Useful context: `scripts/ralph/progress.txt` should maintain a top-level `Codebase Patterns` section and append iteration notes below it.
+---

@@ -1,0 +1,5 @@
+scripts/ralph/.last-branch
+scripts/ralph/.codex-last-message*.txt
+.venv/
+.DS_Store
+__pycache__/

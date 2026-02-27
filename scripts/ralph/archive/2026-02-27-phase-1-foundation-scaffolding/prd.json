@@ -1,0 +1,22 @@
+{
+  "project": "YourProject",
+  "branchName": "ralph/smoke",
+  "description": "Smoke test - verify Ralph + Codex loop works end-to-end",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create smoke marker file",
+      "description": "As a developer, I want a smoke marker file so I can confirm Ralph executed.",
+      "acceptanceCriteria": [
+        "Create a new file at repo root named RALPH_SMOKE.txt with exactly: ok\\n",
+        "Commit the change",
+        "Update scripts/ralph/prd.json to set passes: true for US-001",
+        "Append a short entry to scripts/ralph/progress.txt",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "If this repo has no typecheck, treat this as: no build errors, and keep git status clean after commit."
+    }
+  ]
+}
