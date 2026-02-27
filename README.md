@@ -38,6 +38,15 @@ Tests follow the same intent and are grouped by scope:
   `.venv/bin/uv run mypy --strict src`
   `.venv/bin/uv run pytest`
 
+## CI Expectations
+
+- GitHub Actions runs on every `push` and `pull_request`.
+- CI installs dependencies with `uv sync --dev`.
+- CI must pass all quality gates:
+  `uv run ruff check .`
+  `uv run mypy --strict src`
+  `uv run pytest`
+
 ## Contributing
 
 Contributor workflow and architecture-boundary expectations are documented in

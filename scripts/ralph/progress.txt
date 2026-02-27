@@ -10,6 +10,7 @@ Started: Fri Feb 27 13:29:43 CET 2026
 - Keep CLI failure handling centralized in `mealplan.cli.main:main` by mapping exceptions via `mealplan.shared.exit_codes.map_exception_to_exit_code` and exiting with canonical codes.
 - Place boundary contracts in `src/mealplan/application/contracts.py` as Pydantic models and pass them through use-case functions, keeping CLI argument parsing and business flow orchestration separated.
 - Keep contributor workflow details in `CONTRIBUTING.md`, and link it from `README.md` for discoverability.
+- Keep GitHub Actions quality gates aligned with local `make quality` commands (`ruff`, `mypy --strict src`, `pytest`) and install deps via `uv sync --dev`.
 
 ## [2026-02-27 13:50:48 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
@@ -78,4 +79,13 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: Keep contributor workflow and boundary expectations centralized in `CONTRIBUTING.md` while leaving README concise with pointers.
   - Gotchas encountered: Use `.venv/bin/uv ...` commands in docs for reliability, since global `uv` availability is not guaranteed.
   - Useful context: `make quality` remains the canonical aggregate gate and should be documented alongside individual commands.
+---
+## [2026-02-27 14:38:17 CET] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- What was implemented: Added a baseline GitHub Actions CI pipeline that runs on push and pull requests, installs dependencies with `uv`, and enforces lint/type/test quality gates; documented CI expectations in README.
+- Files changed: .github/workflows/ci.yml, README.md, AGENT.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: CI is expected to mirror local quality enforcement and should keep the same `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` commands.
+  - Gotchas encountered: There was no pre-existing `.github/workflows/` directory, so workflow setup must create it before adding jobs.
+  - Useful context: `astral-sh/setup-uv` plus `uv sync --dev` is sufficient for dependency setup in this repository's CI.
 ---
