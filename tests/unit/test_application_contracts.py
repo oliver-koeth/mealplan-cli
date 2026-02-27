@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import ValidationError as PydanticValidationError
 
 from mealplan.application.contracts import (
+    CONTRACT_UNITS_POLICY,
     MealPlanRequest,
     MealPlanResponse,
     ProbeRequest,
@@ -193,6 +194,24 @@ def test_meal_plan_response_placeholder_instantiates_full_shape() -> None:
         "dinner",
         "evening-snack",
     ]
+
+
+def test_contract_units_policy_covers_request_and_response_units() -> None:
+    """Contract module should publish explicit units metadata and legacy notes."""
+    assert CONTRACT_UNITS_POLICY == {
+        "age": "years",
+        "weight_kg": "kg",
+        "zones_minutes": "minutes",
+        "TDEE": "kcal/day (legacy field name retained for compatibility)",
+        "training_carbs_g": "g",
+        "protein_g": "g",
+        "carbs_g": "g",
+        "fat_g": "g",
+    }
+
+    assert MealPlanRequest.model_fields["age"].description == "Age in years."
+    assert MealPlanResponse.model_fields["TDEE"].description is not None
+    assert "kcal/day" in MealPlanResponse.model_fields["TDEE"].description
 
 
 def test_probe_request_parses_known_payload() -> None:

@@ -162,6 +162,10 @@ mealplan/
   - Strict typed request contract (Pydantic model or dataclass + validator), aligned to [MODEL.md](/Users/Oliver.Koeth/work/mealplan-cli/docs/MODEL.md).
 - Output schema:
   - Stable top-level numeric fields and ordered `meals[]` items, with field definitions and units sourced from `MODEL.md`.
+- Units naming policy:
+  - Use explicit unit suffixes in DTO field names where applicable: `weight_kg`, `*_g`, and `*_minutes`.
+  - `age` is expressed in years at the contract boundary (`MealPlanRequest.age`).
+  - `TDEE` remains a legacy response key for compatibility and represents kcal/day.
 - JSON schema:
   - Publish versioned JSON schema under `docs/schemas/mealplan-output.v1.json` (planned).
 - Validation boundaries:

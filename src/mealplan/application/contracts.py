@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, model_validator
 
@@ -11,6 +11,16 @@ from mealplan.domain.model import CANONICAL_MEAL_ORDER
 
 SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtime"]
 TrainingZoneKey = Literal["1", "2", "3", "4", "5"]
+CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
+    "age": "years",
+    "weight_kg": "kg",
+    "zones_minutes": "minutes",
+    "TDEE": "kcal/day (legacy field name retained for compatibility)",
+    "training_carbs_g": "g",
+    "protein_g": "g",
+    "carbs_g": "g",
+    "fat_g": "g",
+}
 
 
 class BoundaryModel(BaseModel):
@@ -22,16 +32,18 @@ class BoundaryModel(BaseModel):
 class TrainingSession(BoundaryModel):
     """Canonical training-session shape for request payloads."""
 
-    zones_minutes: dict[TrainingZoneKey, StrictInt]
+    zones_minutes: dict[TrainingZoneKey, StrictInt] = Field(
+        description="Training minutes per zone key ('1'..'5').",
+    )
     training_before_meal: MealName | None = None
 
 
 class MealPlanRequest(BoundaryModel):
     """Canonical request DTO for CLI/application parsing."""
 
-    age: StrictInt
+    age: StrictInt = Field(description="Age in years.")
     gender: Gender
-    weight_kg: StrictFloat
+    weight_kg: StrictFloat = Field(description="Body weight in kilograms.")
     activity_level: ActivityLevel
     carb_mode: CarbMode
     training_load_tomorrow: TrainingLoadTomorrow
@@ -50,7 +62,12 @@ class MealAllocation(BoundaryModel):
 class MealPlanResponse(BoundaryModel):
     """Canonical response DTO for application/CLI output payloads."""
 
-    TDEE: StrictFloat
+    TDEE: StrictFloat = Field(
+        description=(
+            "Legacy output field name representing total daily energy "
+            "expenditure (kcal/day)."
+        ),
+    )
     training_carbs_g: StrictFloat
     protein_g: StrictFloat
     carbs_g: StrictFloat

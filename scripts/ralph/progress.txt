@@ -5,6 +5,7 @@
 - Contract DTOs should subclass `BoundaryModel` at every nesting level so `extra="forbid"` applies recursively; use strict numeric types in DTO fields to prevent string-to-number coercion.
 - For constrained mapping keys in DTO contracts, type keys with `Literal` unions (for example `dict[Literal["1","2","3","4","5"], StrictInt]`) so out-of-domain keys fail schema parsing automatically.
 - Response DTOs with per-meal arrays should enforce canonical order at schema boundary (validator against `CANONICAL_MEAL_ORDER`) so serialized JSON stays deterministic.
+- Keep DTO units metadata centralized in `src/mealplan/application/contracts.py` as `CONTRACT_UNITS_POLICY`; document legacy naming exceptions there and mirror them in `docs/ARCHITECTURE.md`.
 
 Started: Fri Feb 27 16:44:58 CET 2026
 ---
@@ -74,4 +75,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - `US-005` expects exact response keys including uppercase `TDEE`; renaming to `tdee` breaks the canonical contract.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `MealPlanResponse.placeholder()` is now the intended way to instantiate full response shape before nutrition calculations are implemented.
+---
+## 2026-02-27 16:55:28 CET - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Implemented explicit contract-level units policy as `CONTRACT_UNITS_POLICY` and added field-level documentation for `age` (years), `weight_kg` (kg), `zones_minutes` (minutes), and legacy `TDEE` semantics (kcal/day).
+- Documented DTO naming policy and legacy `TDEE` compatibility in architecture docs to keep contract code and docs aligned.
+- Added unit tests asserting published units policy metadata and contract field descriptions for age/TDEE.
+- Files changed: AGENT.md, docs/ARCHITECTURE.md, src/mealplan/application/contracts.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Centralize cross-field contract metadata (like units) in the DTO module and test it directly so docs and schema boundaries stay synchronized.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `TDEE` must remain uppercase for compatibility even though the units naming policy prefers suffixes like `*_kcal`.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` catches both contract typing drift and documentation-adjacent regressions quickly for these Phase 2 stories.
 ---

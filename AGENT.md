@@ -39,6 +39,7 @@ When in doubt, update those source docs instead of expanding this file.
 10. For contract DTOs in `src/mealplan/application/contracts.py`, subclass `BoundaryModel` for every nested model so `extra="forbid"` is enforced at each level, and use strict numeric field types to block string coercion.
 11. For constrained `dict` keys in contracts (for example training zones), enforce allowed keys with `Literal` key typing (`dict[Literal[...], StrictInt]`) so invalid keys are rejected during schema parsing.
 12. For contract response DTOs, keep meal output ordering enforced at the model boundary (for example with a model validator against `CANONICAL_MEAL_ORDER`) and expose placeholder constructors for pre-calculation phases.
+13. Keep contract units metadata in `src/mealplan/application/contracts.py` as `CONTRACT_UNITS_POLICY` and document any legacy naming exceptions (for example `TDEE` as kcal/day) in both code and docs.
 
 ## Ralph Runner
 
