@@ -29,6 +29,15 @@ Tests follow the same intent and are grouped by scope:
 4. Verify the command entrypoint:
    `uv run mealplan --help`
 
+## Quality Checks
+
+- Run all local quality gates:
+  `make quality`
+- Run checks individually when needed:
+  `.venv/bin/uv run ruff check .`
+  `.venv/bin/uv run mypy --strict src`
+  `.venv/bin/uv run pytest`
+
 ## Dependency Lock Workflow
 
 - Refresh the lockfile after dependency changes:

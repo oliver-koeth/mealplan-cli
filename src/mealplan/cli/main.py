@@ -1,6 +1,7 @@
 """CLI entrypoint for the mealplan command."""
 
 import typer
+
 from mealplan.application.stub import get_probe_message
 
 app = typer.Typer(no_args_is_help=True, help="Mealplan command-line interface.")

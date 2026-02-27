@@ -6,6 +6,7 @@ Started: Fri Feb 27 13:29:43 CET 2026
 - Keep test scope folders present from the start (`tests/unit`, `tests/integration`, `tests/cli`, `tests/golden`) and maintain at least one smoke test for discovery.
 - Use `.venv/bin/uv` in automation and docs when environment bootstrap is uncertain, because `uv` may not be globally installed.
 - Keep CLI handlers thin: command functions should delegate deterministic placeholder behavior to `application` functions, not embed logic directly in `cli`.
+- Centralize local quality gates behind `make quality`, delegating to `.venv/bin/uv run` for `ruff`, `mypy --strict src`, and `pytest`.
 
 ## [2026-02-27 13:50:48 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
@@ -35,4 +36,14 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: Subprocess-based CLI tests (`python -m mealplan ...`) validate real entrypoint wiring and are stable for scaffold-level behavior checks.
   - Gotchas encountered: Deterministic output assertions should use exact `stdout.strip()` matching to avoid newline-related false negatives.
   - Useful context: The placeholder command path now runs `cli -> application` directly and can be swapped for real use-case orchestration in later stories.
+---
+
+## [2026-02-27 13:57:28 CET] - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- What was implemented: Added strict project quality configuration in `pyproject.toml` for Ruff, mypy, and pytest discovery; added a `Makefile` quality alias (`make quality`) to run lint/typecheck/tests; updated README with local quality command documentation.
+- Files changed: Makefile, README.md, pyproject.toml, src/mealplan/__main__.py, src/mealplan/cli/main.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: Ruff import sorting (`I001`) is enforced by the current rule set, so import order fixes may touch adjacent files when enabling stricter linting.
+  - Gotchas encountered: Running quality via `make quality` can surface pre-existing style issues; run lint first to get fast feedback before mypy/pytest.
+  - Useful context: pytest discovery is now configured in `pyproject.toml` (`testpaths=tests`), making `uv run pytest` and `make quality` consistent.
 ---
