@@ -6,6 +6,7 @@
 - For constrained mapping keys in DTO contracts, type keys with `Literal` unions (for example `dict[Literal["1","2","3","4","5"], StrictInt]`) so out-of-domain keys fail schema parsing automatically.
 - Response DTOs with per-meal arrays should enforce canonical order at schema boundary (validator against `CANONICAL_MEAL_ORDER`) so serialized JSON stays deterministic.
 - Keep DTO units metadata centralized in `src/mealplan/application/contracts.py` as `CONTRACT_UNITS_POLICY`; document legacy naming exceptions there and mirror them in `docs/ARCHITECTURE.md`.
+- Parse boundary payloads via `src/mealplan/application/parsing.py::parse_contract` to map `pydantic.ValidationError` into shared `ValidationError` with stable field-path details.
 
 Started: Fri Feb 27 16:44:58 CET 2026
 ---
@@ -89,4 +90,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - `TDEE` must remain uppercase for compatibility even though the units naming policy prefers suffixes like `*_kcal`.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `make quality` catches both contract typing drift and documentation-adjacent regressions quickly for these Phase 2 stories.
+---
+## 2026-02-27 16:57:58 CET - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
+- Implemented a contract-boundary parser helper (`parse_contract`) that maps pydantic parse failures into shared `ValidationError` with deterministic, field-path-first messages.
+- Wired CLI probe command to parse request payloads through the new boundary parser so parse errors stay on the shared validation error pathway.
+- Added unit tests validating deterministic mapping behavior, field-path inclusion, and compatibility with `ExitCode.VALIDATION` mapping.
+- Files changed: AGENT.md, src/mealplan/application/parsing.py, src/mealplan/cli/main.py, tests/unit/test_application_parsing.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Use `parse_contract` for any boundary payload (CLI/API/job input) instead of direct `model_validate`/constructor calls to keep validation errors uniform.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Pydantic nested-location paths may include key markers like `[key]`; assert deterministic equality and path presence in tests rather than brittle full-message snapshots.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` remains sufficient for this story and validates linting, strict typing, and parse-error mapping tests end-to-end.
 ---

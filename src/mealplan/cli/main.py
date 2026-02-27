@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from mealplan.application.contracts import ProbeRequest, SimulatedErrorKind
+from mealplan.application.parsing import parse_contract
 from mealplan.application.stub import run_probe
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 
@@ -26,7 +27,8 @@ def probe_command(
     simulate_error: SimulatedErrorKind | None = SIMULATED_ERROR_OPTION,
 ) -> None:
     """Run a deterministic placeholder command."""
-    response = run_probe(ProbeRequest(simulate_error=simulate_error))
+    request = parse_contract(ProbeRequest, {"simulate_error": simulate_error})
+    response = run_probe(request)
     typer.echo(response.message)
 
 
