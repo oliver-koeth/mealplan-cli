@@ -34,6 +34,27 @@ def test_meal_plan_request_parses_canonical_payload() -> None:
     assert request.training_session.training_before_meal == "lunch"
 
 
+def test_meal_plan_request_allows_missing_training_session() -> None:
+    """training_session is optional at schema-validation boundary."""
+    payload = _valid_request_payload()
+    payload.pop("training_session")
+
+    request = MealPlanRequest.model_validate(payload)
+    assert request.training_session is None
+
+
+def test_meal_plan_request_allows_missing_training_before_meal() -> None:
+    """Schema should allow missing training_before_meal; semantic checks are deferred."""
+    payload = _valid_request_payload()
+    payload["training_session"] = {
+        "zones_minutes": {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+    }
+
+    request = MealPlanRequest.model_validate(payload)
+    assert request.training_session is not None
+    assert request.training_session.training_before_meal is None
+
+
 def test_meal_plan_request_rejects_unknown_fields_at_root() -> None:
     """Unknown fields must be rejected at request root."""
     payload = _valid_request_payload()
@@ -73,6 +94,38 @@ def test_meal_plan_request_rejects_numeric_strings() -> None:
         pass
     else:
         raise AssertionError("Expected strict numeric validation to reject strings.")
+
+
+def test_meal_plan_request_rejects_out_of_domain_zone_keys() -> None:
+    """zones_minutes keys must be restricted to '1' through '5'."""
+    payload = _valid_request_payload()
+    payload["training_session"] = {
+        "zones_minutes": {"6": 10},
+        "training_before_meal": "lunch",
+    }
+
+    try:
+        MealPlanRequest.model_validate(payload)
+    except PydanticValidationError:
+        pass
+    else:
+        raise AssertionError("Expected invalid zone key validation to fail.")
+
+
+def test_meal_plan_request_rejects_non_integer_zone_minutes() -> None:
+    """zones_minutes values must be strict integers."""
+    payload = _valid_request_payload()
+    payload["training_session"] = {
+        "zones_minutes": {"1": "20"},
+        "training_before_meal": "lunch",
+    }
+
+    try:
+        MealPlanRequest.model_validate(payload)
+    except PydanticValidationError:
+        pass
+    else:
+        raise AssertionError("Expected invalid minute value type validation to fail.")
 
 
 def test_probe_request_parses_known_payload() -> None:

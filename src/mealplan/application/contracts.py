@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
 
 SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtime"]
+TrainingZoneKey = Literal["1", "2", "3", "4", "5"]
 
 
 class BoundaryModel(BaseModel):
@@ -20,8 +21,8 @@ class BoundaryModel(BaseModel):
 class TrainingSession(BoundaryModel):
     """Canonical training-session shape for request payloads."""
 
-    zones_minutes: dict[str, StrictInt]
-    training_before_meal: MealName
+    zones_minutes: dict[TrainingZoneKey, StrictInt]
+    training_before_meal: MealName | None = None
 
 
 class MealPlanRequest(BoundaryModel):
@@ -33,7 +34,7 @@ class MealPlanRequest(BoundaryModel):
     activity_level: ActivityLevel
     carb_mode: CarbMode
     training_load_tomorrow: TrainingLoadTomorrow
-    training_session: TrainingSession
+    training_session: TrainingSession | None = None
 
 
 class ProbeRequest(BoundaryModel):
