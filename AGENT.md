@@ -34,6 +34,7 @@ When in doubt, update those source docs instead of expanding this file.
    - append a short entry to `scripts/ralph/progress.txt` (what changed, files touched, checks run)
 6. If a story reveals reusable repo-level conventions, update this file briefly.
 7. Keep CI quality gates in `.github/workflows/ci.yml` aligned with local `make quality` commands.
+8. For Phase 2+ contract work, keep domain enum values centralized in `src/mealplan/domain/enums.py` and import from `mealplan.domain.enums`.
 
 ## Ralph Runner
 
