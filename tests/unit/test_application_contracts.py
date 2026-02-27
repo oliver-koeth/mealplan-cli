@@ -6,7 +6,12 @@ from typing import Any
 
 from pydantic import ValidationError as PydanticValidationError
 
-from mealplan.application.contracts import MealPlanRequest, ProbeRequest, ProbeResponse
+from mealplan.application.contracts import (
+    MealPlanRequest,
+    MealPlanResponse,
+    ProbeRequest,
+    ProbeResponse,
+)
 
 
 def _valid_request_payload() -> dict[str, Any]:
@@ -21,6 +26,24 @@ def _valid_request_payload() -> dict[str, Any]:
             "zones_minutes": {"1": 20, "2": 40, "3": 0, "4": 0, "5": 0},
             "training_before_meal": "lunch",
         },
+    }
+
+
+def _valid_response_payload() -> dict[str, Any]:
+    return {
+        "TDEE": 2400.0,
+        "training_carbs_g": 60.0,
+        "protein_g": 150.0,
+        "carbs_g": 280.0,
+        "fat_g": 80.0,
+        "meals": [
+            {"meal": "breakfast", "carbs_g": 50.0, "protein_g": 25.0, "fat_g": 15.0},
+            {"meal": "morning-snack", "carbs_g": 30.0, "protein_g": 15.0, "fat_g": 10.0},
+            {"meal": "lunch", "carbs_g": 70.0, "protein_g": 35.0, "fat_g": 20.0},
+            {"meal": "afternoon-snack", "carbs_g": 35.0, "protein_g": 15.0, "fat_g": 10.0},
+            {"meal": "dinner", "carbs_g": 65.0, "protein_g": 40.0, "fat_g": 20.0},
+            {"meal": "evening-snack", "carbs_g": 30.0, "protein_g": 20.0, "fat_g": 5.0},
+        ],
     }
 
 
@@ -126,6 +149,50 @@ def test_meal_plan_request_rejects_non_integer_zone_minutes() -> None:
         pass
     else:
         raise AssertionError("Expected invalid minute value type validation to fail.")
+
+
+def test_meal_plan_response_serializes_full_contract_shape() -> None:
+    """Response DTO should preserve exact top-level and nested keys."""
+    response = MealPlanResponse.model_validate(_valid_response_payload())
+
+    assert response.model_dump() == _valid_response_payload()
+
+
+def test_meal_plan_response_requires_canonical_meal_order() -> None:
+    """Meals must follow the canonical ordering contract."""
+    payload = _valid_response_payload()
+    payload["meals"] = [payload["meals"][1], payload["meals"][0], *payload["meals"][2:]]
+
+    try:
+        MealPlanResponse.model_validate(payload)
+    except PydanticValidationError:
+        pass
+    else:
+        raise AssertionError("Expected out-of-order meals validation to fail.")
+
+
+def test_meal_plan_response_json_serialization_is_deterministic() -> None:
+    """Equivalent models should produce byte-identical JSON output."""
+    payload = _valid_response_payload()
+    left = MealPlanResponse.model_validate(payload)
+    right = MealPlanResponse.model_validate(payload)
+
+    assert left.model_dump_json() == right.model_dump_json()
+
+
+def test_meal_plan_response_placeholder_instantiates_full_shape() -> None:
+    """Placeholder response should be usable before calculation logic exists."""
+    response = MealPlanResponse.placeholder()
+
+    assert response.TDEE == 0.0
+    assert [meal.meal for meal in response.meals] == [
+        "breakfast",
+        "morning-snack",
+        "lunch",
+        "afternoon-snack",
+        "dinner",
+        "evening-snack",
+    ]
 
 
 def test_probe_request_parses_known_payload() -> None:

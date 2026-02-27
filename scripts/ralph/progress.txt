@@ -4,6 +4,7 @@
 - Canonical meal sequencing lives in `src/mealplan/domain/model.py` as `CANONICAL_MEAL_ORDER`; downstream modules should import this constant instead of recreating ordered meal lists.
 - Contract DTOs should subclass `BoundaryModel` at every nesting level so `extra="forbid"` applies recursively; use strict numeric types in DTO fields to prevent string-to-number coercion.
 - For constrained mapping keys in DTO contracts, type keys with `Literal` unions (for example `dict[Literal["1","2","3","4","5"], StrictInt]`) so out-of-domain keys fail schema parsing automatically.
+- Response DTOs with per-meal arrays should enforce canonical order at schema boundary (validator against `CANONICAL_MEAL_ORDER`) so serialized JSON stays deterministic.
 
 Started: Fri Feb 27 16:44:58 CET 2026
 ---
@@ -59,4 +60,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Keep `training_before_meal` optional in Phase 2 contracts even when zone minutes are present; required-if-minutes>0 belongs to Phase 3 semantic validation.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `make quality` should be re-run after any contract test additions to validate strict typing assumptions under `mypy --strict`.
+---
+## 2026-02-27 16:53:44 CET - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented canonical response contracts in `MealPlanResponse` and nested `MealAllocation` with exact required top-level and nested fields.
+- Enforced canonical meal serialization order with a model-level validator against `CANONICAL_MEAL_ORDER`, and added a `MealPlanResponse.placeholder()` constructor for pre-calculation phases.
+- Added response contract tests for exact key shape, canonical order rejection, deterministic JSON serialization, and placeholder instantiation.
+- Files changed: AGENT.md, src/mealplan/application/contracts.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Response boundary determinism is best enforced directly in DTO validation/serialization tests rather than in CLI glue code.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `US-005` expects exact response keys including uppercase `TDEE`; renaming to `tdee` breaks the canonical contract.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `MealPlanResponse.placeholder()` is now the intended way to instantiate full response shape before nutrition calculations are implemented.
 ---
