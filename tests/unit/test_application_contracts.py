@@ -15,42 +15,11 @@ from mealplan.application.contracts import (
 )
 
 
-def _valid_request_payload() -> dict[str, Any]:
-    return {
-        "age": 35,
-        "gender": "male",
-        "weight_kg": 72.5,
-        "activity_level": "medium",
-        "carb_mode": "periodized",
-        "training_load_tomorrow": "high",
-        "training_session": {
-            "zones_minutes": {"1": 20, "2": 40, "3": 0, "4": 0, "5": 0},
-            "training_before_meal": "lunch",
-        },
-    }
-
-
-def _valid_response_payload() -> dict[str, Any]:
-    return {
-        "TDEE": 2400.0,
-        "training_carbs_g": 60.0,
-        "protein_g": 150.0,
-        "carbs_g": 280.0,
-        "fat_g": 80.0,
-        "meals": [
-            {"meal": "breakfast", "carbs_g": 50.0, "protein_g": 25.0, "fat_g": 15.0},
-            {"meal": "morning-snack", "carbs_g": 30.0, "protein_g": 15.0, "fat_g": 10.0},
-            {"meal": "lunch", "carbs_g": 70.0, "protein_g": 35.0, "fat_g": 20.0},
-            {"meal": "afternoon-snack", "carbs_g": 35.0, "protein_g": 15.0, "fat_g": 10.0},
-            {"meal": "dinner", "carbs_g": 65.0, "protein_g": 40.0, "fat_g": 20.0},
-            {"meal": "evening-snack", "carbs_g": 30.0, "protein_g": 20.0, "fat_g": 5.0},
-        ],
-    }
-
-
-def test_meal_plan_request_parses_canonical_payload() -> None:
+def test_meal_plan_request_parses_canonical_payload(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
     """Request DTO should parse the canonical schema shape without coercion."""
-    request = MealPlanRequest.model_validate(_valid_request_payload())
+    request = MealPlanRequest.model_validate(meal_plan_request_payload)
 
     assert request.age == 35
     assert request.weight_kg == 72.5
@@ -58,18 +27,22 @@ def test_meal_plan_request_parses_canonical_payload() -> None:
     assert request.training_session.training_before_meal == "lunch"
 
 
-def test_meal_plan_request_allows_missing_training_session() -> None:
+def test_meal_plan_request_allows_missing_training_session(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
     """training_session is optional at schema-validation boundary."""
-    payload = _valid_request_payload()
+    payload = meal_plan_request_payload
     payload.pop("training_session")
 
     request = MealPlanRequest.model_validate(payload)
     assert request.training_session is None
 
 
-def test_meal_plan_request_allows_missing_training_before_meal() -> None:
+def test_meal_plan_request_allows_missing_training_before_meal(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
     """Schema should allow missing training_before_meal; semantic checks are deferred."""
-    payload = _valid_request_payload()
+    payload = meal_plan_request_payload
     payload["training_session"] = {
         "zones_minutes": {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
     }
@@ -79,9 +52,11 @@ def test_meal_plan_request_allows_missing_training_before_meal() -> None:
     assert request.training_session.training_before_meal is None
 
 
-def test_meal_plan_request_rejects_unknown_fields_at_root() -> None:
+def test_meal_plan_request_rejects_unknown_fields_at_root(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
     """Unknown fields must be rejected at request root."""
-    payload = _valid_request_payload()
+    payload = meal_plan_request_payload
     payload["unexpected"] = "x"
 
     try:
@@ -92,9 +67,11 @@ def test_meal_plan_request_rejects_unknown_fields_at_root() -> None:
         raise AssertionError("Expected unknown root field validation to fail.")
 
 
-def test_meal_plan_request_rejects_unknown_fields_in_training_session() -> None:
+def test_meal_plan_request_rejects_unknown_fields_in_training_session(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
     """Unknown fields must also be rejected for nested contracts."""
-    payload = _valid_request_payload()
+    payload = meal_plan_request_payload
     training_session = dict(payload["training_session"])
     training_session["unexpected"] = "x"
     payload["training_session"] = training_session
@@ -107,9 +84,11 @@ def test_meal_plan_request_rejects_unknown_fields_in_training_session() -> None:
         raise AssertionError("Expected unknown nested field validation to fail.")
 
 
-def test_meal_plan_request_rejects_numeric_strings() -> None:
+def test_meal_plan_request_rejects_numeric_strings(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
     """Strict numeric fields should reject string input instead of coercing."""
-    payload = _valid_request_payload()
+    payload = meal_plan_request_payload
     payload["age"] = "35"
 
     try:
@@ -120,9 +99,11 @@ def test_meal_plan_request_rejects_numeric_strings() -> None:
         raise AssertionError("Expected strict numeric validation to reject strings.")
 
 
-def test_meal_plan_request_rejects_out_of_domain_zone_keys() -> None:
+def test_meal_plan_request_rejects_out_of_domain_zone_keys(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
     """zones_minutes keys must be restricted to '1' through '5'."""
-    payload = _valid_request_payload()
+    payload = meal_plan_request_payload
     payload["training_session"] = {
         "zones_minutes": {"6": 10},
         "training_before_meal": "lunch",
@@ -136,9 +117,11 @@ def test_meal_plan_request_rejects_out_of_domain_zone_keys() -> None:
         raise AssertionError("Expected invalid zone key validation to fail.")
 
 
-def test_meal_plan_request_rejects_non_integer_zone_minutes() -> None:
+def test_meal_plan_request_rejects_non_integer_zone_minutes(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
     """zones_minutes values must be strict integers."""
-    payload = _valid_request_payload()
+    payload = meal_plan_request_payload
     payload["training_session"] = {
         "zones_minutes": {"1": "20"},
         "training_before_meal": "lunch",
@@ -152,16 +135,20 @@ def test_meal_plan_request_rejects_non_integer_zone_minutes() -> None:
         raise AssertionError("Expected invalid minute value type validation to fail.")
 
 
-def test_meal_plan_response_serializes_full_contract_shape() -> None:
+def test_meal_plan_response_serializes_full_contract_shape(
+    meal_plan_response_payload: dict[str, Any],
+) -> None:
     """Response DTO should preserve exact top-level and nested keys."""
-    response = MealPlanResponse.model_validate(_valid_response_payload())
+    response = MealPlanResponse.model_validate(meal_plan_response_payload)
 
-    assert response.model_dump() == _valid_response_payload()
+    assert response.model_dump() == meal_plan_response_payload
 
 
-def test_meal_plan_response_requires_canonical_meal_order() -> None:
+def test_meal_plan_response_requires_canonical_meal_order(
+    meal_plan_response_payload: dict[str, Any],
+) -> None:
     """Meals must follow the canonical ordering contract."""
-    payload = _valid_response_payload()
+    payload = meal_plan_response_payload
     payload["meals"] = [payload["meals"][1], payload["meals"][0], *payload["meals"][2:]]
 
     try:
@@ -172,9 +159,11 @@ def test_meal_plan_response_requires_canonical_meal_order() -> None:
         raise AssertionError("Expected out-of-order meals validation to fail.")
 
 
-def test_meal_plan_response_json_serialization_is_deterministic() -> None:
+def test_meal_plan_response_json_serialization_is_deterministic(
+    meal_plan_response_payload: dict[str, Any],
+) -> None:
     """Equivalent models should produce byte-identical JSON output."""
-    payload = _valid_response_payload()
+    payload = meal_plan_response_payload
     left = MealPlanResponse.model_validate(payload)
     right = MealPlanResponse.model_validate(payload)
 

@@ -7,6 +7,7 @@
 - Response DTOs with per-meal arrays should enforce canonical order at schema boundary (validator against `CANONICAL_MEAL_ORDER`) so serialized JSON stays deterministic.
 - Keep DTO units metadata centralized in `src/mealplan/application/contracts.py` as `CONTRACT_UNITS_POLICY`; document legacy naming exceptions there and mirror them in `docs/ARCHITECTURE.md`.
 - Parse boundary payloads via `src/mealplan/application/parsing.py::parse_contract` to map `pydantic.ValidationError` into shared `ValidationError` with stable field-path details.
+- Store canonical valid contract payloads in `tests/unit/conftest.py` and consume them as fixtures across contract-focused test modules to prevent drift in sample request/response shapes.
 
 Started: Fri Feb 27 16:44:58 CET 2026
 ---
@@ -103,5 +104,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
   - Pydantic nested-location paths may include key markers like `[key]`; assert deterministic equality and path presence in tests rather than brittle full-message snapshots.
   - Useful context (e.g., "the evaluation panel is in component X")
-  - `make quality` remains sufficient for this story and validates linting, strict typing, and parse-error mapping tests end-to-end.
+- `make quality` remains sufficient for this story and validates linting, strict typing, and parse-error mapping tests end-to-end.
+---
+## 2026-02-27 17:00:22 CET - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Added reusable canonical positive fixtures for `MealPlanRequest` and `MealPlanResponse` payloads in `tests/unit/conftest.py`.
+- Refactored contract and parsing test modules to consume the shared fixtures, removing duplicated inline payload literals while keeping deterministic validation assertions.
+- Files changed: AGENT.md, tests/unit/conftest.py, tests/unit/test_application_contracts.py, tests/unit/test_application_parsing.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Shared fixture usage across modules is preferred for canonical payload examples to keep request/response samples synchronized as contracts evolve.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Keep fixture scope function-level when tests mutate payload dictionaries, so each test receives an isolated payload instance.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` quickly validates fixture reuse changes across linting, strict typing, and full test execution.
 ---

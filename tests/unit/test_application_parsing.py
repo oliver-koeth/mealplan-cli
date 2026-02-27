@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from mealplan.application.contracts import MealPlanRequest, ProbeRequest
 from mealplan.application.parsing import parse_contract
 from mealplan.shared.errors import ValidationError
@@ -23,19 +25,14 @@ def test_parse_contract_maps_pydantic_failure_to_validation_error() -> None:
         raise AssertionError("Expected parse failure to map to ValidationError.")
 
 
-def test_parse_contract_error_message_is_deterministic_for_nested_paths() -> None:
+def test_parse_contract_error_message_is_deterministic_for_nested_paths(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
     """Repeated invalid payloads should produce stable mapped validation messages."""
-    payload = {
-        "age": 35,
-        "gender": "male",
-        "weight_kg": 72.5,
-        "activity_level": "medium",
-        "carb_mode": "periodized",
-        "training_load_tomorrow": "high",
-        "training_session": {
-            "zones_minutes": {"6": 10},
-            "training_before_meal": "lunch",
-        },
+    payload = meal_plan_request_payload
+    payload["training_session"] = {
+        "zones_minutes": {"6": 10},
+        "training_before_meal": "lunch",
     }
 
     errors: list[str] = []
