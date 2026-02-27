@@ -9,6 +9,7 @@
 - Keep DTO units metadata centralized in `src/mealplan/application/contracts.py` as `CONTRACT_UNITS_POLICY`; document legacy naming exceptions there and mirror them in `docs/ARCHITECTURE.md`.
 - Parse boundary payloads via `src/mealplan/application/parsing.py::parse_contract` to map `pydantic.ValidationError` into shared `ValidationError` with stable field-path details.
 - Store canonical valid contract payloads in `tests/unit/conftest.py` and consume them as fixtures across contract-focused test modules to prevent drift in sample request/response shapes.
+- Keep contract integration docs in `docs/ARCHITECTURE.md` section 10; when contracts change, update module paths, exact field lists, validation-boundary notes, and valid request/response JSON examples together.
 
 Started: Fri Feb 27 16:44:58 CET 2026
 ---
@@ -133,4 +134,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Validate failure behavior by pydantic error category (`errors()[*]['type']`) rather than full strings to keep tests stable across wording changes.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `make quality` remains the single gate and currently exercises all contract matrix tests in `tests/unit/test_application_contracts.py`.
+---
+## 2026-02-27 17:43:57 CET - US-010
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Documented canonical Phase 2 contract integration details in `docs/ARCHITECTURE.md` section 10, including exact enum/DTO module paths, exact request and response field names, canonical meal-order source and usage, and explicit Phase 2 schema-validation vs Phase 3 semantic-validation boundary.
+- Added one valid request JSON example and one valid response JSON example using canonical field names and meal ordering.
+- Ran `make quality` successfully (`ruff check .`, `mypy --strict src`, `pytest`).
+- Files changed: AGENT.md, docs/ARCHITECTURE.md, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Contract documentation is expected in `docs/ARCHITECTURE.md` section 10 and should be updated in lockstep with DTO/enum changes to avoid integration drift.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `US-010` requires concrete canonical paths and exact field lists, not only high-level architecture prose.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - Existing contract examples in docs should preserve exact response key casing (`TDEE`) and canonical meal ordering.
 ---

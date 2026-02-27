@@ -43,6 +43,7 @@ When in doubt, update those source docs instead of expanding this file.
 14. Parse external payloads through `src/mealplan/application/parsing.py::parse_contract` so pydantic failures are mapped to shared `ValidationError` with stable field-path messages for CLI exit-code handling.
 15. Reuse canonical contract test payloads from `tests/unit/conftest.py` fixtures (`meal_plan_request_payload`, `meal_plan_response_payload`) instead of duplicating request/response literals across test modules.
 16. For negative contract matrix tests, assert stable pydantic error categories (`error["type"]`) rather than full error-message snapshots to avoid brittle tests.
+17. When contract shapes or enum sets change, update `docs/ARCHITECTURE.md` section 10 with canonical module paths, exact request/response field names, canonical meal order usage, Phase 2 schema-vs-Phase 3 semantic boundary, and one valid request/response JSON example.
 
 ## Ralph Runner
 
