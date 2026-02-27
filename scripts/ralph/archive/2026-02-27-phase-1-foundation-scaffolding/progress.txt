@@ -1,3 +1,13 @@
 # Ralph Progress Log
-Started: Fri Feb 27 11:26:59 CET 2026
----
+Started: Fri Feb 27 2026
+
+## Codebase Patterns
+- Keep architecture boundaries explicit with package folders under `src/mealplan/`: `cli`, `application`, `domain`, `infrastructure`, `shared`.
+- Keep test scope folders present from the start (`tests/unit`, `tests/integration`, `tests/cli`, `tests/golden`) and maintain at least one smoke test for discovery.
+- Use `.venv/bin/uv` in automation and docs when environment bootstrap is uncertain, because `uv` may not be globally installed.
+- Keep CLI handlers thin: command functions should delegate deterministic placeholder behavior to `application` functions, not embed logic directly in `cli`.
+- Centralize local quality gates behind `make quality`, delegating to `.venv/bin/uv run` for `ruff`, `mypy --strict src`, and `pytest`.
+- Keep CLI failure handling centralized in `mealplan.cli.main:main` by mapping exceptions via `mealplan.shared.exit_codes.map_exception_to_exit_code` and exiting with canonical codes.
+- Place boundary contracts in `src/mealplan/application/contracts.py` as Pydantic models and pass them through use-case functions, keeping CLI argument parsing and business flow orchestration separated.
+- Keep contributor workflow details in `CONTRIBUTING.md`, and link it from `README.md` for discoverability.
+- Keep GitHub Actions quality gates aligned with local `make quality` commands (`ruff`, `mypy --strict src`, `pytest`) and install deps via `uv sync --dev`.

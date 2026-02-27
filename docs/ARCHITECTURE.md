@@ -159,16 +159,70 @@ mealplan/
 
 ## 10. Data Contracts
 - Input schema:
-  - Strict typed request contract (Pydantic model or dataclass + validator), aligned to [MODEL.md](/Users/Oliver.Koeth/work/mealplan-cli/docs/MODEL.md).
+  - Canonical request DTO module path: `src/mealplan/application/contracts.py` (`MealPlanRequest`, `TrainingSession`).
+  - Canonical enum module path: `src/mealplan/domain/enums.py` (import through `mealplan.domain.enums`).
+  - `MealPlanRequest` exact fields: `age`, `gender`, `weight_kg`, `activity_level`, `carb_mode`, `training_load_tomorrow`, `training_session`.
+  - `TrainingSession` exact fields: `zones_minutes`, `training_before_meal`.
+  - Unknown fields are forbidden at every nesting level.
 - Output schema:
-  - Stable top-level numeric fields and ordered `meals[]` items, with field definitions and units sourced from `MODEL.md`.
+  - Canonical response DTO module path: `src/mealplan/application/contracts.py` (`MealPlanResponse`, `MealAllocation`).
+  - `MealPlanResponse` exact top-level fields: `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `meals`.
+  - `MealAllocation` exact fields: `meal`, `carbs_g`, `protein_g`, `fat_g`.
+  - `meals[]` is serialized in canonical order only.
+- Canonical meal order:
+  - Single source: `src/mealplan/domain/model.py` `CANONICAL_MEAL_ORDER`.
+  - Required order: `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`.
+  - Use this order in response DTO validation and all future allocation/output assembly code.
+- Units naming policy:
+  - Use explicit unit suffixes in DTO field names where applicable: `weight_kg`, `*_g`, and `*_minutes`.
+  - `age` is expressed in years at the contract boundary (`MealPlanRequest.age`).
+  - `TDEE` remains a legacy response key for compatibility and represents kcal/day.
 - JSON schema:
   - Publish versioned JSON schema under `docs/schemas/mealplan-output.v1.json` (planned).
 - Validation boundaries:
-  - Syntax/type at CLI parsing.
-  - Semantic invariants in application/domain validators.
+  - Phase 2 boundary: schema validation only (types, required fields, enum membership, unknown-field rejection, structural shape).
+  - Phase 3 boundary: business-rule/semantic validation (for example: required-if-training-minutes>0 checks and nutrition rule invariants).
 - Typing discipline:
   - Full type hints; `mypy` strict mode for domain/application packages.
+- Valid request JSON example:
+```json
+{
+  "age": 35,
+  "gender": "male",
+  "weight_kg": 72.5,
+  "activity_level": "medium",
+  "carb_mode": "periodized",
+  "training_load_tomorrow": "high",
+  "training_session": {
+    "zones_minutes": {
+      "1": 20,
+      "2": 40,
+      "3": 0,
+      "4": 0,
+      "5": 0
+    },
+    "training_before_meal": "lunch"
+  }
+}
+```
+- Valid response JSON example:
+```json
+{
+  "TDEE": 2500.0,
+  "training_carbs_g": 60.0,
+  "protein_g": 145.0,
+  "carbs_g": 290.0,
+  "fat_g": 70.0,
+  "meals": [
+    {"meal": "breakfast", "carbs_g": 40.0, "protein_g": 24.0, "fat_g": 12.0},
+    {"meal": "morning-snack", "carbs_g": 35.0, "protein_g": 20.0, "fat_g": 10.0},
+    {"meal": "lunch", "carbs_g": 75.0, "protein_g": 32.0, "fat_g": 16.0},
+    {"meal": "afternoon-snack", "carbs_g": 35.0, "protein_g": 20.0, "fat_g": 10.0},
+    {"meal": "dinner", "carbs_g": 75.0, "protein_g": 32.0, "fat_g": 16.0},
+    {"meal": "evening-snack", "carbs_g": 30.0, "protein_g": 17.0, "fat_g": 6.0}
+  ]
+}
+```
 
 ## 11. Configuration Architecture
 - Precedence:

@@ -1,22 +1,195 @@
 {
-  "project": "YourProject",
-  "branchName": "ralph/smoke",
-  "description": "Smoke test - verify Ralph + Codex loop works end-to-end",
+  "project": "mealplan",
+  "branchName": "ralph/phase-2-canonical-contracts-and-validation",
+  "description": "Phase 2 canonical contracts and validation for mealplan: lock enums, DTOs, canonical meal ordering, and schema-level validation boundaries before core calculation phases.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Create smoke marker file",
-      "description": "As a developer, I want a smoke marker file so I can confirm Ralph executed.",
+      "title": "Implement canonical enums",
+      "description": "As a developer, I want canonical enums for required domain dimensions so all layers use the same allowed values.",
       "acceptanceCriteria": [
-        "Create a new file at repo root named RALPH_SMOKE.txt with exactly: ok\\n",
-        "Commit the change",
-        "Update scripts/ralph/prd.json to set passes: true for US-001",
-        "Append a short entry to scripts/ralph/progress.txt",
+        "Add enums for Gender, ActivityLevel, CarbMode, TrainingLoadTomorrow, and MealName.",
+        "Enum serialized values are exactly: Gender={male,female}, ActivityLevel={low,medium,high}, CarbMode={low,normal,periodized}, TrainingLoadTomorrow={low,medium,high}, MealName={breakfast,morning-snack,lunch,afternoon-snack,dinner,evening-snack}.",
+        "Enums are imported from one canonical module path.",
+        "Unit tests verify accepted enum values and reject unknown values.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": false,
-      "notes": "If this repo has no typecheck, treat this as: no build errors, and keep git status clean after commit."
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Define canonical meal order constant",
+      "description": "As a developer, I want one shared meal sequence so all allocation and output code uses deterministic ordering.",
+      "acceptanceCriteria": [
+        "Add a single exported constant for canonical meal order in the domain model module.",
+        "Exact order is: breakfast, morning-snack, lunch, afternoon-snack, dinner, evening-snack.",
+        "Sequence includes six unique MealName entries.",
+        "Tests verify uniqueness, count, and exact order.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create request DTO with strict schema validation",
+      "description": "As an application service, I want a typed request contract so incoming CLI payloads are parsed consistently.",
+      "acceptanceCriteria": [
+        "Implement pydantic request DTO with exact fields: age, gender, weight_kg, activity_level, carb_mode, training_load_tomorrow, training_session.",
+        "Implement training_session with exact fields: zones_minutes and training_before_meal.",
+        "Unknown fields are forbidden at all contract levels.",
+        "Strict numeric typing is enforced for numeric fields; numeric strings are rejected.",
+        "No business-rule checks are added beyond schema typing and required-field presence.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Define training zones key and optionality policy",
+      "description": "As a developer, I want an unambiguous training-zones contract so future fueling logic has a stable input shape.",
+      "acceptanceCriteria": [
+        "zones_minutes is typed as a mapping with string keys limited to '1','2','3','4','5' and integer minute values.",
+        "training_session is optional in the request DTO.",
+        "training_before_meal is optional when training_session is omitted or total minutes are zero; required-if-total-minutes>0 is deferred to Phase 3 semantic validation.",
+        "Schema-level parsing rejects out-of-domain zone keys and non-integer minute value types.",
+        "Contract tests cover valid parsing and invalid type payloads.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Define full response DTO shape",
+      "description": "As a consumer of application output, I want a complete response contract now so later phases can fill values without breaking interface stability.",
+      "acceptanceCriteria": [
+        "Implement full response DTO with exact top-level fields: TDEE, training_carbs_g, protein_g, carbs_g, fat_g, meals.",
+        "Each meals[] item has exact fields: meal, carbs_g, protein_g, fat_g.",
+        "meal values use MealName enum values and are serialized in canonical meal order.",
+        "Response supports deterministic JSON serialization for identical model inputs.",
+        "Placeholder values can be instantiated for non-implemented calculations.",
+        "Contract tests verify serialization keys and nested structure exactly.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Standardize units policy in contracts",
+      "description": "As a developer, I want explicit units policy in DTOs so all consumers interpret numeric values consistently.",
+      "acceptanceCriteria": [
+        "Adopt units naming convention: weight_kg, *_g, *_kcal, *_minutes for numeric fields where applicable.",
+        "Document that TDEE is a legacy output name representing kcal/day.",
+        "Document age unit as years.",
+        "Units policy lives with contract definitions and in docs.",
+        "No rounding policy implementation is introduced in this phase.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Wire typed validation errors at contract boundary",
+      "description": "As a CLI/application boundary, I want parsing failures to map to existing typed validation errors.",
+      "acceptanceCriteria": [
+        "Pydantic parse failures are wrapped or mapped to ValidationError.",
+        "Mapping behavior is deterministic and unit-tested.",
+        "Error message includes at least the invalid field path.",
+        "Exit-code pathway remains compatible with Phase 1 shared exit codes.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add positive contract fixtures",
+      "description": "As a test author, I want canonical valid request and response fixtures so future phases can reuse stable contract examples.",
+      "acceptanceCriteria": [
+        "Add reusable valid request fixture covering all required request fields and optional training_session example.",
+        "Add reusable valid response fixture covering all response fields and exactly six meals in canonical order.",
+        "Fixtures are deterministic and free of time or random dependencies.",
+        "Tests consume fixtures in at least two contract test modules.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Add negative contract matrix tests",
+      "description": "As a maintainer, I want matrix-style invalid-input tests so schema regressions are caught immediately.",
+      "acceptanceCriteria": [
+        "Add parameterized tests for missing required fields in request and response DTOs.",
+        "Add parameterized tests for invalid enum values.",
+        "Add parameterized tests for wrong primitive types and numeric-string rejection.",
+        "Add parameterized tests for malformed nested structures and invalid meals[] item shape.",
+        "Add parameterized tests for invalid zones_minutes keys outside '1'..'5'.",
+        "Tests assert stable failure type or category, not brittle full-message snapshots.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Document canonical contracts for downstream phases",
+      "description": "As a contributor, I want concise contract documentation so calculation and CLI phases can integrate without ambiguity.",
+      "acceptanceCriteria": [
+        "Update docs to reference canonical enum module and DTO module paths.",
+        "Document exact canonical request and response field names defined in this PRD.",
+        "Document canonical meal order and where it must be used.",
+        "Document explicit boundary: schema validation in Phase 2 and business-rule validation deferred to Phase 3.",
+        "Provide one valid request JSON and one valid response JSON example matching canonical field names.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
     }
   ]
 }

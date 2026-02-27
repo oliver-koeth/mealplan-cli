@@ -1,91 +1,151 @@
 # Ralph Progress Log
-Started: Fri Feb 27 13:29:43 CET 2026
-
 ## Codebase Patterns
-- Keep architecture boundaries explicit with package folders under `src/mealplan/`: `cli`, `application`, `domain`, `infrastructure`, `shared`.
-- Keep test scope folders present from the start (`tests/unit`, `tests/integration`, `tests/cli`, `tests/golden`) and maintain at least one smoke test for discovery.
-- Use `.venv/bin/uv` in automation and docs when environment bootstrap is uncertain, because `uv` may not be globally installed.
-- Keep CLI handlers thin: command functions should delegate deterministic placeholder behavior to `application` functions, not embed logic directly in `cli`.
-- Centralize local quality gates behind `make quality`, delegating to `.venv/bin/uv run` for `ruff`, `mypy --strict src`, and `pytest`.
-- Keep CLI failure handling centralized in `mealplan.cli.main:main` by mapping exceptions via `mealplan.shared.exit_codes.map_exception_to_exit_code` and exiting with canonical codes.
-- Place boundary contracts in `src/mealplan/application/contracts.py` as Pydantic models and pass them through use-case functions, keeping CLI argument parsing and business flow orchestration separated.
-- Keep contributor workflow details in `CONTRIBUTING.md`, and link it from `README.md` for discoverability.
-- Keep GitHub Actions quality gates aligned with local `make quality` commands (`ruff`, `mypy --strict src`, `pytest`) and install deps via `uv sync --dev`.
+- In contract negative tests, assert pydantic error categories (`errors()[*]['type']`) instead of full message text to keep failures stable across formatting changes.
+- Canonical domain enums are defined in `src/mealplan/domain/enums.py`; import enum types from `mealplan.domain.enums` to avoid duplicated value definitions.
+- Canonical meal sequencing lives in `src/mealplan/domain/model.py` as `CANONICAL_MEAL_ORDER`; downstream modules should import this constant instead of recreating ordered meal lists.
+- Contract DTOs should subclass `BoundaryModel` at every nesting level so `extra="forbid"` applies recursively; use strict numeric types in DTO fields to prevent string-to-number coercion.
+- For constrained mapping keys in DTO contracts, type keys with `Literal` unions (for example `dict[Literal["1","2","3","4","5"], StrictInt]`) so out-of-domain keys fail schema parsing automatically.
+- Response DTOs with per-meal arrays should enforce canonical order at schema boundary (validator against `CANONICAL_MEAL_ORDER`) so serialized JSON stays deterministic.
+- Keep DTO units metadata centralized in `src/mealplan/application/contracts.py` as `CONTRACT_UNITS_POLICY`; document legacy naming exceptions there and mirror them in `docs/ARCHITECTURE.md`.
+- Parse boundary payloads via `src/mealplan/application/parsing.py::parse_contract` to map `pydantic.ValidationError` into shared `ValidationError` with stable field-path details.
+- Store canonical valid contract payloads in `tests/unit/conftest.py` and consume them as fixtures across contract-focused test modules to prevent drift in sample request/response shapes.
+- Keep contract integration docs in `docs/ARCHITECTURE.md` section 10; when contracts change, update module paths, exact field lists, validation-boundary notes, and valid request/response JSON examples together.
 
-## [2026-02-27 13:50:48 CET] - US-001
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
-- What was implemented: Added the architecture-aligned source and test skeleton, package marker files, a placeholder smoke test, and README directory-layout documentation.
-- Files changed: .gitignore, README.md, src/mealplan/__init__.py, src/mealplan/application/__init__.py, src/mealplan/cli/__init__.py, src/mealplan/domain/__init__.py, src/mealplan/infrastructure/__init__.py, src/mealplan/shared/__init__.py, tests/unit/test_smoke.py, tests/integration/.gitkeep, tests/cli/.gitkeep, tests/golden/.gitkeep, scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- **Learnings for future iterations:**
-  - Patterns discovered: This repository expects architecture-by-layer package boundaries and mirrored test scope directories from the first iteration.
-  - Gotchas encountered: Base quality tools were not preinstalled in the environment; run checks through a local virtualenv when needed.
-  - Useful context: `scripts/ralph/progress.txt` should maintain a top-level `Codebase Patterns` section and append iteration notes below it.
+Started: Fri Feb 27 16:44:58 CET 2026
 ---
-
-## [2026-02-27 13:53:47 CET] - US-002
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
-- What was implemented: Added `pyproject.toml` packaging metadata with a `mealplan` console script, created a minimal Typer-based CLI entrypoint (`mealplan.cli.main`) plus `python -m mealplan` support, added a CLI help smoke test, documented UV setup/install/help/lock workflow, and generated `uv.lock`.
-- Files changed: README.md, pyproject.toml, src/mealplan/__main__.py, src/mealplan/cli/main.py, tests/cli/test_help.py, uv.lock, scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- **Learnings for future iterations:**
-  - Patterns discovered: For Typer root apps, define at least one callback/command or `--help` can fail with `RuntimeError: Could not get a command for this Typer instance`.
-  - Gotchas encountered: `uv sync --dev` reads `[dependency-groups]` (not `[project.optional-dependencies]`) for dev tooling installation.
-  - Useful context: The project now uses `pyproject.toml` as pytest root config and package entrypoint source of truth.
----
-
-## [2026-02-27 13:55:27 CET] - US-003
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
-- What was implemented: Added a deterministic CLI stub command (`mealplan probe`) that delegates to an application-layer placeholder use case, keeping CLI wiring thin and business-logic free for Phase 1 scaffolding.
-- Files changed: src/mealplan/application/stub.py, src/mealplan/cli/main.py, tests/cli/test_probe.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- **Learnings for future iterations:**
-  - Patterns discovered: Subprocess-based CLI tests (`python -m mealplan ...`) validate real entrypoint wiring and are stable for scaffold-level behavior checks.
-  - Gotchas encountered: Deterministic output assertions should use exact `stdout.strip()` matching to avoid newline-related false negatives.
-  - Useful context: The placeholder command path now runs `cli -> application` directly and can be swapped for real use-case orchestration in later stories.
----
-
-## [2026-02-27 13:57:28 CET] - US-004
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
-- What was implemented: Added strict project quality configuration in `pyproject.toml` for Ruff, mypy, and pytest discovery; added a `Makefile` quality alias (`make quality`) to run lint/typecheck/tests; updated README with local quality command documentation.
-- Files changed: Makefile, README.md, pyproject.toml, src/mealplan/__main__.py, src/mealplan/cli/main.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- **Learnings for future iterations:**
-  - Patterns discovered: Ruff import sorting (`I001`) is enforced by the current rule set, so import order fixes may touch adjacent files when enabling stricter linting.
-  - Gotchas encountered: Running quality via `make quality` can surface pre-existing style issues; run lint first to get fast feedback before mypy/pytest.
-  - Useful context: pytest discovery is now configured in `pyproject.toml` (`testpaths=tests`), making `uv run pytest` and `make quality` consistent.
----
-
-## [2026-02-27 14:00:03 CET] - US-005
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
-- What was implemented: Added a shared error hierarchy (`MealPlanError`, `ValidationError`, `DomainRuleError`, `ConfigError`, `OutputError`), canonical exit codes with mapper utility, CLI exception handling that routes through the mapper, and tests for both unit-level mapping and CLI exit-code behavior.
-- Files changed: src/mealplan/application/stub.py, src/mealplan/cli/main.py, src/mealplan/shared/errors.py, src/mealplan/shared/exit_codes.py, tests/cli/test_error_handling.py, tests/unit/test_exit_codes.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- **Learnings for future iterations:**
-  - Patterns discovered: `map_exception_to_exit_code` is the single mapping point for process exit behavior; new controlled failures should be represented with shared error types and mapped there.
-  - Gotchas encountered: Raising `typer.Exit` from outside `app()` resulted in exit code `1` in subprocess tests; use `SystemExit(mapped_code)` in `main()` wrapper instead.
-  - Useful context: The `probe` command now supports `--simulate-error` paths for validation/domain/config/output/runtime, which provides stable scaffolding hooks for CLI failure-path tests.
----
-
-## [2026-02-27 14:02:06 CET] - US-006
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
-- What was implemented: Added Pydantic boundary contracts (`ProbeRequest`, `ProbeResponse`, shared `BoundaryModel`) in the application layer with Phase 2 TODO markers, updated the probe use case and CLI wiring to pass typed contracts end-to-end, and added unit tests for parsing/serialization behavior.
-- Files changed: pyproject.toml, uv.lock, src/mealplan/application/contracts.py, src/mealplan/application/stub.py, src/mealplan/cli/main.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- **Learnings for future iterations:**
-  - Patterns discovered: Keep request/response shape contracts in the application boundary layer and have CLI commands convert command options into request models before calling use cases.
-  - Gotchas encountered: `uv sync --dev` refreshes `uv.lock` and can emit local packaging artifacts; remove `src/mealplan_cli.egg-info/` before committing.
-  - Useful context: Contract tests can stay fast and deterministic by using `model_validate`/`model_dump` directly, without subprocess execution.
----
-## [2026-02-27 14:03:59 CET] - US-007
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
-- What was implemented: Added contributor onboarding documentation with setup, command usage, required pre-commit quality commands, and architecture-boundary expectations; linked the guide from the README contributing section.
-- Files changed: CONTRIBUTING.md, README.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- **Learnings for future iterations:**
-  - Patterns discovered: Keep contributor workflow and boundary expectations centralized in `CONTRIBUTING.md` while leaving README concise with pointers.
-  - Gotchas encountered: Use `.venv/bin/uv ...` commands in docs for reliability, since global `uv` availability is not guaranteed.
-  - Useful context: `make quality` remains the canonical aggregate gate and should be documented alongside individual commands.
----
-## [2026-02-27 14:38:17 CET] - US-008
+## 2026-02-27 16:47:53 CET - US-002
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
-- What was implemented: Added a baseline GitHub Actions CI pipeline that runs on push and pull requests, installs dependencies with `uv`, and enforces lint/type/test quality gates; documented CI expectations in README.
-- Files changed: .github/workflows/ci.yml, README.md, AGENT.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Implemented canonical shared meal ordering constant `CANONICAL_MEAL_ORDER` in the domain model module and exported it via `mealplan.domain`.
+- Added unit tests validating canonical meal order exact sequence, uniqueness, and fixed six-meal count.
+- Files changed: AGENT.md, src/mealplan/domain/model.py, src/mealplan/domain/__init__.py, tests/unit/test_domain_enums.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
 - **Learnings for future iterations:**
-  - Patterns discovered: CI is expected to mirror local quality enforcement and should keep the same `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` commands.
-  - Gotchas encountered: There was no pre-existing `.github/workflows/` directory, so workflow setup must create it before adding jobs.
-  - Useful context: `astral-sh/setup-uv` plus `uv sync --dev` is sufficient for dependency setup in this repository's CI.
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Keep ordering contracts in `mealplan.domain.model` and reuse the tuple in response assembly/allocators to preserve deterministic output ordering.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `US-002` required both package export and explicit test assertions (order + uniqueness + count), not only constant declaration.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` remains the mandatory local gate (`ruff`, strict `mypy`, and `pytest`) before updating PRD status.
+---
+## 2026-02-27 16:46:07 CET - US-001
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented canonical `StrEnum` types for `Gender`, `ActivityLevel`, `CarbMode`, `TrainingLoadTomorrow`, and `MealName` in a single domain module and re-exported them from `mealplan.domain`.
+- Added contract tests to verify exact enum values, successful parsing of valid payloads, and rejection of unknown enum values.
+- Files changed: src/mealplan/domain/enums.py, src/mealplan/domain/__init__.py, tests/unit/test_domain_enums.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Canonical value-set contracts should be enforced through Pydantic parsing tests, not only enum member assertions.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - The repository has `AGENT.md` (singular) at root rather than `AGENTS.md`; read it as the local agent instruction source.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` is the required local gate and runs `ruff`, strict `mypy`, and `pytest`.
+---
+## 2026-02-27 16:49:35 CET - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented canonical request DTOs `MealPlanRequest` and nested `TrainingSession` in `src/mealplan/application/contracts.py` with exact Phase 2 field names and enum-backed dimensions.
+- Enforced strict schema boundary behavior: forbidden unknown fields at all levels and strict numeric typing for `age`, `weight_kg`, and `zones_minutes` values.
+- Added contract tests for valid parsing, root/nested unknown-field rejection, and numeric-string rejection while preserving existing probe contract coverage.
+- Files changed: AGENT.md, src/mealplan/application/contracts.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Keep request contract strictness in the DTO layer itself (`BoundaryModel` + strict field types) instead of adding ad-hoc checks in CLI/application services.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - To enforce unknown-field rejection in nested payloads, nested DTOs must inherit `BoundaryModel`; root-level `extra="forbid"` is not enough.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `US-003` intentionally stops at schema-level validation; semantic/business-rule validation belongs to later stories/phases.
+---
+## 2026-02-27 16:51:22 CET - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented the training-zones contract with restricted `zones_minutes` keys (`"1"`..`"5"`), strict integer minute values, optional `training_session`, and optional `training_before_meal` at schema level.
+- Added contract tests for optional training session/training_before_meal parsing and negative validation cases for invalid zone keys and non-integer minute types.
+- Files changed: AGENT.md, src/mealplan/application/contracts.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - `Literal`-typed dict keys are the cleanest way in this codebase to enforce finite allowed mapping keys directly in DTO schema validation.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Keep `training_before_meal` optional in Phase 2 contracts even when zone minutes are present; required-if-minutes>0 belongs to Phase 3 semantic validation.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` should be re-run after any contract test additions to validate strict typing assumptions under `mypy --strict`.
+---
+## 2026-02-27 16:53:44 CET - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented canonical response contracts in `MealPlanResponse` and nested `MealAllocation` with exact required top-level and nested fields.
+- Enforced canonical meal serialization order with a model-level validator against `CANONICAL_MEAL_ORDER`, and added a `MealPlanResponse.placeholder()` constructor for pre-calculation phases.
+- Added response contract tests for exact key shape, canonical order rejection, deterministic JSON serialization, and placeholder instantiation.
+- Files changed: AGENT.md, src/mealplan/application/contracts.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Response boundary determinism is best enforced directly in DTO validation/serialization tests rather than in CLI glue code.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `US-005` expects exact response keys including uppercase `TDEE`; renaming to `tdee` breaks the canonical contract.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `MealPlanResponse.placeholder()` is now the intended way to instantiate full response shape before nutrition calculations are implemented.
+---
+## 2026-02-27 16:55:28 CET - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Implemented explicit contract-level units policy as `CONTRACT_UNITS_POLICY` and added field-level documentation for `age` (years), `weight_kg` (kg), `zones_minutes` (minutes), and legacy `TDEE` semantics (kcal/day).
+- Documented DTO naming policy and legacy `TDEE` compatibility in architecture docs to keep contract code and docs aligned.
+- Added unit tests asserting published units policy metadata and contract field descriptions for age/TDEE.
+- Files changed: AGENT.md, docs/ARCHITECTURE.md, src/mealplan/application/contracts.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Centralize cross-field contract metadata (like units) in the DTO module and test it directly so docs and schema boundaries stay synchronized.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `TDEE` must remain uppercase for compatibility even though the units naming policy prefers suffixes like `*_kcal`.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` catches both contract typing drift and documentation-adjacent regressions quickly for these Phase 2 stories.
+---
+## 2026-02-27 16:57:58 CET - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
+- Implemented a contract-boundary parser helper (`parse_contract`) that maps pydantic parse failures into shared `ValidationError` with deterministic, field-path-first messages.
+- Wired CLI probe command to parse request payloads through the new boundary parser so parse errors stay on the shared validation error pathway.
+- Added unit tests validating deterministic mapping behavior, field-path inclusion, and compatibility with `ExitCode.VALIDATION` mapping.
+- Files changed: AGENT.md, src/mealplan/application/parsing.py, src/mealplan/cli/main.py, tests/unit/test_application_parsing.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Use `parse_contract` for any boundary payload (CLI/API/job input) instead of direct `model_validate`/constructor calls to keep validation errors uniform.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Pydantic nested-location paths may include key markers like `[key]`; assert deterministic equality and path presence in tests rather than brittle full-message snapshots.
+  - Useful context (e.g., "the evaluation panel is in component X")
+- `make quality` remains sufficient for this story and validates linting, strict typing, and parse-error mapping tests end-to-end.
+---
+## 2026-02-27 17:00:22 CET - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Added reusable canonical positive fixtures for `MealPlanRequest` and `MealPlanResponse` payloads in `tests/unit/conftest.py`.
+- Refactored contract and parsing test modules to consume the shared fixtures, removing duplicated inline payload literals while keeping deterministic validation assertions.
+- Files changed: AGENT.md, tests/unit/conftest.py, tests/unit/test_application_contracts.py, tests/unit/test_application_parsing.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Shared fixture usage across modules is preferred for canonical payload examples to keep request/response samples synchronized as contracts evolve.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Keep fixture scope function-level when tests mutate payload dictionaries, so each test receives an isolated payload instance.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` quickly validates fixture reuse changes across linting, strict typing, and full test execution.
+---
+## 2026-02-27 17:02:17 CET - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
+- Added parameterized negative contract matrix tests for request and response DTOs, covering missing required fields, invalid enum values, numeric-string rejection, malformed nested payloads, invalid `meals` shapes, and invalid `zones_minutes` keys.
+- Added a shared helper to assert pydantic error categories (`error type`) so tests verify stable failure categories instead of brittle full-message snapshots.
+- Ran `make quality` successfully (`ruff check .`, `mypy --strict src`, `pytest`).
+- Files changed: AGENT.md, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Contract regression suites are expected to be matrix-style and parameterized; prefer fixture cloning plus `pytest.mark.parametrize` over one-off negative tests.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Validate failure behavior by pydantic error category (`errors()[*]['type']`) rather than full strings to keep tests stable across wording changes.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` remains the single gate and currently exercises all contract matrix tests in `tests/unit/test_application_contracts.py`.
+---
+## 2026-02-27 17:43:57 CET - US-010
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Documented canonical Phase 2 contract integration details in `docs/ARCHITECTURE.md` section 10, including exact enum/DTO module paths, exact request and response field names, canonical meal-order source and usage, and explicit Phase 2 schema-validation vs Phase 3 semantic-validation boundary.
+- Added one valid request JSON example and one valid response JSON example using canonical field names and meal ordering.
+- Ran `make quality` successfully (`ruff check .`, `mypy --strict src`, `pytest`).
+- Files changed: AGENT.md, docs/ARCHITECTURE.md, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Contract documentation is expected in `docs/ARCHITECTURE.md` section 10 and should be updated in lockstep with DTO/enum changes to avoid integration drift.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `US-010` requires concrete canonical paths and exact field lists, not only high-level architecture prose.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - Existing contract examples in docs should preserve exact response key casing (`TDEE`) and canonical meal ordering.
 ---
