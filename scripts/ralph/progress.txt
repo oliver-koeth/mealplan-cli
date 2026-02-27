@@ -8,6 +8,7 @@ Started: Fri Feb 27 13:29:43 CET 2026
 - Keep CLI handlers thin: command functions should delegate deterministic placeholder behavior to `application` functions, not embed logic directly in `cli`.
 - Centralize local quality gates behind `make quality`, delegating to `.venv/bin/uv run` for `ruff`, `mypy --strict src`, and `pytest`.
 - Keep CLI failure handling centralized in `mealplan.cli.main:main` by mapping exceptions via `mealplan.shared.exit_codes.map_exception_to_exit_code` and exiting with canonical codes.
+- Place boundary contracts in `src/mealplan/application/contracts.py` as Pydantic models and pass them through use-case functions, keeping CLI argument parsing and business flow orchestration separated.
 
 ## [2026-02-27 13:50:48 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
@@ -57,4 +58,14 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: `map_exception_to_exit_code` is the single mapping point for process exit behavior; new controlled failures should be represented with shared error types and mapped there.
   - Gotchas encountered: Raising `typer.Exit` from outside `app()` resulted in exit code `1` in subprocess tests; use `SystemExit(mapped_code)` in `main()` wrapper instead.
   - Useful context: The `probe` command now supports `--simulate-error` paths for validation/domain/config/output/runtime, which provides stable scaffolding hooks for CLI failure-path tests.
+---
+
+## [2026-02-27 14:02:06 CET] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
+- What was implemented: Added Pydantic boundary contracts (`ProbeRequest`, `ProbeResponse`, shared `BoundaryModel`) in the application layer with Phase 2 TODO markers, updated the probe use case and CLI wiring to pass typed contracts end-to-end, and added unit tests for parsing/serialization behavior.
+- Files changed: pyproject.toml, uv.lock, src/mealplan/application/contracts.py, src/mealplan/application/stub.py, src/mealplan/cli/main.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: Keep request/response shape contracts in the application boundary layer and have CLI commands convert command options into request models before calling use cases.
+  - Gotchas encountered: `uv sync --dev` refreshes `uv.lock` and can emit local packaging artifacts; remove `src/mealplan_cli.egg-info/` before committing.
+  - Useful context: Contract tests can stay fast and deterministic by using `model_validate`/`model_dump` directly, without subprocess execution.
 ---

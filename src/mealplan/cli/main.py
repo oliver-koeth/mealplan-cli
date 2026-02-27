@@ -2,22 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Literal, TypeAlias
-
 import typer
 
-from mealplan.application.stub import get_probe_message
+from mealplan.application.contracts import ProbeRequest, SimulatedErrorKind
+from mealplan.application.stub import run_probe
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 
 app = typer.Typer(no_args_is_help=True, help="Mealplan command-line interface.")
 
-SimulatedErrorKind: TypeAlias = Literal[
-    "validation",
-    "domain",
-    "config",
-    "output",
-    "runtime",
-]
 SIMULATED_ERROR_OPTION = typer.Option(
     default=None,
     help="Simulate a named error pathway for scaffolding tests.",
@@ -34,7 +26,8 @@ def probe_command(
     simulate_error: SimulatedErrorKind | None = SIMULATED_ERROR_OPTION,
 ) -> None:
     """Run a deterministic placeholder command."""
-    typer.echo(get_probe_message(simulate_error=simulate_error))
+    response = run_probe(ProbeRequest(simulate_error=simulate_error))
+    typer.echo(response.message)
 
 
 def main() -> None:
