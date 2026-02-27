@@ -1,0 +1,91 @@
+# Ralph Progress Log
+Started: Fri Feb 27 13:29:43 CET 2026
+
+## Codebase Patterns
+- Keep architecture boundaries explicit with package folders under `src/mealplan/`: `cli`, `application`, `domain`, `infrastructure`, `shared`.
+- Keep test scope folders present from the start (`tests/unit`, `tests/integration`, `tests/cli`, `tests/golden`) and maintain at least one smoke test for discovery.
+- Use `.venv/bin/uv` in automation and docs when environment bootstrap is uncertain, because `uv` may not be globally installed.
+- Keep CLI handlers thin: command functions should delegate deterministic placeholder behavior to `application` functions, not embed logic directly in `cli`.
+- Centralize local quality gates behind `make quality`, delegating to `.venv/bin/uv run` for `ruff`, `mypy --strict src`, and `pytest`.
+- Keep CLI failure handling centralized in `mealplan.cli.main:main` by mapping exceptions via `mealplan.shared.exit_codes.map_exception_to_exit_code` and exiting with canonical codes.
+- Place boundary contracts in `src/mealplan/application/contracts.py` as Pydantic models and pass them through use-case functions, keeping CLI argument parsing and business flow orchestration separated.
+- Keep contributor workflow details in `CONTRIBUTING.md`, and link it from `README.md` for discoverability.
+- Keep GitHub Actions quality gates aligned with local `make quality` commands (`ruff`, `mypy --strict src`, `pytest`) and install deps via `uv sync --dev`.
+
+## [2026-02-27 13:50:48 CET] - US-001
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
+- What was implemented: Added the architecture-aligned source and test skeleton, package marker files, a placeholder smoke test, and README directory-layout documentation.
+- Files changed: .gitignore, README.md, src/mealplan/__init__.py, src/mealplan/application/__init__.py, src/mealplan/cli/__init__.py, src/mealplan/domain/__init__.py, src/mealplan/infrastructure/__init__.py, src/mealplan/shared/__init__.py, tests/unit/test_smoke.py, tests/integration/.gitkeep, tests/cli/.gitkeep, tests/golden/.gitkeep, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: This repository expects architecture-by-layer package boundaries and mirrored test scope directories from the first iteration.
+  - Gotchas encountered: Base quality tools were not preinstalled in the environment; run checks through a local virtualenv when needed.
+  - Useful context: `scripts/ralph/progress.txt` should maintain a top-level `Codebase Patterns` section and append iteration notes below it.
+---
+
+## [2026-02-27 13:53:47 CET] - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- What was implemented: Added `pyproject.toml` packaging metadata with a `mealplan` console script, created a minimal Typer-based CLI entrypoint (`mealplan.cli.main`) plus `python -m mealplan` support, added a CLI help smoke test, documented UV setup/install/help/lock workflow, and generated `uv.lock`.
+- Files changed: README.md, pyproject.toml, src/mealplan/__main__.py, src/mealplan/cli/main.py, tests/cli/test_help.py, uv.lock, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: For Typer root apps, define at least one callback/command or `--help` can fail with `RuntimeError: Could not get a command for this Typer instance`.
+  - Gotchas encountered: `uv sync --dev` reads `[dependency-groups]` (not `[project.optional-dependencies]`) for dev tooling installation.
+  - Useful context: The project now uses `pyproject.toml` as pytest root config and package entrypoint source of truth.
+---
+
+## [2026-02-27 13:55:27 CET] - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- What was implemented: Added a deterministic CLI stub command (`mealplan probe`) that delegates to an application-layer placeholder use case, keeping CLI wiring thin and business-logic free for Phase 1 scaffolding.
+- Files changed: src/mealplan/application/stub.py, src/mealplan/cli/main.py, tests/cli/test_probe.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: Subprocess-based CLI tests (`python -m mealplan ...`) validate real entrypoint wiring and are stable for scaffold-level behavior checks.
+  - Gotchas encountered: Deterministic output assertions should use exact `stdout.strip()` matching to avoid newline-related false negatives.
+  - Useful context: The placeholder command path now runs `cli -> application` directly and can be swapped for real use-case orchestration in later stories.
+---
+
+## [2026-02-27 13:57:28 CET] - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- What was implemented: Added strict project quality configuration in `pyproject.toml` for Ruff, mypy, and pytest discovery; added a `Makefile` quality alias (`make quality`) to run lint/typecheck/tests; updated README with local quality command documentation.
+- Files changed: Makefile, README.md, pyproject.toml, src/mealplan/__main__.py, src/mealplan/cli/main.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: Ruff import sorting (`I001`) is enforced by the current rule set, so import order fixes may touch adjacent files when enabling stricter linting.
+  - Gotchas encountered: Running quality via `make quality` can surface pre-existing style issues; run lint first to get fast feedback before mypy/pytest.
+  - Useful context: pytest discovery is now configured in `pyproject.toml` (`testpaths=tests`), making `uv run pytest` and `make quality` consistent.
+---
+
+## [2026-02-27 14:00:03 CET] - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- What was implemented: Added a shared error hierarchy (`MealPlanError`, `ValidationError`, `DomainRuleError`, `ConfigError`, `OutputError`), canonical exit codes with mapper utility, CLI exception handling that routes through the mapper, and tests for both unit-level mapping and CLI exit-code behavior.
+- Files changed: src/mealplan/application/stub.py, src/mealplan/cli/main.py, src/mealplan/shared/errors.py, src/mealplan/shared/exit_codes.py, tests/cli/test_error_handling.py, tests/unit/test_exit_codes.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: `map_exception_to_exit_code` is the single mapping point for process exit behavior; new controlled failures should be represented with shared error types and mapped there.
+  - Gotchas encountered: Raising `typer.Exit` from outside `app()` resulted in exit code `1` in subprocess tests; use `SystemExit(mapped_code)` in `main()` wrapper instead.
+  - Useful context: The `probe` command now supports `--simulate-error` paths for validation/domain/config/output/runtime, which provides stable scaffolding hooks for CLI failure-path tests.
+---
+
+## [2026-02-27 14:02:06 CET] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-*.txt (latest file unavailable in workspace)
+- What was implemented: Added Pydantic boundary contracts (`ProbeRequest`, `ProbeResponse`, shared `BoundaryModel`) in the application layer with Phase 2 TODO markers, updated the probe use case and CLI wiring to pass typed contracts end-to-end, and added unit tests for parsing/serialization behavior.
+- Files changed: pyproject.toml, uv.lock, src/mealplan/application/contracts.py, src/mealplan/application/stub.py, src/mealplan/cli/main.py, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: Keep request/response shape contracts in the application boundary layer and have CLI commands convert command options into request models before calling use cases.
+  - Gotchas encountered: `uv sync --dev` refreshes `uv.lock` and can emit local packaging artifacts; remove `src/mealplan_cli.egg-info/` before committing.
+  - Useful context: Contract tests can stay fast and deterministic by using `model_validate`/`model_dump` directly, without subprocess execution.
+---
+## [2026-02-27 14:03:59 CET] - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
+- What was implemented: Added contributor onboarding documentation with setup, command usage, required pre-commit quality commands, and architecture-boundary expectations; linked the guide from the README contributing section.
+- Files changed: CONTRIBUTING.md, README.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: Keep contributor workflow and boundary expectations centralized in `CONTRIBUTING.md` while leaving README concise with pointers.
+  - Gotchas encountered: Use `.venv/bin/uv ...` commands in docs for reliability, since global `uv` availability is not guaranteed.
+  - Useful context: `make quality` remains the canonical aggregate gate and should be documented alongside individual commands.
+---
+## [2026-02-27 14:38:17 CET] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- What was implemented: Added a baseline GitHub Actions CI pipeline that runs on push and pull requests, installs dependencies with `uv`, and enforces lint/type/test quality gates; documented CI expectations in README.
+- Files changed: .github/workflows/ci.yml, README.md, AGENT.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Patterns discovered: CI is expected to mirror local quality enforcement and should keep the same `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` commands.
+  - Gotchas encountered: There was no pre-existing `.github/workflows/` directory, so workflow setup must create it before adding jobs.
+  - Useful context: `astral-sh/setup-uv` plus `uv sync --dev` is sufficient for dependency setup in this repository's CI.
+---

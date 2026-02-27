@@ -7,9 +7,11 @@ from mealplan.domain.enums import (
     MealName,
     TrainingLoadTomorrow,
 )
+from mealplan.domain.model import CANONICAL_MEAL_ORDER
 
 __all__ = [
     "ActivityLevel",
+    "CANONICAL_MEAL_ORDER",
     "CarbMode",
     "Gender",
     "MealName",

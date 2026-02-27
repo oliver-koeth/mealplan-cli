@@ -11,6 +11,7 @@ from mealplan.domain.enums import (
     MealName,
     TrainingLoadTomorrow,
 )
+from mealplan.domain.model import CANONICAL_MEAL_ORDER
 
 
 class EnumProbe(BaseModel):
@@ -67,3 +68,19 @@ def test_enum_probe_rejects_unknown_values() -> None:
         assert error.errors()[0]["type"] == "enum"
     else:
         raise AssertionError("Expected invalid enum payload to fail.")
+
+
+def test_canonical_meal_order_is_exact() -> None:
+    assert CANONICAL_MEAL_ORDER == (
+        MealName.BREAKFAST,
+        MealName.MORNING_SNACK,
+        MealName.LUNCH,
+        MealName.AFTERNOON_SNACK,
+        MealName.DINNER,
+        MealName.EVENING_SNACK,
+    )
+
+
+def test_canonical_meal_order_has_six_unique_entries() -> None:
+    assert len(CANONICAL_MEAL_ORDER) == 6
+    assert len(set(CANONICAL_MEAL_ORDER)) == 6
