@@ -1,5 +1,6 @@
 # Ralph Progress Log
 ## Codebase Patterns
+- In contract negative tests, assert pydantic error categories (`errors()[*]['type']`) instead of full message text to keep failures stable across formatting changes.
 - Canonical domain enums are defined in `src/mealplan/domain/enums.py`; import enum types from `mealplan.domain.enums` to avoid duplicated value definitions.
 - Canonical meal sequencing lives in `src/mealplan/domain/model.py` as `CANONICAL_MEAL_ORDER`; downstream modules should import this constant instead of recreating ordered meal lists.
 - Contract DTOs should subclass `BoundaryModel` at every nesting level so `extra="forbid"` applies recursively; use strict numeric types in DTO fields to prevent string-to-number coercion.
@@ -118,4 +119,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Keep fixture scope function-level when tests mutate payload dictionaries, so each test receives an isolated payload instance.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `make quality` quickly validates fixture reuse changes across linting, strict typing, and full test execution.
+---
+## 2026-02-27 17:02:17 CET - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
+- Added parameterized negative contract matrix tests for request and response DTOs, covering missing required fields, invalid enum values, numeric-string rejection, malformed nested payloads, invalid `meals` shapes, and invalid `zones_minutes` keys.
+- Added a shared helper to assert pydantic error categories (`error type`) so tests verify stable failure categories instead of brittle full-message snapshots.
+- Ran `make quality` successfully (`ruff check .`, `mypy --strict src`, `pytest`).
+- Files changed: AGENT.md, tests/unit/test_application_contracts.py, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Contract regression suites are expected to be matrix-style and parameterized; prefer fixture cloning plus `pytest.mark.parametrize` over one-off negative tests.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Validate failure behavior by pydantic error category (`errors()[*]['type']`) rather than full strings to keep tests stable across wording changes.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` remains the single gate and currently exercises all contract matrix tests in `tests/unit/test_application_contracts.py`.
 ---

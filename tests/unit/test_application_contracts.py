@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from mealplan.application.contracts import (
@@ -13,6 +14,15 @@ from mealplan.application.contracts import (
     ProbeRequest,
     ProbeResponse,
 )
+
+
+def _assert_validation_error_types(
+    error: PydanticValidationError,
+    expected_types: set[str],
+) -> None:
+    """Assert pydantic errors contain at least one expected stable error category."""
+    actual_types = {detail["type"] for detail in error.errors()}
+    assert actual_types.intersection(expected_types)
 
 
 def test_meal_plan_request_parses_canonical_payload(
@@ -52,87 +62,103 @@ def test_meal_plan_request_allows_missing_training_before_meal(
     assert request.training_session.training_before_meal is None
 
 
-def test_meal_plan_request_rejects_unknown_fields_at_root(
+@pytest.mark.parametrize(
+    ("missing_field", "expected_error_types"),
+    [
+        ("age", {"missing"}),
+        ("gender", {"missing"}),
+        ("weight_kg", {"missing"}),
+        ("activity_level", {"missing"}),
+        ("carb_mode", {"missing"}),
+        ("training_load_tomorrow", {"missing"}),
+    ],
+)
+def test_meal_plan_request_rejects_missing_required_fields(
     meal_plan_request_payload: dict[str, Any],
+    missing_field: str,
+    expected_error_types: set[str],
 ) -> None:
-    """Unknown fields must be rejected at request root."""
+    """Request DTO should fail when required top-level fields are omitted."""
     payload = meal_plan_request_payload
-    payload["unexpected"] = "x"
+    payload.pop(missing_field)
 
-    try:
+    with pytest.raises(PydanticValidationError) as error_info:
         MealPlanRequest.model_validate(payload)
-    except PydanticValidationError:
-        pass
-    else:
-        raise AssertionError("Expected unknown root field validation to fail.")
+
+    _assert_validation_error_types(error_info.value, expected_error_types)
 
 
-def test_meal_plan_request_rejects_unknown_fields_in_training_session(
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        ("gender", "other"),
+        ("activity_level", "extreme"),
+        ("carb_mode", "keto"),
+        ("training_load_tomorrow", "peak"),
+    ],
+)
+def test_meal_plan_request_rejects_invalid_enum_values(
     meal_plan_request_payload: dict[str, Any],
+    field: str,
+    invalid_value: str,
 ) -> None:
-    """Unknown fields must also be rejected for nested contracts."""
+    """Request enum fields should reject out-of-domain string values."""
     payload = meal_plan_request_payload
-    training_session = dict(payload["training_session"])
-    training_session["unexpected"] = "x"
-    payload["training_session"] = training_session
+    payload[field] = invalid_value
 
-    try:
+    with pytest.raises(PydanticValidationError) as error_info:
         MealPlanRequest.model_validate(payload)
-    except PydanticValidationError:
-        pass
-    else:
-        raise AssertionError("Expected unknown nested field validation to fail.")
+
+    _assert_validation_error_types(error_info.value, {"enum"})
 
 
-def test_meal_plan_request_rejects_numeric_strings(
+@pytest.mark.parametrize(
+    ("field", "invalid_value", "expected_error_types"),
+    [
+        ("age", "35", {"int_type"}),
+        ("weight_kg", "72.5", {"float_type"}),
+        ("training_session", "not-an-object", {"model_type", "model_attributes_type"}),
+    ],
+)
+def test_meal_plan_request_rejects_invalid_primitive_and_nested_types(
     meal_plan_request_payload: dict[str, Any],
+    field: str,
+    invalid_value: Any,
+    expected_error_types: set[str],
 ) -> None:
-    """Strict numeric fields should reject string input instead of coercing."""
+    """Request DTO should reject numeric strings and malformed nested structures."""
     payload = meal_plan_request_payload
-    payload["age"] = "35"
+    payload[field] = invalid_value
 
-    try:
+    with pytest.raises(PydanticValidationError) as error_info:
         MealPlanRequest.model_validate(payload)
-    except PydanticValidationError:
-        pass
-    else:
-        raise AssertionError("Expected strict numeric validation to reject strings.")
+
+    _assert_validation_error_types(error_info.value, expected_error_types)
 
 
-def test_meal_plan_request_rejects_out_of_domain_zone_keys(
+@pytest.mark.parametrize(
+    "zones_minutes",
+    [
+        {"6": 10},
+        {"0": 10},
+        {"1": "20", "2": 10, "3": 0, "4": 0, "5": 0},
+    ],
+)
+def test_meal_plan_request_rejects_invalid_zones_minutes_matrix(
     meal_plan_request_payload: dict[str, Any],
+    zones_minutes: dict[str, Any],
 ) -> None:
-    """zones_minutes keys must be restricted to '1' through '5'."""
+    """zones_minutes should reject out-of-range keys and invalid minute value types."""
     payload = meal_plan_request_payload
     payload["training_session"] = {
-        "zones_minutes": {"6": 10},
+        "zones_minutes": zones_minutes,
         "training_before_meal": "lunch",
     }
 
-    try:
+    with pytest.raises(PydanticValidationError) as error_info:
         MealPlanRequest.model_validate(payload)
-    except PydanticValidationError:
-        pass
-    else:
-        raise AssertionError("Expected invalid zone key validation to fail.")
 
-
-def test_meal_plan_request_rejects_non_integer_zone_minutes(
-    meal_plan_request_payload: dict[str, Any],
-) -> None:
-    """zones_minutes values must be strict integers."""
-    payload = meal_plan_request_payload
-    payload["training_session"] = {
-        "zones_minutes": {"1": "20"},
-        "training_before_meal": "lunch",
-    }
-
-    try:
-        MealPlanRequest.model_validate(payload)
-    except PydanticValidationError:
-        pass
-    else:
-        raise AssertionError("Expected invalid minute value type validation to fail.")
+    _assert_validation_error_types(error_info.value, {"literal_error", "int_type"})
 
 
 def test_meal_plan_response_serializes_full_contract_shape(
@@ -151,12 +177,71 @@ def test_meal_plan_response_requires_canonical_meal_order(
     payload = meal_plan_response_payload
     payload["meals"] = [payload["meals"][1], payload["meals"][0], *payload["meals"][2:]]
 
-    try:
+    with pytest.raises(PydanticValidationError) as error_info:
         MealPlanResponse.model_validate(payload)
-    except PydanticValidationError:
-        pass
-    else:
-        raise AssertionError("Expected out-of-order meals validation to fail.")
+
+    _assert_validation_error_types(error_info.value, {"value_error"})
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    ["TDEE", "training_carbs_g", "protein_g", "carbs_g", "fat_g", "meals"],
+)
+def test_meal_plan_response_rejects_missing_required_fields(
+    meal_plan_response_payload: dict[str, Any],
+    missing_field: str,
+) -> None:
+    """Response DTO should fail when required top-level fields are omitted."""
+    payload = meal_plan_response_payload
+    payload.pop(missing_field)
+
+    with pytest.raises(PydanticValidationError) as error_info:
+        MealPlanResponse.model_validate(payload)
+
+    _assert_validation_error_types(error_info.value, {"missing"})
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    ["2400.0", "not-a-number"],
+)
+def test_meal_plan_response_rejects_numeric_strings_for_tdee(
+    meal_plan_response_payload: dict[str, Any],
+    invalid_value: str,
+) -> None:
+    """Response numeric fields should reject string values under strict typing."""
+    payload = meal_plan_response_payload
+    payload["TDEE"] = invalid_value
+
+    with pytest.raises(PydanticValidationError) as error_info:
+        MealPlanResponse.model_validate(payload)
+
+    _assert_validation_error_types(error_info.value, {"float_type"})
+
+
+@pytest.mark.parametrize(
+    "invalid_meals",
+    [
+        "not-a-list",
+        [{"meal": "breakfast", "carbs_g": 10.0, "protein_g": 5.0}],
+        [{"meal": "breakfast", "carbs_g": 10.0, "protein_g": 5.0, "fat_g": 2.0}] * 6,
+    ],
+)
+def test_meal_plan_response_rejects_malformed_meals_shape(
+    meal_plan_response_payload: dict[str, Any],
+    invalid_meals: Any,
+) -> None:
+    """Response DTO should reject malformed meals collection and item shapes."""
+    payload = meal_plan_response_payload
+    payload["meals"] = invalid_meals
+
+    with pytest.raises(PydanticValidationError) as error_info:
+        MealPlanResponse.model_validate(payload)
+
+    _assert_validation_error_types(
+        error_info.value,
+        {"list_type", "missing", "value_error", "enum"},
+    )
 
 
 def test_meal_plan_response_json_serialization_is_deterministic(
@@ -217,9 +302,5 @@ def test_probe_response_serializes_known_payload() -> None:
 
 def test_probe_request_rejects_unknown_fields() -> None:
     """Boundary models should fail when unexpected keys are provided."""
-    try:
+    with pytest.raises(PydanticValidationError):
         ProbeRequest.model_validate({"simulate_error": None, "unexpected": "x"})
-    except PydanticValidationError:
-        pass
-    else:
-        raise AssertionError("Expected unknown field validation to fail.")
