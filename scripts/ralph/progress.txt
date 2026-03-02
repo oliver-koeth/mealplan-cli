@@ -8,6 +8,7 @@
 - For response meal-structure invariants, validate `list[MealAllocation]` at the domain boundary with `validate_meal_allocation_invariants` using `CANONICAL_MEAL_ORDER` (count, then coverage, then order) for deterministic errors.
 - For carb reconciliation checks, call `validate_carb_reconciliation_invariants` and use `CARB_RECONCILIATION_TOLERANCE` (`abs(sum - target) <= 1e-9`) to keep mismatch behavior deterministic across layers.
 - Run Phase 3 validation through `application/orchestration.py::validate_meal_plan_flow` to keep one canonical order: `parse_contract` -> `validate_semantic_input` -> domain invariant checks.
+- For Phase 3 regression expansion, add cases to `tests/unit/test_validation_matrices.py` and prefer asserting exception class plus `map_exception_to_exit_code(...)` category with minimal message fragments/prefixes.
 
 Started: Mon Mar  2 09:12:55 CET 2026
 ---
@@ -145,4 +146,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Keep domain invariant calls behind application orchestration helpers; calling domain checks ad hoc from multiple entrypoints risks drift in validation order and error boundaries.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Canonical request/response fixtures in `tests/unit/conftest.py` are sufficient for orchestration tests; override only the field under failure to keep deterministic behavior obvious.
+---
+## 2026-03-02 10:08:43 CET - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented Phase 3 matrix regression coverage in a new parameterized test module spanning semantic input failures, zone normalization and invalid zone scenarios, and domain invariant failures.
+- The new matrix tests assert stable failure classification by exception type and exit-code category (`VALIDATION` vs `DOMAIN`) and only rely on message prefixes/fragments where needed.
+- Files changed:
+  - AGENT.md
+  - tests/unit/test_validation_matrices.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Phase 3 regression matrices are centralized in `tests/unit/test_validation_matrices.py` and should be extended there for future validation-rule additions.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Prefer asserting error class plus `map_exception_to_exit_code(...)` over exact full-message snapshots to keep tests stable while preserving deterministic category checks.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/conftest.py` canonical payload fixtures remain sufficient for matrix tests; deep-copy request payloads before per-case mutation to avoid cross-case contamination.
 ---
