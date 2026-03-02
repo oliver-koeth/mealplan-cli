@@ -63,3 +63,38 @@ def test_validate_semantic_input_error_payload_is_deterministic(
         messages.append(str(error_info.value))
 
     assert messages[0] == messages[1]
+
+
+@pytest.mark.parametrize(
+    ("zones_minutes", "training_before_meal", "expected_message"),
+    [
+        ({"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}, None, None),
+        (
+            {"1": 1, "2": 0, "3": 0, "4": 0, "5": 0},
+            None,
+            "training_session.training_before_meal: required when total zones_minutes > 0",
+        ),
+    ],
+)
+def test_validate_semantic_input_training_before_meal_dependency(
+    meal_plan_request_payload: dict[str, Any],
+    zones_minutes: dict[str, int],
+    training_before_meal: str | None,
+    expected_message: str | None,
+) -> None:
+    """Training meal dependency should only apply when there is training volume."""
+    payload = meal_plan_request_payload
+    payload["training_session"] = {
+        "zones_minutes": zones_minutes,
+        "training_before_meal": training_before_meal,
+    }
+    request = MealPlanRequest.model_validate(payload)
+
+    if expected_message is None:
+        validate_semantic_input(request)
+        return
+
+    with pytest.raises(ValidationError) as error_info:
+        validate_semantic_input(request)
+    assert str(error_info.value) == expected_message
+    assert map_exception_to_exit_code(error_info.value) is ExitCode.VALIDATION

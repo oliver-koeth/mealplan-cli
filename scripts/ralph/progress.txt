@@ -2,6 +2,7 @@
 ## Codebase Patterns
 - Keep schema parsing in `application/parsing.py` and semantic business-input checks in `application/validation.py` so Phase 2 and Phase 3 boundaries stay explicit.
 - Semantic validation errors should use deterministic `ValidationError` messages prefixed by field path (for example `age: ...`) to keep CLI output and tests stable.
+- Evaluate training-session dependency rules against `sum(training_session.zones_minutes.values())`; missing `training_before_meal` is valid only when the sum is `0`.
 
 Started: Mon Mar  2 09:12:55 CET 2026
 ---
@@ -22,4 +23,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - `scripts/ralph/progress.txt` initially had no `Codebase Patterns` section; create and maintain it at the top as required by Ralph instructions.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Existing fixtures in `tests/unit/conftest.py` are suitable for semantic validator tests and should be reused for later matrix expansion stories.
+---
+## 2026-03-02 09:16:24 CET - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Implemented the application semantic dependency rule: when total `zones_minutes` is greater than `0`, `training_session.training_before_meal` is required.
+- Added semantic-validator unit coverage for both required scenarios: all zones `0` with missing dependent field (allowed) and positive minutes with missing dependent field (rejected).
+- Files changed:
+  - src/mealplan/application/validation.py
+  - tests/unit/test_application_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Semantic dependency checks are expected to be deterministic and expressed through field-path-prefixed `ValidationError` messages in `application/validation.py`.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Keep the dependency threshold tied to aggregated zone volume, not any single zone key, so subset/non-uniform zone payloads stay consistent.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing `meal_plan_request_payload` fixture already contains a valid `training_session`, making it straightforward to override only dependency-related fields in tests.
 ---

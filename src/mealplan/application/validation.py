@@ -12,3 +12,11 @@ def validate_semantic_input(request: MealPlanRequest) -> None:
         raise ValidationError("age: must be greater than 0")
     if request.weight_kg <= 0:
         raise ValidationError("weight_kg: must be greater than 0")
+    if request.training_session is None:
+        return
+
+    total_zones_minutes = sum(request.training_session.zones_minutes.values())
+    if total_zones_minutes > 0 and request.training_session.training_before_meal is None:
+        raise ValidationError(
+            "training_session.training_before_meal: required when total zones_minutes > 0"
+        )
