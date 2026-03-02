@@ -83,14 +83,13 @@ Completion criteria:
 Scope:
 - Implement BMR/TDEE service with activity multipliers.
 - Implement protein/carbs/fat target calculation per carb mode.
-- Handle current height ambiguity with documented default behavior.
+- Require explicit `height_cm` input (`StrictInt`, `> 0`) for all energy calculations.
 
 Deliverables:
 - Pure domain services:
   - Energy calculation
   - Macro target calculation
 - Unit tests for formulas and edge cases.
-- ADR note for height handling in v0.2.
 
 Completion criteria:
 - Formula tests pass and negative-fat scenarios are rejected.
@@ -202,8 +201,8 @@ Gate D (Phase 10):
 
 ## 5. Key Risks and Mitigations
 
-- Height ambiguity in BMR formula:
-  - Mitigation: define explicit temporary default and record ADR.
+- Height contract drift in BMR formula:
+  - Mitigation: keep `height_cm` required and validated as strict integer `> 0` at boundary + semantic layers.
 - Rounding drift across meal allocations:
   - Mitigation: deterministic residual adjustment to final canonical meal.
 - Periodization precedence regressions:
@@ -216,4 +215,3 @@ Gate D (Phase 10):
 - Additional commands beyond primary calculation flow.
 - Non-JSON output polish before deterministic core is complete.
 - Integrations, persistence, or cloud-connected features outside current scope.
-

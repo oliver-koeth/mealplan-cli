@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mealplan.domain.enums import MealName
+from mealplan.domain.enums import ActivityLevel, Gender, MealName
 
 # Fixed meal ordering used by allocation and serialization pathways.
 CANONICAL_MEAL_ORDER: tuple[MealName, MealName, MealName, MealName, MealName, MealName] = (
@@ -24,6 +24,17 @@ class MacroTargets:
     protein_g: float
     carbs_g: float
     fat_g: float
+
+
+@dataclass(frozen=True, slots=True)
+class UserProfile:
+    """Canonical user profile input used by energy/macro domain services."""
+
+    age: int
+    gender: Gender
+    height_cm: int
+    weight_kg: float
+    activity_level: ActivityLevel
 
 
 @dataclass(frozen=True, slots=True)

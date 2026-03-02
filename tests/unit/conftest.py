@@ -13,6 +13,7 @@ def meal_plan_request_payload() -> dict[str, Any]:
     return {
         "age": 35,
         "gender": "male",
+        "height_cm": 178,
         "weight_kg": 72.5,
         "activity_level": "medium",
         "carb_mode": "periodized",

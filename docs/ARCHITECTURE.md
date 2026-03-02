@@ -126,7 +126,8 @@ mealplan/
 
 ## 8. Calculation Engine
 - Energy module:
-  - Uses Mifflin-St Jeor with current defaults until height input is added.
+  - Uses Mifflin-St Jeor with required `height_cm` input.
+  - Height contract is strict integer parsing at boundary and `height_cm > 0` semantic validation.
   - Applies activity multiplier from PRD table.
 - Macro module:
   - Protein fixed at `2g/kg`.
@@ -394,8 +395,6 @@ mealplan/
 - Hardcoded macro percentages outside rule definitions.
 
 ## 23. Future Architecture Evolution
-- Height input extension:
-  - Add `height_cm` to `UserProfile` and energy calculator without breaking request parser.
 - Micronutrient engine:
   - Introduce separate domain service and response extension contract.
 - Meal suggestion engine:

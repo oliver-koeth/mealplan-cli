@@ -13,6 +13,7 @@ SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtim
 TrainingZoneKey = Literal["1", "2", "3", "4", "5"]
 CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "age": "years",
+    "height_cm": "cm",
     "weight_kg": "kg",
     "zones_minutes": "minutes",
     "TDEE": "kcal/day (legacy field name retained for compatibility)",
@@ -43,6 +44,7 @@ class MealPlanRequest(BoundaryModel):
 
     age: StrictInt = Field(description="Age in years.")
     gender: Gender
+    height_cm: StrictInt = Field(description="Body height in centimeters.")
     weight_kg: StrictFloat = Field(description="Body weight in kilograms.")
     activity_level: ActivityLevel
     carb_mode: CarbMode

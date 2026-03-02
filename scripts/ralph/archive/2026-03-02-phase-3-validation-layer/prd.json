@@ -1,0 +1,173 @@
+{
+  "project": "mealplan",
+  "branchName": "ralph/phase-3-validation-layer",
+  "description": "Phase 3 validation layer for mealplan: add deterministic semantic input validation and domain invariant enforcement, with typed error mapping and matrix tests.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add application-level semantic input validator",
+      "description": "As an application service, I want semantic validation after contract parsing so invalid inputs are rejected before domain calculations run.",
+      "acceptanceCriteria": [
+        "Add application validator entrypoint that accepts parsed MealPlanRequest.",
+        "Validator checks age > 0 and weight_kg > 0 as semantic guards.",
+        "Semantic validator is callable independently from CLI code.",
+        "Validation failures return deterministic ValidationError payloads.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Enforce training dependency rule in application layer",
+      "description": "As a user, I want a clear validation error when training minutes are present but training_before_meal is missing.",
+      "acceptanceCriteria": [
+        "Implement rule: if total zones_minutes > 0, training_before_meal is required.",
+        "Rule is evaluated after zone normalization/parsing.",
+        "Error message identifies the missing dependent field.",
+        "Unit tests cover 0 minutes (allowed missing field) and >0 minutes (required field).",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Normalize and validate training zones input",
+      "description": "As an application service, I want robust zone validation so training data is normalized and deterministic for downstream rules.",
+      "acceptanceCriteria": [
+        "Accept subset zone keys within 1..5; missing zones are treated as 0.",
+        "Accept numeric-string keys and normalize to integer zone keys.",
+        "Reject zone keys outside 1..5.",
+        "Reject zone minutes < 0.",
+        "Reject non-integer minute values.",
+        "Unit tests cover mixed key formats, subset keys, out-of-range keys, and negative values.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add domain invariant checks for macro targets",
+      "description": "As a domain service, I want invariant checks for macro targets so impossible nutrition outputs are blocked.",
+      "acceptanceCriteria": [
+        "Add domain invariant validator for MacroTargets.",
+        "Enforce protein_g >= 0, carbs_g >= 0, and fat_g >= 0.",
+        "Negative fat outcomes map to DomainRuleError and not ValidationError.",
+        "Unit tests verify failure type and deterministic error category.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add domain invariant checks for meal allocation structure",
+      "description": "As a domain service, I want meal allocation invariants enforced so all plans use canonical six-meal structure.",
+      "acceptanceCriteria": [
+        "Add domain invariant validator for MealAllocation list shape.",
+        "Enforce exactly six allocations.",
+        "Enforce canonical meal-name coverage (all canonical names exactly once).",
+        "Enforce canonical meal order.",
+        "Reject duplicates and missing meal names.",
+        "Unit tests cover duplicates, missing meal, wrong count, and out-of-order list.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Add carb reconciliation invariant checks",
+      "description": "As a domain service, I want exact carb reconciliation validation so periodization and response assembly cannot drift from targets.",
+      "acceptanceCriteria": [
+        "Add invariant check that sum of meal carbs_g equals top-level carbs_g under defined precision policy.",
+        "Use deterministic comparison policy abs(sum - target) <= 1e-9 with no time or random behavior.",
+        "Failure returns DomainRuleError with reconciliation context.",
+        "Unit tests cover exact-match and mismatch cases.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Compose validation flow in application orchestration",
+      "description": "As a maintainer, I want one deterministic validation flow so all callers get consistent rule execution and error mapping.",
+      "acceptanceCriteria": [
+        "Application flow order is explicit: schema parse -> semantic input validation -> domain invariant checks.",
+        "Domain invariant functions remain in domain; application layer orchestrates calls only.",
+        "Mapping to ValidationError and DomainRuleError remains stable.",
+        "Unit or integration tests verify flow ordering and failure boundaries.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Expand invalid-input and invariant-failure test matrix",
+      "description": "As a maintainer, I want matrix tests for Phase 3 rules so regressions are caught quickly and deterministically.",
+      "acceptanceCriteria": [
+        "Add parameterized tests for semantic input failures (age, weight, training dependency).",
+        "Add parameterized tests for zone normalization and invalid zone scenarios.",
+        "Add parameterized tests for domain invariant failures (negative fat, meal uniqueness/order/count, carb mismatch).",
+        "Tests assert stable error type or category rather than brittle full-message snapshots.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Document validation boundary and error taxonomy",
+      "description": "As a contributor, I want concise validation-layer documentation so future phases preserve boundaries and behavior.",
+      "acceptanceCriteria": [
+        "Update docs to define Phase 3 split: application semantic validation vs domain invariants.",
+        "Document deterministic validation flow and typed error mapping.",
+        "Document zone normalization behavior (subset keys plus numeric-string key normalization).",
+        "Include at least one valid and one invalid payload example with expected error category.",
+        "ruff check . passes.",
+        "mypy --strict src passes.",
+        "pytest passes.",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

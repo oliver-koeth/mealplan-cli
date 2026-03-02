@@ -32,6 +32,7 @@ def test_meal_plan_request_parses_canonical_payload(
     request = MealPlanRequest.model_validate(meal_plan_request_payload)
 
     assert request.age == 35
+    assert request.height_cm == 178
     assert request.weight_kg == 72.5
     assert request.training_session.zones_minutes["2"] == 40
     assert request.training_session.training_before_meal == "lunch"
@@ -67,6 +68,7 @@ def test_meal_plan_request_allows_missing_training_before_meal(
     [
         ("age", {"missing"}),
         ("gender", {"missing"}),
+        ("height_cm", {"missing"}),
         ("weight_kg", {"missing"}),
         ("activity_level", {"missing"}),
         ("carb_mode", {"missing"}),
@@ -116,6 +118,7 @@ def test_meal_plan_request_rejects_invalid_enum_values(
     ("field", "invalid_value", "expected_error_types"),
     [
         ("age", "35", {"int_type"}),
+        ("height_cm", "178", {"int_type"}),
         ("weight_kg", "72.5", {"float_type"}),
         ("training_session", "not-an-object", {"model_type", "model_attributes_type"}),
     ],
@@ -274,6 +277,7 @@ def test_contract_units_policy_covers_request_and_response_units() -> None:
     """Contract module should publish explicit units metadata and legacy notes."""
     assert CONTRACT_UNITS_POLICY == {
         "age": "years",
+        "height_cm": "cm",
         "weight_kg": "kg",
         "zones_minutes": "minutes",
         "TDEE": "kcal/day (legacy field name retained for compatibility)",

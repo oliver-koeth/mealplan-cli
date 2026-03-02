@@ -38,6 +38,7 @@ The tool must be fully machine-executable without ambiguity.
   ----------------------- ------- ---------------------------
   `--age`                 int     Age in years
   `--gender`              enum    male / female
+  `--height`              int     Height in cm
   `--weight`              float   Body weight in kg
   `--activity`            enum    low / medium / high
   `--carbs`               enum    low / normal / periodized
@@ -65,8 +66,8 @@ Men: BMR = 10 × weight + 6.25 × height − 5 × age + 5
 
 Women: BMR = 10 × weight + 6.25 × height − 5 × age − 161
 
-(Height optional future extension; fixed defaults may apply if not
-provided.)
+Height is a required CLI input (`--height`) in centimeters.
+No upper bound is defined for height in this specification.
 
 ### 4.2 Activity Multipliers
 
@@ -204,6 +205,9 @@ JSON structure:
 
 -   Weight \> 0
 -   Age \> 0
+-   Height is integer and \> 0
+-   Height does not have an upper bound
+-   Numeric strings are not accepted for `--height` (strict integer input only)
 -   Carb totals exact
 -   Fat not negative
 -   training-before required if training-zones provided
