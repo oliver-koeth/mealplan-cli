@@ -46,6 +46,7 @@ When in doubt, update those source docs instead of expanding this file.
 17. When contract shapes or enum sets change, update `docs/ARCHITECTURE.md` section 10 with canonical module paths, exact request/response field names, canonical meal order usage, Phase 2 schema-vs-Phase 3 semantic boundary, and one valid request/response JSON example.
 18. Keep Phase 3 semantic guards in `src/mealplan/application/validation.py::validate_semantic_input`; raise `ValidationError` messages prefixed with the failing field path (for example `age: ...`) to preserve deterministic CLI/user-facing error payloads.
 19. Enforce training dependency semantics in application validation using aggregate zone volume (`sum(zones_minutes.values())`): require `training_before_meal` only when total minutes are greater than zero, and report failures as `training_session.training_before_meal: ...`.
+20. For any semantic rule that reads `training_session.zones_minutes`, first canonicalize with `normalize_training_zones` (application validation) so subset payloads, numeric-string keys, and deterministic `1..5` coverage are handled consistently.
 
 ## Ralph Runner
 

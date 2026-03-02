@@ -3,6 +3,7 @@
 - Keep schema parsing in `application/parsing.py` and semantic business-input checks in `application/validation.py` so Phase 2 and Phase 3 boundaries stay explicit.
 - Semantic validation errors should use deterministic `ValidationError` messages prefixed by field path (for example `age: ...`) to keep CLI output and tests stable.
 - Evaluate training-session dependency rules against `sum(training_session.zones_minutes.values())`; missing `training_before_meal` is valid only when the sum is `0`.
+- Normalize `training_session.zones_minutes` through `normalize_training_zones` before any semantic rule uses zone data; this enforces canonical `1..5` coverage and deterministic key/value validation.
 
 Started: Mon Mar  2 09:12:55 CET 2026
 ---
@@ -40,4 +41,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Keep the dependency threshold tied to aggregated zone volume, not any single zone key, so subset/non-uniform zone payloads stay consistent.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Existing `meal_plan_request_payload` fixture already contains a valid `training_session`, making it straightforward to override only dependency-related fields in tests.
+---
+## 2026-03-02 09:34:11 CET - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented `normalize_training_zones` in application validation to canonicalize zone keys to integers (`1..5`), fill missing zones with `0`, and reject invalid zone keys/minutes deterministically.
+- Updated semantic dependency validation to evaluate `training_before_meal` against normalized zone totals.
+- Added semantic-validator unit coverage for subset keys, mixed numeric-string/int keys, out-of-range/invalid keys, negative minutes, and non-integer minutes.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/application/validation.py
+  - tests/unit/test_application_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Keep zone-shape normalization in `application/validation.py` rather than contract parsing so schema and semantic boundaries stay aligned with Phase 2/3 architecture.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - `mypy --strict` treats the `dict[Literal["1"..."5"], int]` to generic mapping handoff as incompatible; cast at the semantic boundary when feeding normalization helpers.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_application_validation.py` now carries the canonical matrix for zone semantic failures, so future stories should extend this module instead of duplicating zone tests elsewhere.
 ---
