@@ -48,6 +48,7 @@ When in doubt, update those source docs instead of expanding this file.
 19. Enforce training dependency semantics in application validation using aggregate zone volume (`sum(zones_minutes.values())`): require `training_before_meal` only when total minutes are greater than zero, and report failures as `training_session.training_before_meal: ...`.
 20. For any semantic rule that reads `training_session.zones_minutes`, first canonicalize with `normalize_training_zones` (application validation) so subset payloads, numeric-string keys, and deterministic `1..5` coverage are handled consistently.
 21. Keep nutrition-output hard invariants in `src/mealplan/domain/validation.py` and raise `DomainRuleError` (not `ValidationError`) for domain impossibilities such as negative macro targets.
+22. Validate domain meal-allocation structure through `validate_meal_allocation_invariants` and `CANONICAL_MEAL_ORDER` (count -> canonical coverage -> canonical order) to keep response-shape failures deterministic at the domain boundary.
 
 ## Ralph Runner
 

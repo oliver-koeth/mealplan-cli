@@ -5,6 +5,7 @@
 - Evaluate training-session dependency rules against `sum(training_session.zones_minutes.values())`; missing `training_before_meal` is valid only when the sum is `0`.
 - Normalize `training_session.zones_minutes` through `normalize_training_zones` before any semantic rule uses zone data; this enforces canonical `1..5` coverage and deterministic key/value validation.
 - Keep macro-output hard constraints in `domain/validation.py`; when invariants fail (for example negative macro grams), raise `DomainRuleError` so exit-code mapping remains `DOMAIN`.
+- For response meal-structure invariants, validate `list[MealAllocation]` at the domain boundary with `validate_meal_allocation_invariants` using `CANONICAL_MEAL_ORDER` (count, then coverage, then order) for deterministic errors.
 
 Started: Mon Mar  2 09:12:55 CET 2026
 ---
@@ -81,4 +82,25 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - For invariant-failure tests, assert both exception class (`DomainRuleError`) and mapped exit-code category (`ExitCode.DOMAIN`) to lock behavior at the CLI boundary.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `tests/unit/test_domain_validation.py` is now the canonical place to extend Phase 3 domain invariant matrix coverage.
+---
+## 2026-03-02 09:39:23 CET - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented domain-level meal-allocation invariant validation via `validate_meal_allocation_invariants`, enforcing exactly six entries, canonical meal-name coverage (no duplicates/missing), and canonical meal order.
+- Added a domain `MealAllocation` model for invariant validation inputs and exported the new model/validator via `mealplan.domain`.
+- Expanded domain validation unit coverage for canonical pass case plus duplicate, missing, wrong-count, and out-of-order failure cases with deterministic `DomainRuleError` messages and `ExitCode.DOMAIN` mapping assertions.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/domain/__init__.py
+  - src/mealplan/domain/model.py
+  - src/mealplan/domain/validation.py
+  - tests/unit/test_domain_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Domain response-shape invariants should be validated in `src/mealplan/domain/validation.py` using domain models, not application DTOs, so layer boundaries remain clean.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - With canonical `MealName` enum values, a six-item list with a duplicate canonical name also implies a missing canonical name; test fixtures need explicit non-canonical cast values to isolate missing-coverage paths.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_domain_validation.py` now includes the canonical meal-allocation matrix and should be extended for upcoming invariant stories instead of creating parallel test modules.
 ---

@@ -24,3 +24,13 @@ class MacroTargets:
     protein_g: float
     carbs_g: float
     fat_g: float
+
+
+@dataclass(frozen=True, slots=True)
+class MealAllocation:
+    """Canonical per-meal macro allocation used for domain invariant validation."""
+
+    meal: MealName
+    carbs_g: float
+    protein_g: float
+    fat_g: float
