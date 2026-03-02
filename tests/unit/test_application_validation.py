@@ -26,6 +26,8 @@ def test_validate_semantic_input_accepts_canonical_payload(
     [
         ("age", 0, "age: must be greater than 0"),
         ("age", -1, "age: must be greater than 0"),
+        ("height_cm", 0, "height_cm: must be greater than 0"),
+        ("height_cm", -1, "height_cm: must be greater than 0"),
         ("weight_kg", 0.0, "weight_kg: must be greater than 0"),
         ("weight_kg", -0.5, "weight_kg: must be greater than 0"),
     ],
@@ -63,6 +65,17 @@ def test_validate_semantic_input_error_payload_is_deterministic(
         messages.append(str(error_info.value))
 
     assert messages[0] == messages[1]
+
+
+def test_validate_semantic_input_allows_large_positive_height(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
+    """Height semantic guard is strictly >0 with no maximum bound."""
+    payload = meal_plan_request_payload
+    payload["height_cm"] = 100_000
+    request = MealPlanRequest.model_validate(payload)
+
+    validate_semantic_input(request)
 
 
 @pytest.mark.parametrize(

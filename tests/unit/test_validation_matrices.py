@@ -26,6 +26,11 @@ from mealplan.shared.exit_codes import ExitCode, map_exception_to_exit_code
     [
         pytest.param(lambda payload: payload.update({"age": 0}), "age:", id="age-non-positive"),
         pytest.param(
+            lambda payload: payload.update({"height_cm": 0}),
+            "height_cm:",
+            id="height-non-positive",
+        ),
+        pytest.param(
             lambda payload: payload.update({"weight_kg": 0.0}),
             "weight_kg:",
             id="weight-non-positive",
