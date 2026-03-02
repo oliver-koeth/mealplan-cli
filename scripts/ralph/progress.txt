@@ -9,6 +9,7 @@
 - For carb reconciliation checks, call `validate_carb_reconciliation_invariants` and use `CARB_RECONCILIATION_TOLERANCE` (`abs(sum - target) <= 1e-9`) to keep mismatch behavior deterministic across layers.
 - Run Phase 3 validation through `application/orchestration.py::validate_meal_plan_flow` to keep one canonical order: `parse_contract` -> `validate_semantic_input` -> domain invariant checks.
 - For Phase 3 regression expansion, add cases to `tests/unit/test_validation_matrices.py` and prefer asserting exception class plus `map_exception_to_exit_code(...)` category with minimal message fragments/prefixes.
+- Keep Phase 2/3 contract and validation-boundary documentation in `docs/ARCHITECTURE.md` section 10 (`Data Contracts`), including canonical valid/invalid payload examples with expected error category.
 
 Started: Mon Mar  2 09:12:55 CET 2026
 ---
@@ -163,4 +164,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Prefer asserting error class plus `map_exception_to_exit_code(...)` over exact full-message snapshots to keep tests stable while preserving deterministic category checks.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `tests/unit/conftest.py` canonical payload fixtures remain sufficient for matrix tests; deep-copy request payloads before per-case mutation to avoid cross-case contamination.
+---
+## 2026-03-02 10:10:20 CET - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Updated validation-layer documentation in `docs/ARCHITECTURE.md` to define the explicit Phase 3 split between application semantic validation and domain invariant checks.
+- Documented deterministic orchestration flow and typed error mapping (`ValidationError` -> `ExitCode.VALIDATION`, `DomainRuleError` -> `ExitCode.DOMAIN`), plus zone normalization behavior for `training_session.zones_minutes`.
+- Added one valid and one invalid request payload example, with the invalid example explicitly mapped to expected `VALIDATION` error category.
+- Files changed:
+  - docs/ARCHITECTURE.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Phase boundary and error-taxonomy docs are expected to stay centralized in `docs/ARCHITECTURE.md` section 10, not duplicated across multiple docs.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Keep invalid-payload docs aligned with implemented normalization semantics (`zones_minutes` subset keys normalize before dependency checks), or examples can contradict runtime behavior.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing section 10 JSON examples are the canonical place to extend future contract/validation examples as later phases add fields.
 ---

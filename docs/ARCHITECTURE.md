@@ -182,6 +182,23 @@ mealplan/
 - Validation boundaries:
   - Phase 2 boundary: schema validation only (types, required fields, enum membership, unknown-field rejection, structural shape).
   - Phase 3 boundary: business-rule/semantic validation (for example: required-if-training-minutes>0 checks and nutrition rule invariants).
+- Phase 3 validation flow and error taxonomy:
+  - Canonical orchestration entrypoint: `src/mealplan/application/orchestration.py::validate_meal_plan_flow`.
+  - Deterministic order is fixed and must not change:
+    1. `parse_contract` (schema parse and DTO construction).
+    2. `validate_semantic_input` (application semantic validation).
+    3. Domain invariants (`validate_macro_targets_invariants`, `validate_meal_allocation_invariants`, `validate_carb_reconciliation_invariants`).
+  - Layer ownership:
+    - Application layer owns semantic input checks and request normalization.
+    - Domain layer owns output and invariant checks over domain models.
+  - Typed error mapping:
+    - Input/schema/semantic failures -> `ValidationError` -> `ExitCode.VALIDATION` (`2`).
+    - Domain invariant failures -> `DomainRuleError` -> `ExitCode.DOMAIN` (`3`).
+  - Zone normalization contract:
+    - `training_session.zones_minutes` is normalized before semantic dependency checks.
+    - Accept subset keys in `1..5`; fill omitted keys with `0`.
+    - Accept numeric-string and integer keys, normalizing to canonical integer-keyed `1..5`.
+    - Reject out-of-range keys, negative minutes, and non-integer minute values.
 - Typing discipline:
   - Full type hints; `mypy` strict mode for domain/application packages.
 - Valid request JSON example:
@@ -223,6 +240,26 @@ mealplan/
   ]
 }
 ```
+- Invalid request JSON example (expected `ValidationError`, category `VALIDATION` / exit code `2`):
+```json
+{
+  "age": 35,
+  "gender": "male",
+  "weight_kg": 72.5,
+  "activity_level": "medium",
+  "carb_mode": "periodized",
+  "training_load_tomorrow": "high",
+  "training_session": {
+    "zones_minutes": {
+      "1": 0,
+      "2": 30
+    },
+    "training_before_meal": null
+  }
+}
+```
+- Why invalid:
+  - Normalized zone total is `30` (> `0`), so `training_session.training_before_meal` is required by Phase 3 semantic validation.
 
 ## 11. Configuration Architecture
 - Precedence:
