@@ -58,6 +58,7 @@ When in doubt, update those source docs instead of expanding this file.
 29. When macro formulas derive impossible negative targets (for example residual fat), raise `DomainRuleError` with a stable `macro_targets.<field>` prefix to preserve deterministic domain categorization and CLI exit-code mapping.
 30. For composed Phase 4+ domain orchestration entrypoints, use `src/mealplan/domain/services.py` and delegate to formula helpers in `energy.py`/`macros.py`; re-export composed services via `mealplan.domain.__init__` to avoid deep-module imports in higher layers.
 31. For floating-point formula regression tests, prefer `pytest.approx` for multiplicative outputs and assert stable error-category prefixes (not full message snapshots) for domain failures.
+32. When a phase-level assumption changes (for example required-vs-default inputs), update both `docs/PLAN.md` (phase scope/risks) and `docs/ARCHITECTURE.md` (calculation engine/future evolution) in the same iteration to keep backlog and architecture narratives consistent.
 
 ## Ralph Runner
 

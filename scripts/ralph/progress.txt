@@ -10,6 +10,7 @@ Started: Mon Mar  2 14:01:35 CET 2026
 - Request boundary contracts use strict pydantic primitives (`StrictInt`/`StrictFloat`) for parse-time no-coercion guarantees, while numeric positivity rules belong in `application.validation.validate_semantic_input`.
 - Phase-level composed domain APIs should live in `src/mealplan/domain/services.py`, delegate to formula helpers in `energy.py`/`macros.py`, and return typed dataclasses (`MacroTargets`) for application-layer orchestration.
 - Floating-point formula regression tests should use `pytest.approx` for multiplicative outputs, and domain error assertions should target stable category prefixes/types rather than full-message snapshots.
+- When a phase assumption changes (for example required-vs-default inputs), update both `docs/PLAN.md` and `docs/ARCHITECTURE.md` in the same iteration so backlog and architecture narratives stay consistent.
 
 ## [2026-03-02 16:11:22 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
@@ -174,4 +175,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Direct float equality can be brittle for multiplicative formulas; use `pytest.approx` when binary precision can surface tiny tails.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `make quality` is the required pre-commit gate and now reports 136 passing tests.
+---
+## [2026-03-02 16:30:20 CET] - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
+- Aligned Phase 4 planning and architecture docs with required `height_cm` input semantics (`StrictInt`, `> 0`) and removed stale default-height/temporary-ADR backlog wording.
+- Updated `docs/ARCHITECTURE.md` energy section to describe required-height behavior and removed completed height-extension item from future evolution.
+- Ran full quality gate successfully (`make quality`): `ruff`, strict `mypy`, and `pytest` (136 passed).
+- Files changed:
+  - docs/PLAN.md
+  - docs/ARCHITECTURE.md
+  - AGENT.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - When phase assumptions graduate from temporary to canonical behavior, update both backlog-phase docs (`PLAN`) and architecture narrative (`ARCHITECTURE`) together.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Leaving stale "future height extension" or "default behavior" lines in either doc can contradict already-implemented contract/test behavior.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` remains the required completion gate and currently passes with 136 tests.
 ---
