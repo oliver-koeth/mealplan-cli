@@ -49,6 +49,7 @@ When in doubt, update those source docs instead of expanding this file.
 20. For any semantic rule that reads `training_session.zones_minutes`, first canonicalize with `normalize_training_zones` (application validation) so subset payloads, numeric-string keys, and deterministic `1..5` coverage are handled consistently.
 21. Keep nutrition-output hard invariants in `src/mealplan/domain/validation.py` and raise `DomainRuleError` (not `ValidationError`) for domain impossibilities such as negative macro targets.
 22. Validate domain meal-allocation structure through `validate_meal_allocation_invariants` and `CANONICAL_MEAL_ORDER` (count -> canonical coverage -> canonical order) to keep response-shape failures deterministic at the domain boundary.
+23. Enforce top-level versus per-meal carb consistency with `validate_carb_reconciliation_invariants` using `CARB_RECONCILIATION_TOLERANCE` (`abs(sum - target) <= 1e-9`) so reconciliation behavior remains deterministic.
 
 ## Ralph Runner
 

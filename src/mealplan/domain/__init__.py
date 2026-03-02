@@ -9,6 +9,7 @@ from mealplan.domain.enums import (
 )
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, MealAllocation
 from mealplan.domain.validation import (
+    validate_carb_reconciliation_invariants,
     validate_macro_targets_invariants,
     validate_meal_allocation_invariants,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "MealAllocation",
     "MealName",
     "TrainingLoadTomorrow",
+    "validate_carb_reconciliation_invariants",
     "validate_meal_allocation_invariants",
     "validate_macro_targets_invariants",
 ]

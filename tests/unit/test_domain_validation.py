@@ -9,6 +9,7 @@ import pytest
 from mealplan.domain.enums import MealName
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, MealAllocation
 from mealplan.domain.validation import (
+    validate_carb_reconciliation_invariants,
     validate_macro_targets_invariants,
     validate_meal_allocation_invariants,
 )
@@ -118,6 +119,30 @@ def test_validate_meal_allocation_invariants_rejects_out_of_order_sequence() -> 
 
     assert (
         str(error_info.value) == "meal_allocations: meals must match canonical meal order exactly"
+    )
+    assert map_exception_to_exit_code(error_info.value) is ExitCode.DOMAIN
+
+
+def test_validate_carb_reconciliation_invariants_accepts_exact_match() -> None:
+    """Meal carb sum matching top-level target should satisfy reconciliation invariant."""
+    meal_allocations = _build_canonical_meal_allocations()
+    macro_targets = MacroTargets(protein_g=150.0, carbs_g=300.0, fat_g=75.0)
+
+    validate_carb_reconciliation_invariants(macro_targets, meal_allocations)
+
+
+def test_validate_carb_reconciliation_invariants_rejects_mismatch() -> None:
+    """Meal carb sum mismatch should raise deterministic domain reconciliation error."""
+    meal_allocations = _build_canonical_meal_allocations()
+    macro_targets = MacroTargets(protein_g=150.0, carbs_g=299.0, fat_g=75.0)
+
+    with pytest.raises(DomainRuleError) as error_info:
+        validate_carb_reconciliation_invariants(macro_targets, meal_allocations)
+
+    assert (
+        str(error_info.value)
+        == "carb_reconciliation: sum(meal_allocations.carbs_g)=300.0 "
+        "differs from macro_targets.carbs_g=299.0 (delta=1.0, tolerance=1e-09)"
     )
     assert map_exception_to_exit_code(error_info.value) is ExitCode.DOMAIN
 

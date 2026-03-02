@@ -6,6 +6,7 @@
 - Normalize `training_session.zones_minutes` through `normalize_training_zones` before any semantic rule uses zone data; this enforces canonical `1..5` coverage and deterministic key/value validation.
 - Keep macro-output hard constraints in `domain/validation.py`; when invariants fail (for example negative macro grams), raise `DomainRuleError` so exit-code mapping remains `DOMAIN`.
 - For response meal-structure invariants, validate `list[MealAllocation]` at the domain boundary with `validate_meal_allocation_invariants` using `CANONICAL_MEAL_ORDER` (count, then coverage, then order) for deterministic errors.
+- For carb reconciliation checks, call `validate_carb_reconciliation_invariants` and use `CARB_RECONCILIATION_TOLERANCE` (`abs(sum - target) <= 1e-9`) to keep mismatch behavior deterministic across layers.
 
 Started: Mon Mar  2 09:12:55 CET 2026
 ---
@@ -103,4 +104,24 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - With canonical `MealName` enum values, a six-item list with a duplicate canonical name also implies a missing canonical name; test fixtures need explicit non-canonical cast values to isolate missing-coverage paths.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `tests/unit/test_domain_validation.py` now includes the canonical meal-allocation matrix and should be extended for upcoming invariant stories instead of creating parallel test modules.
+---
+## 2026-03-02 10:03:11 CET - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented domain-level carb reconciliation invariant validation via `validate_carb_reconciliation_invariants`, enforcing deterministic tolerance policy `abs(sum(meal carbs) - macro target carbs) <= 1e-9`.
+- Added deterministic `DomainRuleError` mismatch payload including reconciliation context (`sum`, `target`, `delta`, `tolerance`) and exported the validator from `mealplan.domain`.
+- Expanded domain validation unit coverage for exact-match pass and mismatch failure, including exit-code mapping assertions to `ExitCode.DOMAIN`.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/domain/__init__.py
+  - src/mealplan/domain/validation.py
+  - tests/unit/test_domain_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Reconciliation invariants belong in `src/mealplan/domain/validation.py` and should compare domain-model values directly, not application DTO data.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Keep the tolerance constant centralized (`CARB_RECONCILIATION_TOLERANCE`) so tests and downstream orchestration don’t drift on precision policy.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_domain_validation.py` continues to be the canonical location for Phase 3 domain invariant matrix growth, including reconciliation scenarios.
 ---
