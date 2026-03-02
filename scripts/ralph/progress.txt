@@ -3,6 +3,7 @@ Started: Mon Mar  2 14:01:35 CET 2026
 
 ## Codebase Patterns
 - New domain service helpers should be implemented in dedicated modules (for example `domain/energy.py`) and re-exported from `mealplan.domain.__init__` to keep import paths stable across layers.
+- Energy formula functions should live in `src/mealplan/domain/energy.py` and follow explicit unit-bearing names (for example `*_kcal_per_day_for`) to keep calculation intent clear across phases.
 
 ## [2026-03-02 16:11:22 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
@@ -22,4 +23,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Ruff import-order checks will fail when adding new domain exports unless import blocks stay sorted.
   - Useful context (e.g., "the evaluation panel is in component X")
     - The repository quality gate is `make quality` which runs `ruff`, strict `mypy`, and `pytest`.
+---
+## [2026-03-02 16:13:30 CET] - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented deterministic Mifflin-St Jeor BMR helper `bmr_kcal_per_day_for(...)` in the domain energy module with canonical `Gender`-based branch logic.
+- Added unit tests for male and female fixtures to verify exact formula outputs.
+- Re-exported the new domain helper via `mealplan.domain.__init__` to keep top-level import paths stable.
+- Files changed:
+  - src/mealplan/domain/energy.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_energy.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Energy formula helpers live in `src/mealplan/domain/energy.py` and should be exposed through `mealplan.domain` package exports for cross-layer imports.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - `make quality` will catch fixture arithmetic mistakes quickly; keep formula test expected values derived directly from the equation to avoid off-by-constant errors.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Current quality gate remains `make quality` (`ruff` + strict `mypy` + full `pytest`).
 ---

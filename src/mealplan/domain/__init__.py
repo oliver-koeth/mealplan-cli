@@ -1,6 +1,10 @@
 """Domain layer for mealplan."""
 
-from mealplan.domain.energy import ACTIVITY_FACTOR_BY_LEVEL, activity_factor_for
+from mealplan.domain.energy import (
+    ACTIVITY_FACTOR_BY_LEVEL,
+    activity_factor_for,
+    bmr_kcal_per_day_for,
+)
 from mealplan.domain.enums import (
     ActivityLevel,
     CarbMode,
@@ -26,6 +30,7 @@ __all__ = [
     "MealName",
     "TrainingLoadTomorrow",
     "activity_factor_for",
+    "bmr_kcal_per_day_for",
     "validate_carb_reconciliation_invariants",
     "validate_meal_allocation_invariants",
     "validate_macro_targets_invariants",

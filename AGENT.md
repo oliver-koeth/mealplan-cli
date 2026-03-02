@@ -52,6 +52,7 @@ When in doubt, update those source docs instead of expanding this file.
 23. Enforce top-level versus per-meal carb consistency with `validate_carb_reconciliation_invariants` using `CARB_RECONCILIATION_TOLERANCE` (`abs(sum - target) <= 1e-9`) so reconciliation behavior remains deterministic.
 24. For Phase 3+ use-case wiring, run `validate_meal_plan_flow` (`application/orchestration.py`) to preserve the canonical order `parse_contract -> validate_semantic_input -> domain invariants` and keep error-type boundaries stable.
 25. Keep Phase 3 regression coverage in `tests/unit/test_validation_matrices.py` using parameterized matrices that assert exception class and exit-code category, with only minimal message fragments/prefixes for stability.
+26. Keep energy-formula helpers in `src/mealplan/domain/energy.py`, name them with explicit units (for example `*_kcal_per_day_for`), and re-export them via `mealplan.domain.__init__`.
 
 ## Ralph Runner
 
