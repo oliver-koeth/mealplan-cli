@@ -16,6 +16,7 @@ from mealplan.domain.enums import (
 from mealplan.domain.macros import (
     CARBS_FACTOR_BY_MODE,
     carbs_target_g_for,
+    fat_target_g_for,
     protein_target_g_for,
 )
 from mealplan.domain.model import (
@@ -45,6 +46,7 @@ __all__ = [
     "activity_factor_for",
     "bmr_kcal_per_day_for",
     "carbs_target_g_for",
+    "fat_target_g_for",
     "protein_target_g_for",
     "tdee_kcal_per_day_for",
     "validate_carb_reconciliation_invariants",

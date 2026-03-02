@@ -5,6 +5,7 @@ Started: Mon Mar  2 14:01:35 CET 2026
 - New domain service helpers should be implemented in dedicated modules (for example `domain/energy.py`) and re-exported from `mealplan.domain.__init__` to keep import paths stable across layers.
 - Energy formula functions should live in `src/mealplan/domain/energy.py` and follow explicit unit-bearing names (for example `*_kcal_per_day_for`) to keep calculation intent clear across phases.
 - Macro formula helpers should live in `src/mealplan/domain/macros.py` with enum-keyed factor mappings and package-level re-exports in `mealplan.domain.__init__`.
+- Residual macro impossibilities (for example negative computed fat) should raise `DomainRuleError` with a stable `macro_targets.<field>` prefix so exit-code mapping and tests remain deterministic.
 - Typed calculation inputs should use frozen dataclasses in `src/mealplan/domain/model.py` (for example `UserProfile`) and be consumed by domain services instead of passing unstructured dicts.
 - Request boundary contracts use strict pydantic primitives (`StrictInt`/`StrictFloat`) for parse-time no-coercion guarantees, while numeric positivity rules belong in `application.validation.validate_semantic_input`.
 
@@ -107,4 +108,24 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Adding a required request field requires updating both shared fixtures (`tests/unit/conftest.py`) and units-policy expectations in `test_application_contracts.py`.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `make quality` continues to run the full gate (`ruff`, strict `mypy`, `pytest`) and should be used before flipping PRD `passes` flags.
+---
+## [2026-03-02 16:22:56 CET] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Implemented residual fat macro helper `fat_target_g_for(tdee_kcal, protein_g, carbs_g)` in `src/mealplan/domain/macros.py` using canonical calorie math: `fat_kcal = tdee_kcal - 4*protein_g - 4*carbs_g`, `fat_g = fat_kcal / 9`.
+- Added deterministic negative-fat rejection that raises `DomainRuleError` with stable category prefix (`macro_targets.fat_g`) for compatibility with existing domain/exit-code handling.
+- Added unit coverage for both positive residual-fat output and negative-fat rejection behavior.
+- Re-exported the new helper via `mealplan.domain.__init__` and marked US-006 as passed in the Ralph PRD.
+- Files changed:
+  - src/mealplan/domain/macros.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_macros.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Macro formula helpers should encode impossible computed states as `DomainRuleError` instead of silently returning negative targets.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Adding a new domain helper requires a matching `mealplan.domain.__init__` export to keep higher layers off deep module imports.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Quality gate remains `make quality`, currently passing with 128 tests.
 ---

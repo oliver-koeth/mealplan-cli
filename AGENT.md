@@ -55,6 +55,7 @@ When in doubt, update those source docs instead of expanding this file.
 26. Keep energy-formula helpers in `src/mealplan/domain/energy.py`, name them with explicit units (for example `*_kcal_per_day_for`), and re-export them via `mealplan.domain.__init__`.
 27. For composed energy/macro domain APIs, accept typed `UserProfile` inputs from `src/mealplan/domain/model.py` instead of unstructured payloads so service contracts stay deterministic and cross-layer stable.
 28. Keep macro formula helpers in `src/mealplan/domain/macros.py` (protein/carbs mode factors) and re-export public helpers/constants via `mealplan.domain.__init__` for stable imports.
+29. When macro formulas derive impossible negative targets (for example residual fat), raise `DomainRuleError` with a stable `macro_targets.<field>` prefix to preserve deterministic domain categorization and CLI exit-code mapping.
 
 ## Ralph Runner
 
