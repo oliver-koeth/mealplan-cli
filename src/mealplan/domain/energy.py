@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from mealplan.domain.enums import ActivityLevel, Gender
+from mealplan.domain.model import UserProfile
 
 ACTIVITY_FACTOR_BY_LEVEL: dict[ActivityLevel, float] = {
     ActivityLevel.LOW: 1.2,
@@ -28,3 +29,13 @@ def bmr_kcal_per_day_for(
     if gender is Gender.MALE:
         return base_value + 5
     return base_value - 161
+
+
+def tdee_kcal_per_day_for(profile: UserProfile) -> float:
+    """Return TDEE in kcal/day from a typed user profile."""
+    return bmr_kcal_per_day_for(
+        gender=profile.gender,
+        weight_kg=profile.weight_kg,
+        height_cm=profile.height_cm,
+        age=profile.age,
+    ) * activity_factor_for(profile.activity_level)

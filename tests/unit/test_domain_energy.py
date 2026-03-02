@@ -8,8 +8,10 @@ from mealplan.domain.energy import (
     ACTIVITY_FACTOR_BY_LEVEL,
     activity_factor_for,
     bmr_kcal_per_day_for,
+    tdee_kcal_per_day_for,
 )
 from mealplan.domain.enums import ActivityLevel, Gender
+from mealplan.domain.model import UserProfile
 
 
 @pytest.mark.parametrize(
@@ -46,3 +48,26 @@ def test_bmr_kcal_per_day_for_uses_gender_specific_mifflin_st_jeor_formula(
         bmr_kcal_per_day_for(gender=gender, weight_kg=70.5, height_cm=175, age=30)
         == expected_bmr
     )
+
+
+@pytest.mark.parametrize(
+    ("activity_level", "expected_tdee"),
+    [
+        (ActivityLevel.LOW, 1984.5),
+        (ActivityLevel.MEDIUM, 2273.90625),
+        (ActivityLevel.HIGH, 2563.3125),
+    ],
+)
+def test_tdee_kcal_per_day_for_uses_activity_factor_with_unrounded_float_output(
+    activity_level: ActivityLevel,
+    expected_tdee: float,
+) -> None:
+    profile = UserProfile(
+        age=30,
+        gender=Gender.MALE,
+        height_cm=175,
+        weight_kg=70.5,
+        activity_level=activity_level,
+    )
+
+    assert tdee_kcal_per_day_for(profile) == expected_tdee

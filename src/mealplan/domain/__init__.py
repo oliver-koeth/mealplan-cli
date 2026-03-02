@@ -4,6 +4,7 @@ from mealplan.domain.energy import (
     ACTIVITY_FACTOR_BY_LEVEL,
     activity_factor_for,
     bmr_kcal_per_day_for,
+    tdee_kcal_per_day_for,
 )
 from mealplan.domain.enums import (
     ActivityLevel,
@@ -12,7 +13,12 @@ from mealplan.domain.enums import (
     MealName,
     TrainingLoadTomorrow,
 )
-from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, MealAllocation
+from mealplan.domain.model import (
+    CANONICAL_MEAL_ORDER,
+    MacroTargets,
+    MealAllocation,
+    UserProfile,
+)
 from mealplan.domain.validation import (
     validate_carb_reconciliation_invariants,
     validate_macro_targets_invariants,
@@ -29,8 +35,10 @@ __all__ = [
     "MealAllocation",
     "MealName",
     "TrainingLoadTomorrow",
+    "UserProfile",
     "activity_factor_for",
     "bmr_kcal_per_day_for",
+    "tdee_kcal_per_day_for",
     "validate_carb_reconciliation_invariants",
     "validate_meal_allocation_invariants",
     "validate_macro_targets_invariants",
