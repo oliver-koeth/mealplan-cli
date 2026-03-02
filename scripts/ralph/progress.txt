@@ -9,6 +9,7 @@ Started: Mon Mar  2 14:01:35 CET 2026
 - Typed calculation inputs should use frozen dataclasses in `src/mealplan/domain/model.py` (for example `UserProfile`) and be consumed by domain services instead of passing unstructured dicts.
 - Request boundary contracts use strict pydantic primitives (`StrictInt`/`StrictFloat`) for parse-time no-coercion guarantees, while numeric positivity rules belong in `application.validation.validate_semantic_input`.
 - Phase-level composed domain APIs should live in `src/mealplan/domain/services.py`, delegate to formula helpers in `energy.py`/`macros.py`, and return typed dataclasses (`MacroTargets`) for application-layer orchestration.
+- Floating-point formula regression tests should use `pytest.approx` for multiplicative outputs, and domain error assertions should target stable category prefixes/types rather than full-message snapshots.
 
 ## [2026-03-02 16:11:22 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
@@ -151,4 +152,26 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Always re-export new domain services in `mealplan.domain.__init__` immediately, or downstream imports drift to deep module paths.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `make quality` is still the canonical local gate and now reports 130 passing tests.
+---
+## [2026-03-02 16:27:50 CET] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Expanded Phase 4 formula matrix coverage:
+  - Parameterized BMR scenarios across both genders and multiple fixed fixtures.
+  - Parameterized TDEE scenarios across both genders and all three activity levels.
+  - Parameterized fat residual exactness scenarios.
+- Updated negative-fat rejection assertions to verify deterministic error type/category (`DomainRuleError` + domain exit-code mapping) instead of full-message snapshot equality.
+- Ran full quality gate successfully (`make quality`): `ruff`, strict `mypy`, and `pytest` (136 passed).
+- Files changed:
+  - tests/unit/test_domain_energy.py
+  - tests/unit/test_domain_macros.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+  - AGENT.md
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Formula-matrix tests are expected to cover combinatorial enum scenarios (for example gender x activity level) with parameterization.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Direct float equality can be brittle for multiplicative formulas; use `pytest.approx` when binary precision can surface tiny tails.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` is the required pre-commit gate and now reports 136 passing tests.
 ---

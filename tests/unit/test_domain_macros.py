@@ -12,6 +12,7 @@ from mealplan.domain.macros import (
     protein_target_g_for,
 )
 from mealplan.shared.errors import DomainRuleError
+from mealplan.shared.exit_codes import ExitCode, map_exception_to_exit_code
 
 
 def test_protein_target_g_for_uses_canonical_bodyweight_formula() -> None:
@@ -37,17 +38,28 @@ def test_carbs_factor_mapping_uses_carb_mode_enum_keys() -> None:
     assert set(CARBS_FACTOR_BY_MODE.keys()) == set(CarbMode)
 
 
-def test_fat_target_g_for_uses_residual_calorie_formula() -> None:
-    fat_g = fat_target_g_for(tdee_kcal=2500.0, protein_g=150.0, carbs_g=275.0)
-
-    assert fat_g == 88.88888888888889
+@pytest.mark.parametrize(
+    ("tdee_kcal", "protein_g", "carbs_g", "expected_fat_g"),
+    [
+        (2500.0, 150.0, 275.0, 88.88888888888889),
+        (2200.0, 140.0, 250.0, 71.11111111111111),
+    ],
+)
+def test_fat_target_g_for_residual_formula_matrix(
+    tdee_kcal: float,
+    protein_g: float,
+    carbs_g: float,
+    expected_fat_g: float,
+) -> None:
+    assert (
+        fat_target_g_for(tdee_kcal=tdee_kcal, protein_g=protein_g, carbs_g=carbs_g)
+        == expected_fat_g
+    )
 
 
 def test_fat_target_g_for_rejects_negative_residual_fat() -> None:
     with pytest.raises(DomainRuleError) as error_info:
         fat_target_g_for(tdee_kcal=1600.0, protein_g=200.0, carbs_g=220.0)
 
-    assert (
-        str(error_info.value)
-        == "macro_targets.fat_g: residual fat target must be greater than or equal to 0"
-    )
+    assert str(error_info.value).startswith("macro_targets.fat_g:")
+    assert map_exception_to_exit_code(error_info.value) is ExitCode.DOMAIN

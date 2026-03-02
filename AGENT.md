@@ -57,6 +57,7 @@ When in doubt, update those source docs instead of expanding this file.
 28. Keep macro formula helpers in `src/mealplan/domain/macros.py` (protein/carbs mode factors) and re-export public helpers/constants via `mealplan.domain.__init__` for stable imports.
 29. When macro formulas derive impossible negative targets (for example residual fat), raise `DomainRuleError` with a stable `macro_targets.<field>` prefix to preserve deterministic domain categorization and CLI exit-code mapping.
 30. For composed Phase 4+ domain orchestration entrypoints, use `src/mealplan/domain/services.py` and delegate to formula helpers in `energy.py`/`macros.py`; re-export composed services via `mealplan.domain.__init__` to avoid deep-module imports in higher layers.
+31. For floating-point formula regression tests, prefer `pytest.approx` for multiplicative outputs and assert stable error-category prefixes (not full message snapshots) for domain failures.
 
 ## Ralph Runner
 

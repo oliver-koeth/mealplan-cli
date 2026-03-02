@@ -34,40 +34,54 @@ def test_activity_factor_mapping_uses_activity_level_enum_keys() -> None:
 
 
 @pytest.mark.parametrize(
-    ("gender", "expected_bmr"),
+    ("gender", "weight_kg", "height_cm", "age", "expected_bmr"),
     [
-        (Gender.MALE, 1653.75),
-        (Gender.FEMALE, 1487.75),
+        (Gender.MALE, 70.5, 175, 30, 1653.75),
+        (Gender.FEMALE, 70.5, 175, 30, 1487.75),
+        (Gender.MALE, 60.0, 165, 40, 1436.25),
+        (Gender.FEMALE, 60.0, 165, 40, 1270.25),
     ],
 )
-def test_bmr_kcal_per_day_for_uses_gender_specific_mifflin_st_jeor_formula(
+def test_bmr_kcal_per_day_for_formula_matrix(
     gender: Gender,
+    weight_kg: float,
+    height_cm: int,
+    age: int,
     expected_bmr: float,
 ) -> None:
     assert (
-        bmr_kcal_per_day_for(gender=gender, weight_kg=70.5, height_cm=175, age=30)
+        bmr_kcal_per_day_for(
+            gender=gender,
+            weight_kg=weight_kg,
+            height_cm=height_cm,
+            age=age,
+        )
         == expected_bmr
     )
 
 
 @pytest.mark.parametrize(
-    ("activity_level", "expected_tdee"),
+    ("gender", "activity_level", "expected_tdee"),
     [
-        (ActivityLevel.LOW, 1984.5),
-        (ActivityLevel.MEDIUM, 2273.90625),
-        (ActivityLevel.HIGH, 2563.3125),
+        (Gender.MALE, ActivityLevel.LOW, 1984.5),
+        (Gender.MALE, ActivityLevel.MEDIUM, 2273.90625),
+        (Gender.MALE, ActivityLevel.HIGH, 2563.3125),
+        (Gender.FEMALE, ActivityLevel.LOW, 1785.3),
+        (Gender.FEMALE, ActivityLevel.MEDIUM, 2045.65625),
+        (Gender.FEMALE, ActivityLevel.HIGH, 2306.0125),
     ],
 )
-def test_tdee_kcal_per_day_for_uses_activity_factor_with_unrounded_float_output(
+def test_tdee_kcal_per_day_for_formula_matrix(
+    gender: Gender,
     activity_level: ActivityLevel,
     expected_tdee: float,
 ) -> None:
     profile = UserProfile(
         age=30,
-        gender=Gender.MALE,
+        gender=gender,
         height_cm=175,
         weight_kg=70.5,
         activity_level=activity_level,
     )
 
-    assert tdee_kcal_per_day_for(profile) == expected_tdee
+    assert tdee_kcal_per_day_for(profile) == pytest.approx(expected_tdee)
