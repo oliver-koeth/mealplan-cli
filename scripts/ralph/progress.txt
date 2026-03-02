@@ -7,6 +7,7 @@
 - Keep macro-output hard constraints in `domain/validation.py`; when invariants fail (for example negative macro grams), raise `DomainRuleError` so exit-code mapping remains `DOMAIN`.
 - For response meal-structure invariants, validate `list[MealAllocation]` at the domain boundary with `validate_meal_allocation_invariants` using `CANONICAL_MEAL_ORDER` (count, then coverage, then order) for deterministic errors.
 - For carb reconciliation checks, call `validate_carb_reconciliation_invariants` and use `CARB_RECONCILIATION_TOLERANCE` (`abs(sum - target) <= 1e-9`) to keep mismatch behavior deterministic across layers.
+- Run Phase 3 validation through `application/orchestration.py::validate_meal_plan_flow` to keep one canonical order: `parse_contract` -> `validate_semantic_input` -> domain invariant checks.
 
 Started: Mon Mar  2 09:12:55 CET 2026
 ---
@@ -124,4 +125,24 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Keep the tolerance constant centralized (`CARB_RECONCILIATION_TOLERANCE`) so tests and downstream orchestration don’t drift on precision policy.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `tests/unit/test_domain_validation.py` continues to be the canonical location for Phase 3 domain invariant matrix growth, including reconciliation scenarios.
+---
+## 2026-03-02 10:06:31 CET - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented deterministic application orchestration in `validate_meal_plan_flow` with explicit execution order: schema parse (`parse_contract`) -> semantic input validation (`validate_semantic_input`) -> domain invariants (`validate_macro_targets_invariants`, `validate_meal_allocation_invariants`, `validate_carb_reconciliation_invariants`).
+- Added response-to-domain mapping helper (`validate_response_invariants`) so domain validators remain in `domain/validation.py` while application layer coordinates calls.
+- Added unit tests that verify flow ordering and failure boundaries: parse failures stop semantic/domain phases, semantic failures stop domain checks, and domain invariant failures surface as `DomainRuleError`.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/application/__init__.py
+  - src/mealplan/application/orchestration.py
+  - tests/unit/test_application_orchestration.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Flow-order guarantees are best locked with monkeypatched step-tracking in unit tests (`tests/unit/test_application_orchestration.py`) rather than brittle message snapshots.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Keep domain invariant calls behind application orchestration helpers; calling domain checks ad hoc from multiple entrypoints risks drift in validation order and error boundaries.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Canonical request/response fixtures in `tests/unit/conftest.py` are sufficient for orchestration tests; override only the field under failure to keep deterministic behavior obvious.
 ---

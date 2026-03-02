@@ -50,6 +50,7 @@ When in doubt, update those source docs instead of expanding this file.
 21. Keep nutrition-output hard invariants in `src/mealplan/domain/validation.py` and raise `DomainRuleError` (not `ValidationError`) for domain impossibilities such as negative macro targets.
 22. Validate domain meal-allocation structure through `validate_meal_allocation_invariants` and `CANONICAL_MEAL_ORDER` (count -> canonical coverage -> canonical order) to keep response-shape failures deterministic at the domain boundary.
 23. Enforce top-level versus per-meal carb consistency with `validate_carb_reconciliation_invariants` using `CARB_RECONCILIATION_TOLERANCE` (`abs(sum - target) <= 1e-9`) so reconciliation behavior remains deterministic.
+24. For Phase 3+ use-case wiring, run `validate_meal_plan_flow` (`application/orchestration.py`) to preserve the canonical order `parse_contract -> validate_semantic_input -> domain invariants` and keep error-type boundaries stable.
 
 ## Ralph Runner
 
