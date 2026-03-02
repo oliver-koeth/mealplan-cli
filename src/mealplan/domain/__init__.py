@@ -13,6 +13,11 @@ from mealplan.domain.enums import (
     MealName,
     TrainingLoadTomorrow,
 )
+from mealplan.domain.macros import (
+    CARBS_FACTOR_BY_MODE,
+    carbs_target_g_for,
+    protein_target_g_for,
+)
 from mealplan.domain.model import (
     CANONICAL_MEAL_ORDER,
     MacroTargets,
@@ -28,6 +33,7 @@ from mealplan.domain.validation import (
 __all__ = [
     "ActivityLevel",
     "ACTIVITY_FACTOR_BY_LEVEL",
+    "CARBS_FACTOR_BY_MODE",
     "CANONICAL_MEAL_ORDER",
     "CarbMode",
     "Gender",
@@ -38,6 +44,8 @@ __all__ = [
     "UserProfile",
     "activity_factor_for",
     "bmr_kcal_per_day_for",
+    "carbs_target_g_for",
+    "protein_target_g_for",
     "tdee_kcal_per_day_for",
     "validate_carb_reconciliation_invariants",
     "validate_meal_allocation_invariants",

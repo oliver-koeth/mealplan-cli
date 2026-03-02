@@ -4,6 +4,7 @@ Started: Mon Mar  2 14:01:35 CET 2026
 ## Codebase Patterns
 - New domain service helpers should be implemented in dedicated modules (for example `domain/energy.py`) and re-exported from `mealplan.domain.__init__` to keep import paths stable across layers.
 - Energy formula functions should live in `src/mealplan/domain/energy.py` and follow explicit unit-bearing names (for example `*_kcal_per_day_for`) to keep calculation intent clear across phases.
+- Macro formula helpers should live in `src/mealplan/domain/macros.py` with enum-keyed factor mappings and package-level re-exports in `mealplan.domain.__init__`.
 - Typed calculation inputs should use frozen dataclasses in `src/mealplan/domain/model.py` (for example `UserProfile`) and be consumed by domain services instead of passing unstructured dicts.
 - Request boundary contracts use strict pydantic primitives (`StrictInt`/`StrictFloat`) for parse-time no-coercion guarantees, while numeric positivity rules belong in `application.validation.validate_semantic_input`.
 
@@ -25,6 +26,26 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Ruff import-order checks will fail when adding new domain exports unless import blocks stay sorted.
   - Useful context (e.g., "the evaluation panel is in component X")
     - The repository quality gate is `make quality` which runs `ruff`, strict `mypy`, and `pytest`.
+---
+## [2026-03-02 16:20:58 CET] - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented canonical macro-target helpers in `src/mealplan/domain/macros.py`: `protein_target_g_for(weight_kg)` and `carbs_target_g_for(weight_kg, carb_mode)` with enum-keyed `CARBS_FACTOR_BY_MODE`.
+- Added unit tests validating protein formula output, all carb-mode formulas (low/normal/periodized), and enum-key coverage for the factor map.
+- Re-exported macro helpers/constants from `mealplan.domain.__init__` and marked US-005 as passed in the Ralph PRD.
+- Files changed:
+  - src/mealplan/domain/macros.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_macros.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+  - AGENT.md
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Macro formulas are now split into dedicated pure helpers (`protein_target_g_for`, `carbs_target_g_for`) with a canonical enum-keyed mapping to keep mode math centralized.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - New domain helper modules should be re-exported in `mealplan.domain.__init__` immediately to avoid deep-module imports drifting across layers.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` remains the release gate and currently passes with 126 tests.
 ---
 ## [2026-03-02 16:13:30 CET] - US-002
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt

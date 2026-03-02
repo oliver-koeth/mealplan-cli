@@ -54,6 +54,7 @@ When in doubt, update those source docs instead of expanding this file.
 25. Keep Phase 3 regression coverage in `tests/unit/test_validation_matrices.py` using parameterized matrices that assert exception class and exit-code category, with only minimal message fragments/prefixes for stability.
 26. Keep energy-formula helpers in `src/mealplan/domain/energy.py`, name them with explicit units (for example `*_kcal_per_day_for`), and re-export them via `mealplan.domain.__init__`.
 27. For composed energy/macro domain APIs, accept typed `UserProfile` inputs from `src/mealplan/domain/model.py` instead of unstructured payloads so service contracts stay deterministic and cross-layer stable.
+28. Keep macro formula helpers in `src/mealplan/domain/macros.py` (protein/carbs mode factors) and re-export public helpers/constants via `mealplan.domain.__init__` for stable imports.
 
 ## Ralph Runner
 
