@@ -66,10 +66,12 @@ This document defines the canonical domain model for `mealplan`: object structur
   - Type: float
   - Unit: kilograms
   - Range: `weight_kg > 0`
-- `height_cm` (future extension)
-  - Type: float
+- `height_cm`
+  - Type: integer
   - Unit: centimeters
-  - Current status: optional/future per PRD note; not required in v0.2 flow.
+  - Range: `height_cm > 0`
+  - Upper bound: unbounded in current specification
+  - Parsing policy: strict integer only (numeric strings are invalid)
 
 ### 4.2 Training Inputs
 - `zones_minutes`
@@ -118,11 +120,12 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Fields:
   - `age: int`
   - `gender: Gender`
+  - `height_cm: int`
   - `weight_kg: float`
   - `activity_level: ActivityLevel`
-  - `height_cm: float | None` (future-compatible optional)
 - Invariants:
   - `age > 0`
+  - `height_cm > 0`
   - `weight_kg > 0`
   - `gender` and `activity_level` in allowed enums
 
@@ -174,7 +177,6 @@ This document defines the canonical domain model for `mealplan`: object structur
   - Men: `BMR = 10*weight + 6.25*height - 5*age + 5`
   - Women: `BMR = 10*weight + 6.25*height - 5*age - 161`
   - `TDEE = BMR * activity_factor`
-- Note: until `height_cm` is formalized in CLI input, implementation uses documented default behavior.
 
 ### 6.2 Training Fuel Rule Contract
 - Input: `TrainingSession`
@@ -211,6 +213,8 @@ This document defines the canonical domain model for `mealplan`: object structur
 ### 7.1 Input Verification
 - Reject if `age <= 0`.
 - Reject if `weight_kg <= 0`.
+- Reject if `height_cm <= 0`.
+- Reject non-integer `height_cm` values (including numeric strings).
 - Reject unknown enum values.
 - Reject zone keys outside `1..5`.
 - Reject zone minutes `< 0`.
@@ -247,6 +251,7 @@ This document defines the canonical domain model for `mealplan`: object structur
 {
   "age": 35,
   "gender": "male",
+  "height_cm": 178,
   "weight_kg": 72.5,
   "activity_level": "medium",
   "carb_mode": "periodized",

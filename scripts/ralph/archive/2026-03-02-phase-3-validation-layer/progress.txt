@@ -1,0 +1,184 @@
+# Ralph Progress Log
+## Codebase Patterns
+- Keep schema parsing in `application/parsing.py` and semantic business-input checks in `application/validation.py` so Phase 2 and Phase 3 boundaries stay explicit.
+- Semantic validation errors should use deterministic `ValidationError` messages prefixed by field path (for example `age: ...`) to keep CLI output and tests stable.
+- Evaluate training-session dependency rules against `sum(training_session.zones_minutes.values())`; missing `training_before_meal` is valid only when the sum is `0`.
+- Normalize `training_session.zones_minutes` through `normalize_training_zones` before any semantic rule uses zone data; this enforces canonical `1..5` coverage and deterministic key/value validation.
+- Keep macro-output hard constraints in `domain/validation.py`; when invariants fail (for example negative macro grams), raise `DomainRuleError` so exit-code mapping remains `DOMAIN`.
+- For response meal-structure invariants, validate `list[MealAllocation]` at the domain boundary with `validate_meal_allocation_invariants` using `CANONICAL_MEAL_ORDER` (count, then coverage, then order) for deterministic errors.
+- For carb reconciliation checks, call `validate_carb_reconciliation_invariants` and use `CARB_RECONCILIATION_TOLERANCE` (`abs(sum - target) <= 1e-9`) to keep mismatch behavior deterministic across layers.
+- Run Phase 3 validation through `application/orchestration.py::validate_meal_plan_flow` to keep one canonical order: `parse_contract` -> `validate_semantic_input` -> domain invariant checks.
+- For Phase 3 regression expansion, add cases to `tests/unit/test_validation_matrices.py` and prefer asserting exception class plus `map_exception_to_exit_code(...)` category with minimal message fragments/prefixes.
+- Keep Phase 2/3 contract and validation-boundary documentation in `docs/ARCHITECTURE.md` section 10 (`Data Contracts`), including canonical valid/invalid payload examples with expected error category.
+
+Started: Mon Mar  2 09:12:55 CET 2026
+---
+## 2026-03-02 09:14:08 CET - US-001
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented an application-level semantic validator entrypoint (`validate_semantic_input`) that accepts parsed `MealPlanRequest` and enforces `age > 0` and `weight_kg > 0`.
+- Added deterministic `ValidationError` payload checks and positive/negative semantic validation coverage in new unit tests.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/application/validation.py
+  - tests/unit/test_application_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Application boundary currently splits parse-time schema validation (`parse_contract`) from semantic validation, and both map to shared typed errors.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - `scripts/ralph/progress.txt` initially had no `Codebase Patterns` section; create and maintain it at the top as required by Ralph instructions.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing fixtures in `tests/unit/conftest.py` are suitable for semantic validator tests and should be reused for later matrix expansion stories.
+---
+## 2026-03-02 09:16:24 CET - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Implemented the application semantic dependency rule: when total `zones_minutes` is greater than `0`, `training_session.training_before_meal` is required.
+- Added semantic-validator unit coverage for both required scenarios: all zones `0` with missing dependent field (allowed) and positive minutes with missing dependent field (rejected).
+- Files changed:
+  - src/mealplan/application/validation.py
+  - tests/unit/test_application_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Semantic dependency checks are expected to be deterministic and expressed through field-path-prefixed `ValidationError` messages in `application/validation.py`.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Keep the dependency threshold tied to aggregated zone volume, not any single zone key, so subset/non-uniform zone payloads stay consistent.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing `meal_plan_request_payload` fixture already contains a valid `training_session`, making it straightforward to override only dependency-related fields in tests.
+---
+## 2026-03-02 09:34:11 CET - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented `normalize_training_zones` in application validation to canonicalize zone keys to integers (`1..5`), fill missing zones with `0`, and reject invalid zone keys/minutes deterministically.
+- Updated semantic dependency validation to evaluate `training_before_meal` against normalized zone totals.
+- Added semantic-validator unit coverage for subset keys, mixed numeric-string/int keys, out-of-range/invalid keys, negative minutes, and non-integer minutes.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/application/validation.py
+  - tests/unit/test_application_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Keep zone-shape normalization in `application/validation.py` rather than contract parsing so schema and semantic boundaries stay aligned with Phase 2/3 architecture.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - `mypy --strict` treats the `dict[Literal["1"..."5"], int]` to generic mapping handoff as incompatible; cast at the semantic boundary when feeding normalization helpers.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_application_validation.py` now carries the canonical matrix for zone semantic failures, so future stories should extend this module instead of duplicating zone tests elsewhere.
+---
+## 2026-03-02 09:36:36 CET - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Implemented domain-level `MacroTargets` invariant validation and enforced non-negative checks for `protein_g`, `carbs_g`, and `fat_g`.
+- Added deterministic `DomainRuleError` messages for macro invariant failures and explicit coverage that negative-fat outcomes map to domain errors (not validation errors).
+- Files changed:
+  - AGENT.md
+  - src/mealplan/domain/__init__.py
+  - src/mealplan/domain/model.py
+  - src/mealplan/domain/validation.py
+  - tests/unit/test_domain_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Domain invariant helpers should live under `src/mealplan/domain/validation.py` and operate on domain model objects (`MacroTargets`) rather than application contracts.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - For invariant-failure tests, assert both exception class (`DomainRuleError`) and mapped exit-code category (`ExitCode.DOMAIN`) to lock behavior at the CLI boundary.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_domain_validation.py` is now the canonical place to extend Phase 3 domain invariant matrix coverage.
+---
+## 2026-03-02 09:39:23 CET - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented domain-level meal-allocation invariant validation via `validate_meal_allocation_invariants`, enforcing exactly six entries, canonical meal-name coverage (no duplicates/missing), and canonical meal order.
+- Added a domain `MealAllocation` model for invariant validation inputs and exported the new model/validator via `mealplan.domain`.
+- Expanded domain validation unit coverage for canonical pass case plus duplicate, missing, wrong-count, and out-of-order failure cases with deterministic `DomainRuleError` messages and `ExitCode.DOMAIN` mapping assertions.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/domain/__init__.py
+  - src/mealplan/domain/model.py
+  - src/mealplan/domain/validation.py
+  - tests/unit/test_domain_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Domain response-shape invariants should be validated in `src/mealplan/domain/validation.py` using domain models, not application DTOs, so layer boundaries remain clean.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - With canonical `MealName` enum values, a six-item list with a duplicate canonical name also implies a missing canonical name; test fixtures need explicit non-canonical cast values to isolate missing-coverage paths.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_domain_validation.py` now includes the canonical meal-allocation matrix and should be extended for upcoming invariant stories instead of creating parallel test modules.
+---
+## 2026-03-02 10:03:11 CET - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented domain-level carb reconciliation invariant validation via `validate_carb_reconciliation_invariants`, enforcing deterministic tolerance policy `abs(sum(meal carbs) - macro target carbs) <= 1e-9`.
+- Added deterministic `DomainRuleError` mismatch payload including reconciliation context (`sum`, `target`, `delta`, `tolerance`) and exported the validator from `mealplan.domain`.
+- Expanded domain validation unit coverage for exact-match pass and mismatch failure, including exit-code mapping assertions to `ExitCode.DOMAIN`.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/domain/__init__.py
+  - src/mealplan/domain/validation.py
+  - tests/unit/test_domain_validation.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Reconciliation invariants belong in `src/mealplan/domain/validation.py` and should compare domain-model values directly, not application DTO data.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Keep the tolerance constant centralized (`CARB_RECONCILIATION_TOLERANCE`) so tests and downstream orchestration don’t drift on precision policy.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_domain_validation.py` continues to be the canonical location for Phase 3 domain invariant matrix growth, including reconciliation scenarios.
+---
+## 2026-03-02 10:06:31 CET - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented deterministic application orchestration in `validate_meal_plan_flow` with explicit execution order: schema parse (`parse_contract`) -> semantic input validation (`validate_semantic_input`) -> domain invariants (`validate_macro_targets_invariants`, `validate_meal_allocation_invariants`, `validate_carb_reconciliation_invariants`).
+- Added response-to-domain mapping helper (`validate_response_invariants`) so domain validators remain in `domain/validation.py` while application layer coordinates calls.
+- Added unit tests that verify flow ordering and failure boundaries: parse failures stop semantic/domain phases, semantic failures stop domain checks, and domain invariant failures surface as `DomainRuleError`.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/application/__init__.py
+  - src/mealplan/application/orchestration.py
+  - tests/unit/test_application_orchestration.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Flow-order guarantees are best locked with monkeypatched step-tracking in unit tests (`tests/unit/test_application_orchestration.py`) rather than brittle message snapshots.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Keep domain invariant calls behind application orchestration helpers; calling domain checks ad hoc from multiple entrypoints risks drift in validation order and error boundaries.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Canonical request/response fixtures in `tests/unit/conftest.py` are sufficient for orchestration tests; override only the field under failure to keep deterministic behavior obvious.
+---
+## 2026-03-02 10:08:43 CET - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented Phase 3 matrix regression coverage in a new parameterized test module spanning semantic input failures, zone normalization and invalid zone scenarios, and domain invariant failures.
+- The new matrix tests assert stable failure classification by exception type and exit-code category (`VALIDATION` vs `DOMAIN`) and only rely on message prefixes/fragments where needed.
+- Files changed:
+  - AGENT.md
+  - tests/unit/test_validation_matrices.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Phase 3 regression matrices are centralized in `tests/unit/test_validation_matrices.py` and should be extended there for future validation-rule additions.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Prefer asserting error class plus `map_exception_to_exit_code(...)` over exact full-message snapshots to keep tests stable while preserving deterministic category checks.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/conftest.py` canonical payload fixtures remain sufficient for matrix tests; deep-copy request payloads before per-case mutation to avoid cross-case contamination.
+---
+## 2026-03-02 10:10:20 CET - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Updated validation-layer documentation in `docs/ARCHITECTURE.md` to define the explicit Phase 3 split between application semantic validation and domain invariant checks.
+- Documented deterministic orchestration flow and typed error mapping (`ValidationError` -> `ExitCode.VALIDATION`, `DomainRuleError` -> `ExitCode.DOMAIN`), plus zone normalization behavior for `training_session.zones_minutes`.
+- Added one valid and one invalid request payload example, with the invalid example explicitly mapped to expected `VALIDATION` error category.
+- Files changed:
+  - docs/ARCHITECTURE.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Phase boundary and error-taxonomy docs are expected to stay centralized in `docs/ARCHITECTURE.md` section 10, not duplicated across multiple docs.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Keep invalid-payload docs aligned with implemented normalization semantics (`zones_minutes` subset keys normalize before dependency checks), or examples can contradict runtime behavior.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing section 10 JSON examples are the canonical place to extend future contract/validation examples as later phases add fields.
+---
