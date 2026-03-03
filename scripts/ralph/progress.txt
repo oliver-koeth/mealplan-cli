@@ -3,6 +3,7 @@ Started: Tue Mar  3 20:39:20 CET 2026
 
 ## Codebase Patterns
 - For CLI golden regression tests, snapshot a canonical JSON envelope (`exit_code`, `stderr`, `stdout`) and normalize stderr (ANSI stripping plus traceback placeholder collapsing) to keep fixtures deterministic across local/CI environments.
+- For application golden regression tests that exercise real `MealPlanCalculationService`, pick request fixtures that produce cent-reconcilable macro totals; strict `meal_assembly.reconciliation` tolerance (`1e-9`) will reject non-reconcilable success fixtures.
 
 ---
 ## 2026-03-03 20:51:05 CET - US-001
@@ -27,5 +28,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: Typer parse-time usage errors include Unicode box-drawing frames; keep fixture comparison deterministic by serializing snapshots with `json.dumps(..., ensure_ascii=False)`.
   - Gotchas encountered: Runtime debug tracebacks are too brittle as full snapshots; canonicalize traceback bodies to a placeholder while still asserting traceback presence and terminal exception line.
-  - Useful context: Existing CLI test coverage in `tests/cli/` can coexist with golden snapshots in `tests/golden/` without replacing behavioral unit/integration checks.
+- Useful context: Existing CLI test coverage in `tests/cli/` can coexist with golden snapshots in `tests/golden/` without replacing behavioral unit/integration checks.
+---
+## 2026-03-03 20:54:34 CET - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented file-based application golden snapshot regression suite under `tests/golden/application/` for `MealPlanCalculationService` outputs.
+- Added required scenarios: periodized day with training session, non-periodized day with training session, and periodized day with omitted training session (`training_session=None`).
+- Ensured snapshots assert canonical response shape and deterministic meal ordering via exact `model_dump(mode=\"json\")` fixture comparison.
+- Files changed:
+  - AGENT.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+  - tests/golden/test_application_golden.py
+  - tests/golden/application/periodized_with_training.golden.json
+  - tests/golden/application/non_periodized_with_training.golden.json
+  - tests/golden/application/periodized_without_training.golden.json
+- **Learnings for future iterations:**
+  - Patterns discovered: Application golden snapshots can run fully at service boundary without any CLI subprocess/rendering dependencies by validating `MealPlanRequest` and snapshotting `MealPlanResponse.model_dump(mode=\"json\")`.
+  - Gotchas encountered: Some otherwise-valid profiles trigger expected `meal_assembly.reconciliation` domain failures due strict float tolerance; success fixtures must use cent-reconcilable macro totals.
+  - Useful context: Snapshot JSON should remain canonicalized with `json.dumps(..., indent=2, sort_keys=True, ensure_ascii=False)` plus trailing newline for deterministic file comparisons.
 ---
