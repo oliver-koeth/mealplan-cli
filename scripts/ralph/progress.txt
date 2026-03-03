@@ -124,3 +124,16 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Gotchas encountered: `pytest` may not be globally installed in shell; project checks should run through `make quality` (`uv run ...`) for consistent tooling.
   - Useful context: Parse-time Click/Typer failures still return validation exit code `2` before `main()` mapping, so both parse-path and runtime-path tests are needed for full exit-code contract coverage.
 ---
+## [2026-03-03 19:02:11 CET] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Validated the CLI integration matrix coverage across canonical targets: `tests/cli/test_help.py`, `tests/cli/test_error_handling.py`, `tests/cli/test_probe.py`, and dedicated `tests/cli/test_calculate.py` command coverage.
+- Confirmed representative success modes (default JSON, explicit text, explicit table) and failure modes (invalid typed flag, invalid training-zones JSON, propagated validation/domain/runtime errors, debug traceback behavior) are all covered and passing.
+- Ran full project quality gate (`make quality`): Ruff, mypy (strict), and pytest all passed.
+- Files changed:
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: The current CLI matrix is intentionally distributed by concern (`test_calculate` for command-path scenarios, `test_error_handling` for exit-code/debug behavior, `test_help`/`test_probe` for stable top-level entrypoint smoke coverage).
+  - Gotchas encountered: Exit-code mapping for propagated service exceptions is verified via `main()` with patched `sys.argv`, which still exercises the CLI invocation boundary while avoiding brittle subprocess monkeypatching.
+  - Useful context: Running `make quality` is sufficient to execute all required static and runtime checks for this repository in one command.
+---
