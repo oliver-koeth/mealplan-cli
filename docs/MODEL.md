@@ -201,19 +201,26 @@ This document defines the canonical domain model for `mealplan`: object structur
   - Fat as residual calories.
   - Reject negative fat outcome.
 
-### 6.4 Periodization Rule Contract (for `CarbMode=periodized`)
+### 6.4 Periodization Rule Contract
+- Canonical API:
+  - `calculate_periodized_carb_allocation(carb_mode: CarbMode, daily_carbs_g: float, training_before_meal: MealName | None, training_load_tomorrow: TrainingLoadTomorrow) -> dict[MealName, float]`
 - Inputs:
-  - `carbs_g` baseline
+  - `carb_mode`
+  - `daily_carbs_g`
   - `training_before_meal`
   - `training_load_tomorrow`
-- Outputs:
-  - `dict[MealName, carbs_g]`
+- Output contract:
+  - Returns `dict[MealName, float]`.
+  - Mapping always includes all six canonical `MealName` keys in canonical order.
+  - Output is deterministic for identical inputs.
 - Rules:
+  - Non-periodized bypass: for `CarbMode.LOW` and `CarbMode.NORMAL`, return equal split across canonical meals (`daily_carbs_g / 6.0`) with no Phase 6 rounding.
   - First two post-training meals are high-carb.
   - High-carb meal amount = `0.30 * daily_carbs` each.
   - Remaining carbs split evenly across remaining meals.
   - If tomorrow load is `high`: set `dinner` high and `evening-snack` low unless post-training rule conflicts (`training_before_meal` is `dinner` or `evening-snack`).
-  - Enforce exact total carbs after redistribution.
+  - Conflict policy is explicit: preserve post-training high-meal selection and skip next-day dinner override.
+  - Reconciliation check: `abs(sum_allocated_carbs - daily_carbs_g) <= 1e-9`; otherwise raise `DomainRuleError`.
 
 ## 7. Verification Matrix
 
@@ -231,7 +238,7 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Reject if computed `fat_g < 0`.
 - Reject if any meal list is missing a canonical meal name.
 - Reject if any duplicate meal exists.
-- Reject if periodized carb allocation sum differs from daily carb target.
+- Reject if carb allocation sum differs from daily carb target by more than `1e-9`.
 - Reject if deterministic precedence cannot resolve conflict (this should never occur with current rule set).
 
 ### 7.3 Output Verification
@@ -246,6 +253,8 @@ This document defines the canonical domain model for `mealplan`: object structur
   - Duration: `minutes`
 - Internal precision:
   - Use float arithmetic; avoid early rounding in intermediate steps.
+- Phase 6 periodization precision:
+  - No rounding inside `calculate_periodized_carb_allocation`; preserve full float outputs for deterministic reconciliation checks.
 - Output precision policy (recommended):
   - Round to 2 decimals at render boundary only.
 - Reconciliation policy:

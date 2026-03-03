@@ -168,3 +168,22 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Useful context (e.g., "the evaluation panel is in component X")
     - Existing focused precedence tests can remain as targeted guardrails; the exhaustive matrix supplements them for full branch coverage.
 ---
+## 2026-03-03 13:20:23 CET - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
+- Updated Phase 6 periodization documentation contracts across architecture, requirements, and model docs.
+- Added explicit canonical allocator API boundary (`calculate_periodized_carb_allocation(...) -> dict[MealName, float]`), deterministic non-periodized equal-split bypass semantics, conflict behavior for dinner/evening-snack training cases, and reconciliation tolerance policy (`abs(sum - target) <= 1e-9`).
+- Confirmed quality gates pass with `make quality` (`ruff`, `mypy --strict src`, `pytest`).
+- Files changed:
+  - docs/ARCHITECTURE.md
+  - docs/REQUIREMENTS.md
+  - docs/MODEL.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - For phase-level rule changes, keep `docs/ARCHITECTURE.md` (layer boundary), `docs/REQUIREMENTS.md` (functional behavior), and `docs/MODEL.md` (typed contract/invariants) synchronized in the same iteration.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Periodization wording can drift across docs unless precedence, conflict handling, and tolerance values are expressed with the same concrete terms in all three documents.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` remains the required completion gate for documentation stories as well, not only code stories.
+---
