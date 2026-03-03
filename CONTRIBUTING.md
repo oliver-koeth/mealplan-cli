@@ -21,6 +21,24 @@ You can also run all gates with:
 
 - `make quality`
 
+Release-readiness checks are also expected for packaging-related changes:
+
+- `make package-check`
+- `make install-smoke-check`
+
+## Golden Snapshot Workflow
+
+When changing CLI output or application response shape, update and verify golden fixtures:
+
+1. Run golden suites:
+   `uv run pytest tests/golden`
+2. Keep fixture content deterministic:
+   - CLI fixtures use canonical envelope keys: `exit_code`, `stderr`, `stdout`.
+   - Normalize stderr before assertions (no ANSI control sequences; traceback bodies collapsed).
+   - Keep canonical meal ordering and stable JSON key ordering in fixture files.
+3. Re-run full quality gates:
+   `make quality`
+
 ## Architecture Boundary Expectations
 
 Keep imports and responsibilities aligned with the architecture:

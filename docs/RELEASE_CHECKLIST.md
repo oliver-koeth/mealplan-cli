@@ -52,9 +52,21 @@ Use this checklist before publishing a release candidate.
 
 - [ ] Confirm latest GitHub Actions CI run for target commit is green.
   Expected outcome:
-  - quality checks pass
-  - package verification passes
-  - install workflow verification passes
+  - `quality` job passes:
+    - Ruff
+    - MyPy
+    - Pytest golden snapshot suites (`tests/golden`)
+    - Pytest non-golden suites (`--ignore=tests/golden`)
+  - `package-build` job passes:
+    - package artifact verification script succeeds
+    - `dist/*` workflow artifact is uploaded
+  - `install-smoke` job passes:
+    - `dist/*` artifact download succeeds
+    - install workflow verification script succeeds
+  - failure logs clearly identify one of:
+    - snapshot drift or test failure
+    - package metadata/entry-point build failure
+    - wheel install or post-install smoke command failure
 
 ## 6. Versioning and release notes (first usable release)
 

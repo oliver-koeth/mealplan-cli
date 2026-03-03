@@ -24,9 +24,7 @@ Tests follow the same intent and are grouped by scope:
 1. Install Python 3.11+ and `uv`.
 2. Create and sync the environment:
    `uv sync --dev`
-3. Install the package in editable mode:
-   `uv pip install -e .`
-4. Verify the command entrypoint:
+3. Verify the command entrypoint:
    `uv run mealplan --help`
 
 ## Quality Checks
@@ -52,10 +50,41 @@ Use this workflow to validate installability outside the source tree:
    `python -m venv /tmp/mealplan-smoke-venv`
 3. Install the built wheel:
    `/tmp/mealplan-smoke-venv/bin/pip install dist/*.whl`
-4. Run install smoke commands:
+4. Run install smoke commands from a directory outside this repository:
+   `cd /tmp`
    `/tmp/mealplan-smoke-venv/bin/mealplan --help`
    `/tmp/mealplan-smoke-venv/bin/python -m mealplan --help`
    `/tmp/mealplan-smoke-venv/bin/mealplan calculate --age 40 --gender male --height 180 --weight 75 --activity medium --carbs low --training-tomorrow high --format json`
+
+## Packaged Execution Paths
+
+After installing from `dist/*.whl`, both execution paths are supported:
+
+- Console script entrypoint:
+  `mealplan --help`
+- Python module execution path:
+  `python -m mealplan --help`
+
+Representative packaged usage examples:
+
+```bash
+# JSON output via console script
+mealplan calculate \
+  --age 40 --gender male --height 180 --weight 75 \
+  --activity medium --carbs low --training-tomorrow high --format json
+
+# Text output via module invocation
+python -m mealplan calculate \
+  --age 40 --gender male --height 180 --weight 75 \
+  --activity medium --carbs periodized --training-tomorrow high \
+  --training-zones '{"1": 20, "2": 40, "3": 0, "4": 0, "5": 0}' \
+  --training-before lunch --format text
+
+# Table output via console script
+mealplan calculate \
+  --age 40 --gender male --height 180 --weight 75 \
+  --activity medium --carbs normal --training-tomorrow medium --format table
+```
 
 ## CLI Usage
 
@@ -124,18 +153,27 @@ Golden tests use a hybrid policy:
 - Strict checks: exact JSON keys, key ordering, list ordering, and all string/enum fields.
 - Tolerant checks: numeric fields only for `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, and per-meal macro grams (`meals[*].protein_g`, `meals[*].carbs_g`, `meals[*].fat_g`) with absolute tolerance `0.01`.
 - Shared helper: tolerance constants and comparisons are centralized in `tests/golden/helpers.py` and reused by CLI and application golden suites.
+- Deterministic fixture rules:
+  - CLI snapshots must use canonical keys in this order: `exit_code`, `stderr`, `stdout`.
+  - Normalize stderr before fixture comparison (strip ANSI escapes and collapse traceback bodies).
+  - Serialize fixture files with sorted keys and a trailing newline to keep local/CI output stable.
 
 ## CI Expectations
 
-- GitHub Actions runs on every `push` and `pull_request`.
-- CI installs dependencies with `uv sync --dev`.
-- CI must pass all quality gates:
-  `uv run ruff check .`
-  `uv run mypy --strict src`
-  `uv run pytest`
-- CI also verifies:
-  `uv run python scripts/checks/verify_package_artifacts.py`
-  `uv run python scripts/checks/verify_install_workflow.py`
+GitHub Actions runs on every `push` and `pull_request` with three dependent jobs:
+
+- `quality`
+  - `uv sync --dev`
+  - `uv run ruff check .`
+  - `uv run mypy --strict src`
+  - `uv run pytest tests/golden`
+  - `uv run pytest --ignore=tests/golden`
+- `package-build` (needs `quality`)
+  - `uv run python scripts/checks/verify_package_artifacts.py`
+  - uploads `dist/*` as workflow artifacts
+- `install-smoke` (needs `package-build`)
+  - downloads `dist/*` artifacts
+  - `uv run python scripts/checks/verify_install_workflow.py`
 
 ## Release Readiness
 

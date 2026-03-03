@@ -98,6 +98,7 @@ When in doubt, update those source docs instead of expanding this file.
 69. For installability verification, run `scripts/checks/verify_install_workflow.py` after packaging checks: install `dist/*.whl` into a fresh temp virtualenv, run both `mealplan --help` and `python -m mealplan --help` from outside the repo source tree, and include one `mealplan calculate ... --format json` smoke command.
 70. Keep release-readiness steps in `docs/RELEASE_CHECKLIST.md` aligned with executable local/CI gates (`make quality`, `make package-check`, `make install-smoke-check`) so documentation and automation do not drift.
 71. Keep CI release-readiness gates split into dependent jobs in `.github/workflows/ci.yml` (`quality` -> `package-build` -> `install-smoke`) and pass built artifacts via `actions/upload-artifact`/`actions/download-artifact` so install-smoke validates the exact wheel produced by packaging.
+72. When CI gate commands or job boundaries change, update `README.md` and `CONTRIBUTING.md` in the same iteration so contributor-facing quality/package/install guidance stays synchronized with `.github/workflows/ci.yml` and `docs/RELEASE_CHECKLIST.md`.
 
 ## Ralph Runner
 

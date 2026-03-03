@@ -9,6 +9,7 @@ Started: Tue Mar  3 20:39:20 CET 2026
 - For installability validation, use `scripts/checks/verify_install_workflow.py` against a built `dist/*.whl`: install into a fresh temporary virtualenv, run both `mealplan --help` and `python -m mealplan --help`, and execute one JSON `mealplan calculate` smoke command from outside the repo source tree.
 - Keep release-go/no-go steps in `docs/RELEASE_CHECKLIST.md`, and align every listed command with executable gates (`make quality`, `make package-check`, `make install-smoke-check`) so docs and CI-facing checks do not drift.
 - Keep CI release-readiness automation split into dependent jobs (`quality` -> `package-build` -> `install-smoke`) and transfer `dist/*` between jobs via artifact upload/download so install verification runs against the packaged wheel from the build job.
+- When CI job boundaries or gate commands change, update contributor-facing docs (`README.md`, `CONTRIBUTING.md`, `docs/RELEASE_CHECKLIST.md`) in the same iteration to prevent release/runbook drift.
 
 ---
 ## 2026-03-03 20:51:05 CET - US-001
@@ -140,4 +141,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: Use explicit CI job boundaries and artifact transfer to keep packaging and installability checks reproducible and traceable per workflow run.
   - Gotchas encountered: Packaging checks regenerate transient `src/mealplan_cli.egg-info`; remove it before commit.
   - Useful context: Splitting golden and non-golden pytest steps improves failure diagnostics for snapshot drift without changing test coverage.
+---
+## 2026-03-03 21:12:57 CET - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Updated release-facing documentation to align packaged execution paths, contributor workflows, and CI gate details with current automation.
+- Added packaged CLI usage examples for JSON/text/table outputs, clarified deterministic golden fixture expectations, and synchronized release checklist CI diagnostics with actual job structure.
+- Updated backlog status to mark `US-008` as passing.
+- Files changed:
+  - AGENT.md
+  - CONTRIBUTING.md
+  - README.md
+  - docs/RELEASE_CHECKLIST.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Keep user-facing execution examples in both console-script (`mealplan`) and module (`python -m mealplan`) forms so packaged install guidance is unambiguous.
+  - Gotchas encountered: CI workflow changes can silently desynchronize README/checklist language unless docs are updated in the same iteration.
+  - Useful context: `make quality` remains the primary local gate, while packaging/install release gates are explicitly `make package-check` and `make install-smoke-check`.
 ---
