@@ -250,12 +250,12 @@ def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equall
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert [entry["protein_g"] for entry in meals] == [
-        expected_per_meal_protein_g
-    ] * len(CANONICAL_MEAL_ORDER)
-    assert [entry["fat_g"] for entry in meals] == [expected_per_meal_fat_g] * len(
-        CANONICAL_MEAL_ORDER
-    )
+    assert [entry["protein_g"] for entry in meals[:-1]] == [expected_per_meal_protein_g] * 5
+    assert [entry["fat_g"] for entry in meals[:-1]] == [expected_per_meal_fat_g] * 5
+    assert meals[-1]["protein_g"] == 24.15
+    assert meals[-1]["fat_g"] == 12.15
+    assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(protein_g)
+    assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(fat_g)
 
 
 def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> None:
@@ -282,16 +282,46 @@ def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> No
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert [entry["protein_g"] for entry in meals] == [
+    assert [entry["protein_g"] for entry in meals[:-1]] == [
         round(expected_per_meal_protein_g, 2)
-    ] * len(CANONICAL_MEAL_ORDER)
-    assert [entry["fat_g"] for entry in meals] == [round(expected_per_meal_fat_g, 2)] * len(
-        CANONICAL_MEAL_ORDER
-    )
+    ] * 5
+    assert [entry["fat_g"] for entry in meals[:-1]] == [round(expected_per_meal_fat_g, 2)] * 5
+    assert meals[-1]["protein_g"] == 16.65
+    assert meals[-1]["fat_g"] == 8.35
     assert [entry["carbs_g"] for entry in meals] == [20.0, 30.0, 40.01, 50.01, 60.44, 39.54]
     assert payload["protein_g"] == protein_g
     assert payload["carbs_g"] == 240.0
     assert payload["fat_g"] == fat_g
+
+
+def test_meal_split_applies_residual_adjustment_to_evening_snack_only() -> None:
+    carb_allocation_g_by_meal = dict.fromkeys(CANONICAL_MEAL_ORDER, 10.005)
+
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2200.0,
+        training_carbs_g=50.0,
+        protein_g=100.0,
+        carbs_g=60.03,
+        fat_g=10.0,
+        carb_allocation_g_by_meal=carb_allocation_g_by_meal,
+    )
+
+    meals = payload["meals"]
+    assert isinstance(meals, list)
+
+    assert [entry["carbs_g"] for entry in meals[:-1]] == [10.01, 10.01, 10.01, 10.01, 10.01]
+    assert [entry["protein_g"] for entry in meals[:-1]] == [16.67, 16.67, 16.67, 16.67, 16.67]
+    assert [entry["fat_g"] for entry in meals[:-1]] == [1.67, 1.67, 1.67, 1.67, 1.67]
+
+    evening_snack = meals[-1]
+    assert evening_snack["meal"] == MealName.EVENING_SNACK
+    assert evening_snack["carbs_g"] == 9.98
+    assert evening_snack["protein_g"] == 16.65
+    assert evening_snack["fat_g"] == 1.65
+
+    assert sum(float(entry["carbs_g"]) for entry in meals) == pytest.approx(payload["carbs_g"])
+    assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(payload["protein_g"])
+    assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(payload["fat_g"])
 
 
 def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:

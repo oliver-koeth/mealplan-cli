@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Literal, TypedDict
 
 from mealplan.domain.energy import tdee_kcal_per_day_for
 from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
@@ -12,6 +13,20 @@ from mealplan.domain.validation import validate_meal_allocation_invariants
 from mealplan.shared.errors import DomainRuleError
 
 CARB_RECONCILIATION_TOLERANCE = 1e-9
+MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE = 1e-9
+MacroField = Literal["carbs_g", "protein_g", "fat_g"]
+MEAL_ASSEMBLY_RECONCILIATION_MACRO_ORDER: tuple[MacroField, MacroField, MacroField] = (
+    "carbs_g",
+    "protein_g",
+    "fat_g",
+)
+
+
+class MealPayloadRow(TypedDict):
+    meal: MealName
+    carbs_g: float
+    protein_g: float
+    fat_g: float
 
 
 def calculate_tdee_kcal(profile: UserProfile) -> float:
@@ -118,7 +133,7 @@ def calculate_meal_split_and_response_payload(
     ]
     validate_meal_allocation_invariants(meal_allocations)
 
-    meals: list[dict[str, object]] = [
+    meals: list[MealPayloadRow] = [
         {
             "meal": allocation.meal,
             "carbs_g": round(allocation.carbs_g, 2),
@@ -127,6 +142,12 @@ def calculate_meal_split_and_response_payload(
         }
         for allocation in meal_allocations
     ]
+    _reconcile_rounded_meal_totals(
+        meals=meals,
+        carbs_g=carbs_g,
+        protein_g=protein_g,
+        fat_g=fat_g,
+    )
 
     return {
         "TDEE": tdee_kcal,
@@ -136,6 +157,45 @@ def calculate_meal_split_and_response_payload(
         "fat_g": fat_g,
         "meals": meals,
     }
+
+
+def _reconcile_rounded_meal_totals(
+    *,
+    meals: list[MealPayloadRow],
+    carbs_g: float,
+    protein_g: float,
+    fat_g: float,
+) -> None:
+    targets: dict[MacroField, float] = {
+        "carbs_g": carbs_g,
+        "protein_g": protein_g,
+        "fat_g": fat_g,
+    }
+    evening_snack = _get_evening_snack_meal(meals=meals)
+
+    for macro in MEAL_ASSEMBLY_RECONCILIATION_MACRO_ORDER:
+        rounded_total = sum(float(meal[macro]) for meal in meals)
+        residual = round(targets[macro] - rounded_total, 2)
+        if residual != 0.0:
+            evening_snack[macro] = round(float(evening_snack[macro]) + residual, 2)
+
+    for macro in MEAL_ASSEMBLY_RECONCILIATION_MACRO_ORDER:
+        reconciled_total = sum(float(meal[macro]) for meal in meals)
+        delta = abs(reconciled_total - targets[macro])
+        if delta > MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE:
+            raise DomainRuleError(
+                "meal_assembly.reconciliation: "
+                f"sum(meals.{macro})={reconciled_total} "
+                f"differs from target={targets[macro]} "
+                f"(delta={delta}, tolerance={MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE})"
+            )
+
+
+def _get_evening_snack_meal(*, meals: list[MealPayloadRow]) -> MealPayloadRow:
+    for meal in meals:
+        if meal["meal"] is MealName.EVENING_SNACK:
+            return meal
+    raise DomainRuleError("meal_assembly.reconciliation: missing evening-snack meal")
 
 
 def _validate_carb_allocation_keys(

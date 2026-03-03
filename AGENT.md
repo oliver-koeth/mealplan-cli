@@ -72,6 +72,7 @@ When in doubt, update those source docs instead of expanding this file.
 43. For Phase 7 meal split regressions, include fractional protein/fat fixtures and assert per-meal values equal exact `total / 6.0` (not boundary-rounded values) to catch early rounding drift.
 44. For Phase 7 meal assembly, validate carb allocation keys upfront against exact `CANONICAL_MEAL_ORDER` coverage (no missing/extra keys) and raise `DomainRuleError` with `meal_assembly.carb_allocation` prefix before meal row construction.
 45. For Phase 7 response payload serialization, apply `round(..., 2)` only at the meals boundary (`carbs_g`, `protein_g`, `fat_g`) and keep top-level macro fields as canonical unrounded inputs.
+46. For Phase 7 meal assembly reconciliation, apply residual correction only to `MealName.EVENING_SNACK`, process macro dimensions in fixed order (`carbs_g`, `protein_g`, `fat_g`), and raise `DomainRuleError` with `meal_assembly.reconciliation` prefix if post-adjustment totals still mismatch targets.
 
 ## Ralph Runner
 
