@@ -2,6 +2,7 @@
 ## Codebase Patterns
 - For new domain orchestration APIs in `src/mealplan/domain/services.py`, add a stable `inspect.signature(...)` regression test in `tests/unit/test_domain_services.py` to prevent interface drift.
 - For meal-assembly domain outputs, construct `MealAllocation` rows and validate with `validate_meal_allocation_invariants` before converting to response dictionaries.
+- For Phase 7 meal-split precision rules, use fractional protein/fat fixtures and assert per-meal values are exact `total / 6.0` (not pre-rounded boundary values).
 
 Started: Tue Mar  3 14:50:04 CET 2026
 ---
@@ -41,4 +42,20 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Ruff lint enforces import sorting and may flag comprehensions where `dict(zip(...))` is preferred (`C416`).
   - Useful context (e.g., "the evaluation panel is in component X")
     - Response payload top-level key is `TDEE` (legacy naming retained), while meal order should always follow `CANONICAL_MEAL_ORDER`.
+---
+## [2026-03-03 14:56:55 CET] - [US-003]
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Added Phase 7 meal-split regression coverage to assert protein/fat are distributed equally across all six canonical meals using exact pre-rounding float arithmetic.
+- Added explicit no-early-rounding assertions using fractional per-meal values to lock behavior ahead of later boundary-rounding stories.
+- Files changed
+  - `tests/unit/test_domain_services.py`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - For split-precision stories, use non-divisible macro totals to detect accidental early `round(..., 2)` behavior.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Ruff line-length (`E501`) is strict at 100 chars; long descriptive test names need shortening.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing canonical payload-shape test already verifies equal split for divisible values; fractional cases are required to prove pre-rounding behavior.
 ---

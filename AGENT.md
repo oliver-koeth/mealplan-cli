@@ -69,6 +69,7 @@ When in doubt, update those source docs instead of expanding this file.
 40. For tolerance-based domain checks, add both boundary-pass (`delta <= tolerance`) and failure (`delta > tolerance`) tests and assert stable error prefixes rather than full diagnostic strings.
 41. For periodization precedence/conflict coverage, build exhaustive matrices from `CANONICAL_MEAL_ORDER x TrainingLoadTomorrow` with stable case IDs and assert both high-meal role selection and reconciliation totals.
 42. For domain meal-assembly payloads, build `MealAllocation` rows first and run `validate_meal_allocation_invariants` before serializing dict payloads so canonical order/uniqueness guarantees are enforced at the domain boundary.
+43. For Phase 7 meal split regressions, include fractional protein/fat fixtures and assert per-meal values equal exact `total / 6.0` (not boundary-rounded values) to catch early rounding drift.
 
 ## Ralph Runner
 

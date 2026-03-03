@@ -232,6 +232,54 @@ def test_calculate_meal_split_and_response_payload_returns_canonical_payload_sha
     assert [entry["fat_g"] for entry in meals] == [12.0] * len(CANONICAL_MEAL_ORDER)
 
 
+def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equally() -> None:
+    protein_g = 145.0
+    fat_g = 73.0
+    expected_per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
+    expected_per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
+
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=60.0,
+        protein_g=protein_g,
+        carbs_g=300.0,
+        fat_g=fat_g,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
+    )
+
+    meals = payload["meals"]
+    assert isinstance(meals, list)
+    assert [entry["protein_g"] for entry in meals] == [
+        expected_per_meal_protein_g
+    ] * len(CANONICAL_MEAL_ORDER)
+    assert [entry["fat_g"] for entry in meals] == [expected_per_meal_fat_g] * len(
+        CANONICAL_MEAL_ORDER
+    )
+
+
+def test_meal_split_keeps_fractional_macro_split_before_rounding() -> None:
+    protein_g = 100.0
+    fat_g = 50.0
+    expected_per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
+    expected_per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
+
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2100.0,
+        training_carbs_g=45.0,
+        protein_g=protein_g,
+        carbs_g=240.0,
+        fat_g=fat_g,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 40.0),
+    )
+
+    meals = payload["meals"]
+    assert isinstance(meals, list)
+    assert meals[0]["protein_g"] == expected_per_meal_protein_g
+    assert meals[0]["fat_g"] == expected_per_meal_fat_g
+    assert meals[0]["protein_g"] != round(expected_per_meal_protein_g, 2)
+    assert meals[0]["fat_g"] != round(expected_per_meal_fat_g, 2)
+
+
 def test_calculate_periodized_carb_allocation_marks_two_post_training_meals_high() -> None:
     allocation = calculate_periodized_carb_allocation(
         carb_mode=CarbMode.PERIODIZED,
