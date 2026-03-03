@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from mealplan.domain.energy import tdee_kcal_per_day_for
-from mealplan.domain.enums import CarbMode
+from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
 from mealplan.domain.macros import carbs_target_g_for, fat_target_g_for, protein_target_g_for
-from mealplan.domain.model import MacroTargets, UserProfile
+from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 
 
 def calculate_tdee_kcal(profile: UserProfile) -> float:
@@ -44,3 +44,19 @@ def calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float:
         return 0.0
 
     return float(total_minutes)
+
+
+def calculate_periodized_carb_allocation(
+    carb_mode: CarbMode,
+    daily_carbs_g: float,
+    training_before_meal: MealName | None,
+    training_load_tomorrow: TrainingLoadTomorrow,
+) -> dict[MealName, float]:
+    """Return deterministic canonical six-meal carb allocation for Phase 6 entrypoint.
+
+    Phase 6 Story US-001 establishes the typed domain API and output contract only.
+    Redistribution rule sequencing is implemented in subsequent stories.
+    """
+    del carb_mode, training_before_meal, training_load_tomorrow
+    per_meal_carbs_g = daily_carbs_g / float(len(CANONICAL_MEAL_ORDER))
+    return dict.fromkeys(CANONICAL_MEAL_ORDER, per_meal_carbs_g)

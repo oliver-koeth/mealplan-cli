@@ -8,10 +8,11 @@ from collections.abc import Mapping
 import pytest
 
 from mealplan.domain import calculate_training_carbs_g
-from mealplan.domain.enums import ActivityLevel, CarbMode, Gender
-from mealplan.domain.model import MacroTargets, UserProfile
+from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
+from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.domain.services import (
     calculate_macro_targets,
+    calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
 )
 from mealplan.domain.services import (
@@ -161,3 +162,52 @@ def test_calculate_training_carbs_g_medium_depth_permutation_matrix(
     expected_training_carbs_g: float,
 ) -> None:
     assert calculate_training_carbs_g(zones_minutes) == expected_training_carbs_g
+
+
+def test_calculate_periodized_carb_allocation_has_stable_orchestration_signature() -> None:
+    signature = inspect.signature(calculate_periodized_carb_allocation)
+
+    assert str(signature) == (
+        "(carb_mode: 'CarbMode', daily_carbs_g: 'float', "
+        "training_before_meal: 'MealName | None', "
+        "training_load_tomorrow: 'TrainingLoadTomorrow') -> 'dict[MealName, float]'"
+    )
+
+
+def test_calculate_periodized_carb_allocation_returns_canonical_six_meal_mapping() -> None:
+    allocation = calculate_periodized_carb_allocation(
+        carb_mode=CarbMode.PERIODIZED,
+        daily_carbs_g=360.0,
+        training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+    )
+
+    assert list(allocation.keys()) == list(CANONICAL_MEAL_ORDER)
+    assert allocation == {
+        MealName.BREAKFAST: 60.0,
+        MealName.MORNING_SNACK: 60.0,
+        MealName.LUNCH: 60.0,
+        MealName.AFTERNOON_SNACK: 60.0,
+        MealName.DINNER: 60.0,
+        MealName.EVENING_SNACK: 60.0,
+    }
+
+
+@pytest.mark.parametrize("carb_mode", [CarbMode.LOW, CarbMode.NORMAL, CarbMode.PERIODIZED])
+def test_calculate_periodized_carb_allocation_is_deterministic_for_identical_inputs(
+    carb_mode: CarbMode,
+) -> None:
+    first = calculate_periodized_carb_allocation(
+        carb_mode=carb_mode,
+        daily_carbs_g=210.0,
+        training_before_meal=MealName.DINNER,
+        training_load_tomorrow=TrainingLoadTomorrow.HIGH,
+    )
+    second = calculate_periodized_carb_allocation(
+        carb_mode=carb_mode,
+        daily_carbs_g=210.0,
+        training_before_meal=MealName.DINNER,
+        training_load_tomorrow=TrainingLoadTomorrow.HIGH,
+    )
+
+    assert first == second

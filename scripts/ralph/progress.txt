@@ -1,111 +1,27 @@
 # Ralph Progress Log
-Started: Tue Mar  3 09:26:51 CET 2026
----
-## Codebase Patterns
-- Run `make quality` as the authoritative local gate before marking a story complete.
-- Keep Phase 5 fueling behavior centered on `calculate_training_carbs_g` in `src/mealplan/domain/services.py` with companion assertions in `tests/unit/test_domain_services.py`.
-- Cover Phase 5 training-zone rules with `pytest.mark.parametrize` matrices and strict float literals to keep precedence and totals explicit.
-- Encode rule precedence intent directly in `pytest` case IDs/test names so future regressions are obvious from failing test output.
-- When fueling boundary ownership is clarified, update all three docs by topic in the same story: `docs/ARCHITECTURE.md` (layer ownership), `docs/REQUIREMENTS.md` (functional rule), and `docs/MODEL.md` (domain contract/invariants).
-- For stable orchestration-facing domain APIs, add a unit test that pins `inspect.signature(...)` to guard parameter/return type drift.
+Started: Tue Mar  3 12:56:03 CET 2026
 
-## 2026-03-03 09:28:03 CET - US-001
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
-- Implemented `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float` in domain services as a pure deterministic function over normalized inputs.
-- Re-exported `calculate_training_carbs_g` from `mealplan.domain` for stable cross-layer imports.
-- Added unit tests covering float return type, representative normalized input, and deterministic behavior for identical inputs.
-- Files changed: `src/mealplan/domain/services.py`, `src/mealplan/domain/__init__.py`, `tests/unit/test_domain_services.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- **Learnings for future iterations:**
-  - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Composed domain APIs live in `src/mealplan/domain/services.py` and must be re-exported through `src/mealplan/domain/__init__.py` to keep imports stable.
-  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - `make quality` is the authoritative local gate and must pass before marking a story complete.
-  - Useful context (e.g., "the evaluation panel is in component X")
-    - Existing Phase 5 stories build on the same `calculate_training_carbs_g` entrypoint, so later rule changes should extend tests in `tests/unit/test_domain_services.py`.
+## Codebase Patterns
+- Add new phase-level domain entrypoints in `src/mealplan/domain/services.py`, re-export from `src/mealplan/domain/__init__.py`, and pin signature stability with `inspect.signature(...)` tests in `tests/unit/test_domain_services.py`.
 ---
-## 2026-03-03 09:29:41 CET - US-002
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
-- Implemented the all-zone-1 and zero-total overrides in `calculate_training_carbs_g`, returning strict `0.0` for both cases.
-- Added focused unit tests for all-zone-1 and all-zero sessions with strict float equality assertions.
-- Marked `US-002` as passing in `scripts/ralph/prd.json` after `make quality` succeeded.
-- Files changed: `src/mealplan/domain/services.py`, `tests/unit/test_domain_services.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- **Learnings for future iterations:**
-  - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Phase 5 story increments should evolve `calculate_training_carbs_g` behavior in small rule-specific steps while preserving a single domain entrypoint.
-  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Keep strict float equality in fueling tests (`0.0`, `60.0`, etc.) to match PRD acceptance criteria exactly.
-  - Useful context (e.g., "the evaluation panel is in component X")
-    - `tests/unit/test_domain_services.py` is the canonical location for Phase 5 fueling rule coverage.
----
-## 2026-03-03 09:32:15 CET - US-003
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
-- Implemented zone-2-plus override verification by adding representative zone 2, 3, 4, and 5 presence scenarios that all fuel from total session minutes.
-- Added strict float expected outputs (`30.0`, `60.0`, `95.0`) in a parameterized unit-test matrix to pin deterministic rule behavior.
-- Marked `US-003` as passing in `scripts/ralph/prd.json` after `make quality` succeeded.
-- Files changed: `tests/unit/test_domain_services.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- **Learnings for future iterations:**
-  - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Phase 5 rule expansions should prefer parameterized zone matrices over one-off tests to keep coverage readable and complete.
-  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Zone-2-plus override expectations include zone 1 minutes in the total once any zone 2..5 minute value is non-zero.
-  - Useful context (e.g., "the evaluation panel is in component X")
-    - `tests/unit/test_domain_services.py` already hosts all Phase 5 fueling assertions, so new rule stories should extend this same module.
----
-## 2026-03-03 10:56:37 CET - US-004
+
+## 2026-03-03 13:02:25 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
-- Added explicit precedence-focused parameterized tests proving mixed `zone 1 + zone 2..5` sessions use the override total-minute path.
-- Added boundary parameterized tests proving `zone 1`-only sessions stay on the zero-fueling path.
-- Added precedence-specific pytest case IDs to document intent directly in test names and failure output.
-- Marked `US-004` as passing in `scripts/ralph/prd.json` after `make quality` succeeded.
-- Files changed: `tests/unit/test_domain_services.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Implemented `calculate_periodized_carb_allocation(...)` in the domain services layer with a typed, deterministic, canonical six-meal `dict[MealName, float]` return contract (Phase 6 API baseline).
+- Re-exported the new allocator from `mealplan.domain` to keep import ergonomics consistent with other domain services.
+- Added unit tests for stable signature, canonical meal ordering/shape, and deterministic behavior for identical inputs.
+- Files changed:
+  - src/mealplan/domain/services.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_services.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Phase 5 precedence expectations should be captured with intent-revealing test IDs, not only generic test function names.
+    - Domain service contract stability is enforced with explicit `inspect.signature(...)` assertions in unit tests.
+    - Canonical meal allocation ordering should always come from `CANONICAL_MEAL_ORDER` to keep deterministic dict key order across layers.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Existing zone-override coverage may pass without explicitly asserting precedence intent, so add dedicated precedence cases when required by acceptance criteria.
+    - Ruff enforces `C420`; for uniform-value canonical meal mappings, prefer `dict.fromkeys(CANONICAL_MEAL_ORDER, value)` over a dict comprehension.
   - Useful context (e.g., "the evaluation panel is in component X")
-    - `tests/unit/test_domain_services.py` is still the single test module for this phase; precedence, rule, and matrix coverage all live there.
----
-## 2026-03-03 11:06:27 CET - US-005
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
-- Documented the Phase 3/Phase 5 boundary so fueling rules explicitly consume normalized zone minutes while malformed payload rejection remains in Phase 3 validation/normalization.
-- Updated architecture, requirements, and model docs with aligned wording for the same boundary ownership.
-- Marked `US-005` as passing in `scripts/ralph/prd.json` after `make quality` succeeded.
-- Files changed: `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `docs/MODEL.md`, `AGENT.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- **Learnings for future iterations:**
-  - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Boundary clarifications should be documented by topic across `ARCHITECTURE`, `REQUIREMENTS`, and `MODEL` in the same iteration to avoid drift.
-  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Phase 5 fueling domain rules should not add duplicate malformed-input validation; malformed `zones_minutes` handling stays in Phase 3 normalization/semantic validation.
-  - Useful context (e.g., "the evaluation panel is in component X")
-    - Current fueling behavior is already implemented in `src/mealplan/domain/services.py::calculate_training_carbs_g`; this story was documentation and boundary alignment only.
----
-## 2026-03-03 11:09:33 CET - US-006
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
-- Added a dedicated medium-depth `pytest.mark.parametrize` permutation matrix for training fueling that covers only zone 1 active, only one zone in 2..5 active, mixed zone 1 plus zone 2..5, multiple zones in 2..5, and all zeros.
-- Kept expected outputs as explicit strict float literals per case (`0.0`, `30.0`, `60.0`, `50.0`, `0.0`) to lock deterministic behavior.
-- Ran `make quality` successfully (ruff, mypy --strict, pytest).
-- Files changed: `tests/unit/test_domain_services.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- **Learnings for future iterations:**
-  - Patterns discovered (e.g., "this codebase uses X for Y")
-    - For rule-matrix stories, consolidate category coverage into one parameterized test with explicit case IDs so acceptance mapping stays obvious in test output.
-  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Existing targeted tests may already cover parts of a matrix; still add a dedicated acceptance-aligned matrix when the backlog explicitly asks for representative category coverage.
-  - Useful context (e.g., "the evaluation panel is in component X")
-    - Phase 5 fueling matrix coverage remains centralized in `tests/unit/test_domain_services.py` alongside other `calculate_training_carbs_g` precedence tests.
----
-## 2026-03-03 11:11:46 CET - US-007
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
-- Documented the canonical Phase 5 API contract in code and model docs for `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float`, including normalized-input scope and deterministic float return semantics.
-- Added a stable-interface unit test that pins the orchestration-facing signature to prevent parameter/return type drift.
-- Ran `make quality` successfully (ruff, mypy --strict, pytest).
-- Marked `US-007` as passing in `scripts/ralph/prd.json`.
-- Files changed: `src/mealplan/domain/services.py`, `tests/unit/test_domain_services.py`, `docs/MODEL.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- **Learnings for future iterations:**
-  - Patterns discovered (e.g., "this codebase uses X for Y")
-    - For stable cross-layer APIs, pair docstring/model-contract wording with a signature assertion test so interface regressions fail fast.
-  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Ruff import ordering is part of `make quality`; adding `inspect`-based tests may require re-sorting imports before the full gate passes.
-  - Useful context (e.g., "the evaluation panel is in component X")
-    - `tests/unit/test_domain_services.py` now covers both fueling rule behavior and public service contract shape for the Phase 5 entrypoint.
+    - `make quality` (`ruff` + `mypy --strict src` + `pytest`) is the required local gate before story completion and commit.
 ---

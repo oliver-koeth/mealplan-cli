@@ -61,6 +61,7 @@ When in doubt, update those source docs instead of expanding this file.
 32. When a phase-level assumption changes (for example required-vs-default inputs), update both `docs/PLAN.md` (phase scope/risks) and `docs/ARCHITECTURE.md` (calculation engine/future evolution) in the same iteration to keep backlog and architecture narratives consistent.
 33. When training-fueling boundary ownership changes or is clarified, keep docs synchronized by topic: put architecture-layer ownership in `docs/ARCHITECTURE.md`, functional rule wording in `docs/REQUIREMENTS.md`, and domain contract details in `docs/MODEL.md`.
 34. For stable cross-layer domain service interfaces, add a unit test that pins `inspect.signature(...)` so parameter and return-type contract drift is caught early.
+35. For canonical meal-keyed mappings that assign one shared scalar value, prefer `dict.fromkeys(CANONICAL_MEAL_ORDER, value)` to satisfy Ruff `C420` and keep deterministic key order.
 
 ## Ralph Runner
 
