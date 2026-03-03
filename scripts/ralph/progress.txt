@@ -5,6 +5,7 @@ Started: Tue Mar  3 15:44:48 CET 2026
 - When normalizing `TrainingSession.zones_minutes` in strict-typed application code, pass the contract dict through `normalize_training_zones(...)` and cast keys to `int | str` for mypy compatibility.
 - In `MealPlanCalculationService`, keep stage dataflow explicit by returning stage outputs (`tdee_kcal`, `MacroTargets`) and passing them into downstream hooks instead of storing mutable service state.
 - In fueling-stage orchestration, convert normalized training zones into a canonical integer-key map for zones `1..5` before calling `calculate_training_carbs_g`, and invoke it exactly once per service `calculate(...)`.
+- For omitted `training_session`, assert zero-training behavior with direct `MealPlanCalculationService.calculate(...)` integration tests across carb modes, and pin canonical defaults (`zones 1..5 = 0`, `training_before_meal=None`) via `_validated_training_session`.
 ---
 ## 2026-03-03 15:46:29 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
@@ -48,4 +49,14 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Fueling composition is easiest to test by monkeypatching `mealplan.application.orchestration.calculate_training_carbs_g` and asserting canonical zone payload + call count.
   - When stage hook signatures change in `MealPlanCalculationService`, existing orchestration tests that monkeypatch `_run_assembly_stage` and `_run_fueling_stage` must be updated in lockstep.
   - `MealPlanResponse.placeholder()` can be safely reused with `model_copy(update=...)` to carry newly wired stage outputs while later stories finish full payload assembly.
+---
+## 2026-03-03 17:50:36 CET - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Added omitted-training integration coverage in `tests/unit/test_application_orchestration.py` by exercising `MealPlanCalculationService.calculate(...)` directly for both `periodized` and `normal` carb modes with `training_session=None`.
+- Added deterministic defaults coverage asserting `_validated_training_session(...)` maps omitted training to canonical zero zones (`1..5`) and `training_before_meal=None`.
+- Files changed: `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
+- **Learnings for future iterations:**
+  - Patterns discovered: omitted optional training context should be covered with real service integration tests (not only monkeypatched stage tests) to ensure validation+fueling flow stays stable.
+  - Gotchas encountered: long descriptive pytest function names can violate Ruff `E501`; keep names concise enough for the repository line-length policy.
+- Useful context: zero-training behavior is now pinned both at the stage-input normalization boundary and end-to-end service output (`training_carbs_g == 0.0`).
 ---

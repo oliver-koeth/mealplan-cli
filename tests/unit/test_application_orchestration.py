@@ -11,6 +11,7 @@ from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
 from mealplan.application.orchestration import (
     MealPlanCalculationService,
     ValidatedTrainingSession,
+    _validated_training_session,
     validate_meal_plan_flow,
 )
 from mealplan.domain.enums import CarbMode
@@ -364,6 +365,40 @@ def test_meal_plan_calculation_service_fueling_zero_training_defaults_to_zero(
     response = service.calculate(request)
 
     assert response.training_carbs_g == 0.0
+
+
+@pytest.mark.parametrize("carb_mode", ["periodized", "normal"])
+def test_meal_plan_calculation_service_omitted_training_defaults_to_zero_training(
+    meal_plan_request_payload: dict[str, Any],
+    carb_mode: str,
+) -> None:
+    """Integration coverage: omitted training should stay valid and produce zero training carbs."""
+    request_payload = meal_plan_request_payload
+    request_payload["carb_mode"] = carb_mode
+    request_payload["training_session"] = None
+    request = MealPlanRequest.model_validate(request_payload)
+    service = MealPlanCalculationService()
+
+    response = service.calculate(request)
+
+    assert isinstance(response, MealPlanResponse)
+    assert response.training_carbs_g == 0.0
+
+
+def test_validated_training_session_omitted_training_uses_canonical_zero_defaults(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
+    """Omitted training should map to explicit canonical defaults for downstream stages."""
+    request_payload = meal_plan_request_payload
+    request_payload["training_session"] = None
+    request = MealPlanRequest.model_validate(request_payload)
+
+    training_session = _validated_training_session(request)
+
+    assert training_session == ValidatedTrainingSession(
+        zones_minutes={1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+        training_before_meal=None,
+    )
 
 
 def test_validate_meal_plan_flow_runs_schema_semantic_then_domain_checks(

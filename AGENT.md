@@ -78,6 +78,7 @@ When in doubt, update those source docs instead of expanding this file.
 49. For API signature tests on modules using `from __future__ import annotations`, resolve annotations with `typing.get_type_hints(...)` instead of asserting raw `inspect.signature(...).annotation` values, because raw annotations may be strings.
 50. In `MealPlanCalculationService`, keep stage composition explicit by returning stage outputs (`tdee_kcal`, `MacroTargets`) and passing them to downstream stage hooks, rather than storing mutable intermediate state on the service instance.
 51. For fueling-stage orchestration, normalize request zones first and pass a canonical `1..5` integer-key mapping into `calculate_training_carbs_g` exactly once per `MealPlanCalculationService.calculate(...)` call, then thread `training_carbs_g` into assembly.
+52. For omitted optional training input (`training_session=None`), keep orchestration tests that call `MealPlanCalculationService.calculate(...)` without monkeypatching to verify end-to-end zero-training behavior (`training_carbs_g == 0.0`) across representative carb modes.
 
 ## Ralph Runner
 
