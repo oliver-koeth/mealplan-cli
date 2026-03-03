@@ -8,7 +8,11 @@ from typing import Any, get_type_hints
 import pytest
 
 from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
-from mealplan.application.orchestration import MealPlanCalculationService, validate_meal_plan_flow
+from mealplan.application.orchestration import (
+    MealPlanCalculationService,
+    ValidatedTrainingSession,
+    validate_meal_plan_flow,
+)
 from mealplan.shared.errors import DomainRuleError, ValidationError
 from mealplan.shared.exit_codes import ExitCode, map_exception_to_exit_code
 
@@ -35,6 +39,129 @@ def test_meal_plan_calculation_service_calculate_is_deterministic(
 
     assert isinstance(first, MealPlanResponse)
     assert first == second
+
+
+def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validation should execute first, before any stage hook runs."""
+    steps: list[str] = []
+    request = MealPlanRequest.model_validate(meal_plan_request_payload)
+    service = MealPlanCalculationService()
+
+    def fake_validate_meal_plan_flow(
+        request_payload: object,
+        response: MealPlanResponse,
+    ) -> MealPlanRequest:
+        assert request_payload is request
+        assert isinstance(response, MealPlanResponse)
+        steps.append("validate")
+        return request
+
+    def track_energy(_: MealPlanRequest) -> None:
+        steps.append("energy")
+
+    def track_macro(_: MealPlanRequest) -> None:
+        steps.append("macro")
+
+    def track_fueling(_: ValidatedTrainingSession) -> None:
+        steps.append("fueling")
+
+    def track_periodization(_: MealPlanRequest, __: ValidatedTrainingSession) -> None:
+        steps.append("periodization")
+
+    def track_assembly() -> MealPlanResponse:
+        steps.append("assembly")
+        return MealPlanResponse.placeholder()
+
+    monkeypatch.setattr(
+        "mealplan.application.orchestration.validate_meal_plan_flow",
+        fake_validate_meal_plan_flow,
+    )
+    monkeypatch.setattr(service, "_run_energy_stage", track_energy)
+    monkeypatch.setattr(service, "_run_macro_stage", track_macro)
+    monkeypatch.setattr(service, "_run_fueling_stage", track_fueling)
+    monkeypatch.setattr(service, "_run_periodization_stage", track_periodization)
+    monkeypatch.setattr(service, "_run_assembly_stage", track_assembly)
+
+    response = service.calculate(request)
+
+    assert isinstance(response, MealPlanResponse)
+    assert steps == ["validate", "energy", "macro", "fueling", "periodization", "assembly"]
+
+
+def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validation failures should stop all stage execution."""
+    steps: list[str] = []
+    payload = meal_plan_request_payload
+    payload["age"] = 0
+    request = MealPlanRequest.model_validate(payload)
+    service = MealPlanCalculationService()
+
+    def track_energy(_: MealPlanRequest) -> None:
+        steps.append("energy")
+
+    def track_macro(_: MealPlanRequest) -> None:
+        steps.append("macro")
+
+    def track_fueling(_: ValidatedTrainingSession) -> None:
+        steps.append("fueling")
+
+    def track_periodization(_: MealPlanRequest, __: ValidatedTrainingSession) -> None:
+        steps.append("periodization")
+
+    def track_assembly() -> MealPlanResponse:
+        steps.append("assembly")
+        return MealPlanResponse.placeholder()
+
+    monkeypatch.setattr(service, "_run_energy_stage", track_energy)
+    monkeypatch.setattr(service, "_run_macro_stage", track_macro)
+    monkeypatch.setattr(service, "_run_fueling_stage", track_fueling)
+    monkeypatch.setattr(service, "_run_periodization_stage", track_periodization)
+    monkeypatch.setattr(service, "_run_assembly_stage", track_assembly)
+
+    with pytest.raises(ValidationError) as error_info:
+        service.calculate(request)
+
+    assert str(error_info.value) == "age: must be greater than 0"
+    assert map_exception_to_exit_code(error_info.value) is ExitCode.VALIDATION
+    assert steps == []
+
+
+def test_meal_plan_calculation_service_uses_normalized_training_for_fueling_and_periodization(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fueling and periodization stage hooks should consume normalized zones from validation."""
+    request_payload = meal_plan_request_payload
+    request_payload["training_session"]["zones_minutes"] = {"2": 40}
+    request = MealPlanRequest.model_validate(request_payload)
+    service = MealPlanCalculationService()
+    normalized_sessions: list[ValidatedTrainingSession] = []
+
+    monkeypatch.setattr(service, "_run_energy_stage", lambda _: None)
+    monkeypatch.setattr(service, "_run_macro_stage", lambda _: None)
+    monkeypatch.setattr(
+        service,
+        "_run_fueling_stage",
+        lambda training_session: normalized_sessions.append(training_session),
+    )
+    monkeypatch.setattr(
+        service,
+        "_run_periodization_stage",
+        lambda _, training_session: normalized_sessions.append(training_session),
+    )
+    monkeypatch.setattr(service, "_run_assembly_stage", MealPlanResponse.placeholder)
+
+    service.calculate(request)
+
+    assert len(normalized_sessions) == 2
+    for session in normalized_sessions:
+        assert session.zones_minutes == {1: 0, 2: 40, 3: 0, 4: 0, 5: 0}
 
 
 def test_validate_meal_plan_flow_runs_schema_semantic_then_domain_checks(
