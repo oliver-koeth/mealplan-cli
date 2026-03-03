@@ -73,6 +73,7 @@ When in doubt, update those source docs instead of expanding this file.
 44. For Phase 7 meal assembly, validate carb allocation keys upfront against exact `CANONICAL_MEAL_ORDER` coverage (no missing/extra keys) and raise `DomainRuleError` with `meal_assembly.carb_allocation` prefix before meal row construction.
 45. For Phase 7 response payload serialization, apply `round(..., 2)` only at the meals boundary (`carbs_g`, `protein_g`, `fat_g`) and keep top-level macro fields as canonical unrounded inputs.
 46. For Phase 7 meal assembly reconciliation, apply residual correction only to `MealName.EVENING_SNACK`, process macro dimensions in fixed order (`carbs_g`, `protein_g`, `fat_g`), and raise `DomainRuleError` with `meal_assembly.reconciliation` prefix if post-adjustment totals still mismatch targets.
+47. For Phase 7 response-shape updates, keep top-level-plus-meals payload construction in a dedicated helper and verify compatibility by parsing assembler output with `MealPlanResponse.model_validate(...)` in domain service tests.
 
 ## Ralph Runner
 

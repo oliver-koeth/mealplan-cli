@@ -8,11 +8,13 @@ from typing import cast
 
 import pytest
 
+from mealplan.application.contracts import MealPlanResponse
 from mealplan.domain import calculate_training_carbs_g
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.domain.services import (
     CARB_RECONCILIATION_TOLERANCE,
+    _assemble_meal_split_response_payload,
     _validate_carb_reconciliation,
     calculate_macro_targets,
     calculate_meal_split_and_response_payload,
@@ -231,6 +233,57 @@ def test_calculate_meal_split_and_response_payload_returns_canonical_payload_sha
     assert [entry["carbs_g"] for entry in meals] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
     assert [entry["protein_g"] for entry in meals] == [30.0] * len(CANONICAL_MEAL_ORDER)
     assert [entry["fat_g"] for entry in meals] == [12.0] * len(CANONICAL_MEAL_ORDER)
+
+
+def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meals() -> None:
+    meals = [
+        {"meal": meal, "carbs_g": 10.0, "protein_g": 20.0, "fat_g": 5.0}
+        for meal in CANONICAL_MEAL_ORDER
+    ]
+
+    payload = _assemble_meal_split_response_payload(
+        tdee_kcal=2300.0,
+        training_carbs_g=55.0,
+        protein_g=120.0,
+        carbs_g=200.0,
+        fat_g=60.0,
+        meals=meals,
+    )
+
+    assert list(payload.keys()) == [
+        "TDEE",
+        "training_carbs_g",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+        "meals",
+    ]
+    assert payload["TDEE"] == 2300.0
+    assert payload["training_carbs_g"] == 55.0
+    assert payload["protein_g"] == 120.0
+    assert payload["carbs_g"] == 200.0
+    assert payload["fat_g"] == 60.0
+    assert payload["meals"] == meals
+
+
+def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=85.0,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
+    )
+
+    parsed = MealPlanResponse.model_validate(payload)
+
+    assert parsed.TDEE == 2400.0
+    assert parsed.training_carbs_g == 85.0
+    assert parsed.protein_g == 180.0
+    assert parsed.carbs_g == 300.0
+    assert parsed.fat_g == 72.0
+    assert len(parsed.meals) == len(CANONICAL_MEAL_ORDER)
 
 
 def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equally() -> None:

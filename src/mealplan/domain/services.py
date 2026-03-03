@@ -149,6 +149,25 @@ def calculate_meal_split_and_response_payload(
         fat_g=fat_g,
     )
 
+    return _assemble_meal_split_response_payload(
+        tdee_kcal=tdee_kcal,
+        training_carbs_g=training_carbs_g,
+        protein_g=protein_g,
+        carbs_g=carbs_g,
+        fat_g=fat_g,
+        meals=meals,
+    )
+
+
+def _assemble_meal_split_response_payload(
+    *,
+    tdee_kcal: float,
+    training_carbs_g: float,
+    protein_g: float,
+    carbs_g: float,
+    fat_g: float,
+    meals: list[MealPayloadRow],
+) -> dict[str, object]:
     return {
         "TDEE": tdee_kcal,
         "training_carbs_g": training_carbs_g,

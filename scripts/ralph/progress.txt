@@ -5,6 +5,7 @@
 - For Phase 7 meal-split precision rules, assert per-meal macros are rounded with `round(..., 2)` only when serializing meal payload fields, while top-level macro fields remain canonical inputs.
 - For Phase 7 assembler carb inputs, validate allocation map keys against exact `CANONICAL_MEAL_ORDER` coverage (no missing/extra keys) and raise `DomainRuleError` prefixed `meal_assembly.carb_allocation`.
 - For Phase 7 reconciliation, adjust rounding residuals only on the canonical last meal (`evening-snack`) in fixed macro order (`carbs_g`, `protein_g`, `fat_g`), and fail with `meal_assembly.reconciliation` if totals still drift.
+- For Phase 7 response-shape changes, validate domain payload compatibility by parsing assembler output with `MealPlanResponse.model_validate(...)` in domain service tests.
 
 Started: Tue Mar  3 14:50:04 CET 2026
 ---
@@ -116,4 +117,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Existing tests that expect identical per-meal split values must account for evening-snack residual adjustments once reconciliation is enabled.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Strict typing in domain services is easiest to preserve by using internal `TypedDict` rows for meal payload arithmetic while keeping public API return type as `dict[str, object]`.
+---
+## [2026-03-03 15:08:14 CET] - [US-007]
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
+- Implemented a dedicated response assembly helper in `domain/services.py` to build top-level fields plus `meals[]`, and routed the Phase 7 assembler API through that helper.
+- Added tests for helper output shape/field presence and contract compatibility by validating assembled payloads against `MealPlanResponse`.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `tests/unit/test_domain_services.py`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - For response-shape stories, keep a focused payload-construction helper and lock compatibility by parsing with `MealPlanResponse.model_validate(...)`.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - `MealPlanResponse` uses strict floats and canonical meal-order validation, so helper tests should feed float literals and canonical `CANONICAL_MEAL_ORDER` rows.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Current payload assembly helper remains domain-local (`_assemble_meal_split_response_payload`) while the public contract stays `calculate_meal_split_and_response_payload(...)`.
 ---
