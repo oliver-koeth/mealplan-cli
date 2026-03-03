@@ -222,6 +222,22 @@ This document defines the canonical domain model for `mealplan`: object structur
   - Conflict policy is explicit: preserve post-training high-meal selection and skip next-day dinner override.
   - Reconciliation check: `abs(sum_allocated_carbs - daily_carbs_g) <= 1e-9`; otherwise raise `DomainRuleError`.
 
+### 6.5 Phase 7 Meal Assembly Contract
+- Canonical API:
+  - `calculate_meal_split_and_response_payload(tdee_kcal: float, training_carbs_g: float, protein_g: float, carbs_g: float, fat_g: float, carb_allocation_g_by_meal: Mapping[MealName, float]) -> dict[str, object]`
+- Inputs:
+  - Canonical top-level macro/energy values plus a complete six-meal carb allocation map.
+- Output contract:
+  - Returns top-level response fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) plus canonical `meals`.
+  - `meals` contains exactly six `MealAllocation`-compatible entries in canonical order.
+- Rules:
+  - Protein and fat are split equally across six meals using float arithmetic before output-boundary rounding.
+  - Carbs per meal are sourced from `carb_allocation_g_by_meal` with exact canonical key coverage (no missing/extra keys).
+  - Round per-meal `carbs_g`, `protein_g`, `fat_g` to 2 decimals only at response-boundary serialization.
+  - Top-level values remain canonical inputs and are not recomputed from rounded meal rows.
+  - Apply deterministic residual adjustment only to `evening-snack` and in fixed macro order: `carbs_g`, `protein_g`, `fat_g`.
+  - If post-adjustment meal totals still mismatch top-level targets, raise `DomainRuleError` prefixed `meal_assembly.reconciliation`.
+
 ## 7. Verification Matrix
 
 ### 7.1 Input Verification
@@ -256,9 +272,10 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Phase 6 periodization precision:
   - No rounding inside `calculate_periodized_carb_allocation`; preserve full float outputs for deterministic reconciliation checks.
 - Output precision policy (recommended):
-  - Round to 2 decimals at render boundary only.
+  - Phase 7 meal payloads round each meal macro field (`carbs_g`, `protein_g`, `fat_g`) to 2 decimals at boundary serialization only.
 - Reconciliation policy:
-  - Apply deterministic residual adjustment to last meal in canonical order when rounding creates a sum drift.
+  - If boundary rounding creates drift, apply residual correction only to canonical last meal (`evening-snack`).
+  - Apply residual correction in deterministic macro order: `carbs_g`, then `protein_g`, then `fat_g`.
 
 ## 9. Example Specifications
 

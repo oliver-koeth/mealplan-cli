@@ -68,6 +68,13 @@ When in doubt, update those source docs instead of expanding this file.
 39. Keep Phase 6 non-periodized bypass keyed only to carb mode (`LOW`/`NORMAL`): always return canonical equal split `daily_carbs_g / 6.0` with no rounding, independent of training inputs.
 40. For tolerance-based domain checks, add both boundary-pass (`delta <= tolerance`) and failure (`delta > tolerance`) tests and assert stable error prefixes rather than full diagnostic strings.
 41. For periodization precedence/conflict coverage, build exhaustive matrices from `CANONICAL_MEAL_ORDER x TrainingLoadTomorrow` with stable case IDs and assert both high-meal role selection and reconciliation totals.
+42. For domain meal-assembly payloads, build `MealAllocation` rows first and run `validate_meal_allocation_invariants` before serializing dict payloads so canonical order/uniqueness guarantees are enforced at the domain boundary.
+43. For Phase 7 meal split regressions, include fractional protein/fat fixtures and assert per-meal values equal exact `total / 6.0` (not boundary-rounded values) to catch early rounding drift.
+44. For Phase 7 meal assembly, validate carb allocation keys upfront against exact `CANONICAL_MEAL_ORDER` coverage (no missing/extra keys) and raise `DomainRuleError` with `meal_assembly.carb_allocation` prefix before meal row construction.
+45. For Phase 7 response payload serialization, apply `round(..., 2)` only at the meals boundary (`carbs_g`, `protein_g`, `fat_g`) and keep top-level macro fields as canonical unrounded inputs.
+46. For Phase 7 meal assembly reconciliation, apply residual correction only to `MealName.EVENING_SNACK`, process macro dimensions in fixed order (`carbs_g`, `protein_g`, `fat_g`), and raise `DomainRuleError` with `meal_assembly.reconciliation` prefix if post-adjustment totals still mismatch targets.
+47. For Phase 7 response-shape updates, keep top-level-plus-meals payload construction in a dedicated helper and verify compatibility by parsing assembler output with `MealPlanResponse.model_validate(...)` in domain service tests.
+48. For Phase 7 reconciliation failure-path tests, use sub-cent macro targets (more than two decimals) to exercise unreconcilable drift and assert only the stable `meal_assembly.reconciliation` error prefix.
 
 ## Ralph Runner
 

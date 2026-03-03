@@ -27,6 +27,7 @@ from mealplan.domain.model import (
 )
 from mealplan.domain.services import (
     calculate_macro_targets,
+    calculate_meal_split_and_response_payload,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
     calculate_training_carbs_g,
@@ -51,6 +52,7 @@ __all__ = [
     "UserProfile",
     "activity_factor_for",
     "bmr_kcal_per_day_for",
+    "calculate_meal_split_and_response_payload",
     "calculate_macro_targets",
     "calculate_periodized_carb_allocation",
     "calculate_tdee_kcal",

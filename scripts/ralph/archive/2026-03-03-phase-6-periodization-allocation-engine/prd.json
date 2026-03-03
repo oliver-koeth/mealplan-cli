@@ -16,7 +16,7 @@
         "pytest passes."
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -32,7 +32,7 @@
         "pytest passes."
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -48,7 +48,7 @@
         "pytest passes."
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -64,7 +64,7 @@
         "pytest passes."
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -80,7 +80,7 @@
         "pytest passes."
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -97,7 +97,7 @@
         "pytest passes."
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -113,7 +113,7 @@
         "pytest passes."
       ],
       "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -130,7 +130,7 @@
         "pytest passes."
       ],
       "priority": 8,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -147,7 +147,7 @@
         "pytest passes."
       ],
       "priority": 9,
-      "passes": true,
+      "passes": false,
       "notes": ""
     }
   ]

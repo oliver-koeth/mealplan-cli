@@ -1,189 +1,176 @@
 # Ralph Progress Log
-Started: Tue Mar  3 12:56:03 CET 2026
-
 ## Codebase Patterns
-- Add new phase-level domain entrypoints in `src/mealplan/domain/services.py`, re-export from `src/mealplan/domain/__init__.py`, and pin signature stability with `inspect.signature(...)` tests in `tests/unit/test_domain_services.py`.
-- For chronological meal transitions, resolve the next meal via `CANONICAL_MEAL_ORDER.index(current)` and modulo wrap (`(idx + 1) % len(CANONICAL_MEAL_ORDER)`) to keep behavior deterministic at end-of-day boundaries.
-- For two-high-meal periodization, compute low-meal carbs from residual (`daily - sum(highs)`) and divide by dynamic non-high meal count (`len(CANONICAL_MEAL_ORDER) - len(high_meals)`) to avoid hardcoded meal-count assumptions.
-- Encode tomorrow-high conflict handling as an explicit branch: if `training_before_meal` is `dinner` or `evening-snack`, preserve post-training highs and skip the `dinner` override.
-- Keep precedence stage order explicit in `calculate_periodized_carb_allocation`: non-periodized bypass -> post-training highs -> tomorrow-high override/conflict branch -> reconciliation check.
-- Keep non-periodized bypass semantics independent of training context: `CarbMode.LOW` and `CarbMode.NORMAL` must always return canonical equal split (`daily_carbs_g / 6.0`) with no rounding in Phase 6.
-- For tolerance-based domain guards, add both boundary-pass (`delta <= tolerance`) and failure (`delta > tolerance`) tests, and assert stable error prefixes (for example `^carb_reconciliation:`) rather than full message snapshots.
-- For periodization precedence/conflict regressions, use an exhaustive matrix across `CANONICAL_MEAL_ORDER` and all `TrainingLoadTomorrow` states with stable case IDs, and assert both selected high-meal roles and reconciliation totals.
----
+- For new domain orchestration APIs in `src/mealplan/domain/services.py`, add a stable `inspect.signature(...)` regression test in `tests/unit/test_domain_services.py` to prevent interface drift.
+- For meal-assembly domain outputs, construct `MealAllocation` rows and validate with `validate_meal_allocation_invariants` before converting to response dictionaries.
+- For Phase 7 meal-split precision rules, assert per-meal macros are rounded with `round(..., 2)` only when serializing meal payload fields, while top-level macro fields remain canonical inputs.
+- For Phase 7 assembler carb inputs, validate allocation map keys against exact `CANONICAL_MEAL_ORDER` coverage (no missing/extra keys) and raise `DomainRuleError` prefixed `meal_assembly.carb_allocation`.
+- For Phase 7 reconciliation, adjust rounding residuals only on the canonical last meal (`evening-snack`) in fixed macro order (`carbs_g`, `protein_g`, `fat_g`), and fail with `meal_assembly.reconciliation` if totals still drift.
+- For Phase 7 response-shape changes, validate domain payload compatibility by parsing assembler output with `MealPlanResponse.model_validate(...)` in domain service tests.
+- For Phase 7 reconciliation failure-path coverage, use sub-cent macro targets (more than two decimals) so drift remains unreconcilable after cent-based adjustment, then assert the stable `meal_assembly.reconciliation` prefix.
+- For phase-contract documentation updates, keep topic ownership aligned: architecture boundaries in `docs/ARCHITECTURE.md`, functional rules in `docs/REQUIREMENTS.md`, and API/invariant specifics in `docs/MODEL.md`.
 
-## 2026-03-03 13:02:25 CET - US-001
+Started: Tue Mar  3 14:50:04 CET 2026
+---
+## [2026-03-03 14:54:59 CET] - [US-002]
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
-- Implemented `calculate_periodized_carb_allocation(...)` in the domain services layer with a typed, deterministic, canonical six-meal `dict[MealName, float]` return contract (Phase 6 API baseline).
-- Re-exported the new allocator from `mealplan.domain` to keep import ergonomics consistent with other domain services.
-- Added unit tests for stable signature, canonical meal ordering/shape, and deterministic behavior for identical inputs.
-- Files changed:
-  - src/mealplan/domain/services.py
-  - src/mealplan/domain/__init__.py
-  - tests/unit/test_domain_services.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+- Implemented canonical meal assembly through `MealAllocation` construction plus `validate_meal_allocation_invariants` in the domain assembler, ensuring six-meal/order/uniqueness invariants are enforced before payload serialization.
+- Strengthened domain service tests to explicitly assert meal order, uniqueness, and canonical coverage in assembler output.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `tests/unit/test_domain_services.py`
+  - `AGENT.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Domain service contract stability is enforced with explicit `inspect.signature(...)` assertions in unit tests.
-    - Canonical meal allocation ordering should always come from `CANONICAL_MEAL_ORDER` to keep deterministic dict key order across layers.
+    - Meal output shape invariants are intended to be guarded via `MealAllocation` + `validate_meal_allocation_invariants`, even when final output is a dict payload.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Ruff enforces `C420`; for uniform-value canonical meal mappings, prefer `dict.fromkeys(CANONICAL_MEAL_ORDER, value)` over a dict comprehension.
+    - Local test commands should run through `.venv/bin/uv`/`make quality`; plain `pytest` may not be available on PATH.
   - Useful context (e.g., "the evaluation panel is in component X")
-    - `make quality` (`ruff` + `mypy --strict src` + `pytest`) is the required local gate before story completion and commit.
+    - Canonical meal order assertions in assembler tests should include sequence equality and uniqueness/coverage checks to prevent subtle contract drift.
 ---
-
-## 2026-03-03 13:04:33 CET - US-002
+## [2026-03-03 14:51:41 CET] - [US-001]
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
-- Implemented the post-training two-high-meal rule in `calculate_periodized_carb_allocation(...)`: the `training_before_meal` and immediate next canonical meal are set to `0.30 * daily_carbs_g`.
-- Added deterministic wrap handling so `evening-snack` correctly rolls to `breakfast` for the second high meal.
-- Added and updated unit tests to validate exact high-meal assignments and wrap behavior while preserving canonical six-meal output ordering.
-- Files changed:
-  - src/mealplan/domain/services.py
-  - tests/unit/test_domain_services.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+- Implemented `calculate_meal_split_and_response_payload(...)` in the domain services layer to assemble a deterministic response payload with canonical top-level fields and six ordered meals.
+- Exported the new assembler API from `mealplan.domain` package surface.
+- Added unit coverage for stable API signature and canonical payload shape/order.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `src/mealplan/domain/__init__.py`
+  - `tests/unit/test_domain_services.py`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Implement meal-sequence adjacency rules strictly from `CANONICAL_MEAL_ORDER` instead of enum declaration assumptions, and test both a middle-of-day and wrap-around case.
+    - Domain-service interfaces are treated as contracts and validated with explicit signature snapshot tests.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Current Phase 6 stories are intentionally incremental; at US-002 stage totals can exceed `daily_carbs_g` until residual distribution and reconciliation stories are implemented later.
+    - Ruff lint enforces import sorting and may flag comprehensions where `dict(zip(...))` is preferred (`C416`).
   - Useful context (e.g., "the evaluation panel is in component X")
-    - Existing deterministic-allocation tests remain valid and do not require carb-mode branching changes yet.
+    - Response payload top-level key is `TDEE` (legacy naming retained), while meal order should always follow `CANONICAL_MEAL_ORDER`.
 ---
-
-## 2026-03-03 13:06:24 CET - US-003
+## [2026-03-03 14:56:55 CET] - [US-003]
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
-- Implemented low-meal residual distribution in `calculate_periodized_carb_allocation(...)` by keeping the two post-training high meals at `0.30 * daily_carbs_g` each, then splitting remaining carbs evenly across the four non-high meals.
-- Updated periodization unit expectations to assert the new low-meal values and added a dedicated test that validates residual-even-split behavior with exact deterministic outputs.
-- Ran quality gates via `make quality` (ruff, mypy --strict src, pytest) and all checks passed.
-- Files changed:
-  - src/mealplan/domain/services.py
-  - tests/unit/test_domain_services.py
-  - AGENT.md
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+- Added Phase 7 meal-split regression coverage to assert protein/fat are distributed equally across all six canonical meals using exact pre-rounding float arithmetic.
+- Added explicit no-early-rounding assertions using fractional per-meal values to lock behavior ahead of later boundary-rounding stories.
+- Files changed
+  - `tests/unit/test_domain_services.py`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - For this allocator, derive low-meal distribution from residual carbs and dynamic non-high meal count instead of hardcoding four meals to keep rule logic robust if canonical meal set changes.
+    - For split-precision stories, use non-divisible macro totals to detect accidental early `round(..., 2)` behavior.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Existing tests that were validating only high-meal placement can silently encode outdated low-meal assumptions; update exact allocation snapshots when residual logic changes.
+    - Ruff line-length (`E501`) is strict at 100 chars; long descriptive test names need shortening.
   - Useful context (e.g., "the evaluation panel is in component X")
-    - `make quality` remains the single local command that mirrors repo quality expectations for Ralph story completion.
+    - Existing canonical payload-shape test already verifies equal split for divisible values; fractional cases are required to prove pre-rounding behavior.
 ---
-
-## 2026-03-03 13:09:09 CET - US-004
+## [2026-03-03 14:59:04 CET] - [US-004]
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
-- Implemented next-day high-load override behavior in `calculate_periodized_carb_allocation(...)`: when `training_load_tomorrow` is high and there is no conflict, force `dinner` high and `evening-snack` low before residual distribution.
-- Added explicit conflict handling for `training_before_meal in {DINNER, EVENING_SNACK}` to preserve post-training high-meal selection and skip tomorrow-high override deterministically.
-- Added unit tests for both non-conflict override application and conflict-path skip behavior.
-- Ran quality checks via `make quality` (`ruff`, `mypy --strict src`, `pytest`) and all checks passed.
-- Files changed:
-  - src/mealplan/domain/services.py
-  - tests/unit/test_domain_services.py
-  - AGENT.md
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+- Implemented strict carb allocation map validation in the Phase 7 meal assembler to enforce exact canonical meal-key coverage before meal-row construction.
+- Added deterministic domain error handling for missing/extra carb allocation keys with stable prefix `meal_assembly.carb_allocation`.
+- Added unit tests for missing-key and extra-key carb allocation failures while preserving carb carry-through behavior assertions.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `tests/unit/test_domain_services.py`
+  - `AGENT.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Model tomorrow-load precedence as an explicit conflict/non-conflict branch before residual split so high-meal set selection stays deterministic and testable.
+    - Phase 7 meal assembly should fail fast on carb allocation key-shape drift before constructing `MealAllocation` rows to avoid nondeterministic `KeyError` behavior.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Overriding meal roles changes `len(high_meals)`, so residual allocation must be derived from dynamic high-meal count instead of assuming exactly two high meals.
+    - New Phase 7 error tests should assert stable error-prefix regex (`^meal_assembly\\.carb_allocation:`) instead of full message text snapshots.
   - Useful context (e.g., "the evaluation panel is in component X")
-    - A conflict regression test is stable when it compares `HIGH` vs `MEDIUM` tomorrow-load outputs for the same conflicting `training_before_meal`.
+    - Because typed mappings can still carry runtime-invalid keys, tests use `typing.cast` to inject extra-key scenarios and verify domain guards.
 ---
-
-## 2026-03-03 13:11:51 CET - US-005
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
-- Implemented explicit precedence sequencing in `calculate_periodized_carb_allocation(...)`: non-periodized bypass, post-training high-meal selection, tomorrow-high override with conflict branch, and reconciliation validation.
-- Added precedence-focused tests asserting rule-order outcomes (bypass wins for non-periodized modes, post-training highs persist with tomorrow-high override, and deterministic behavior remains stable).
-- Ran `make quality` and confirmed all checks pass (`ruff`, `mypy --strict src`, `pytest`).
-- Files changed:
-  - src/mealplan/domain/services.py
-  - tests/unit/test_domain_services.py
-  - AGENT.md
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+## [2026-03-03 15:01:24 CET] - [US-005]
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented two-decimal boundary rounding for per-meal macro fields (`carbs_g`, `protein_g`, `fat_g`) in Phase 7 response payload assembly.
+- Updated domain-service tests to verify deterministic two-decimal outputs for fractional scenarios and preserved canonical top-level macro inputs.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `tests/unit/test_domain_services.py`
+  - `AGENT.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Keep precedence stages encoded as explicit helper-backed steps in the domain service to make future rule insertions safer and testable.
+    - Meal macro rounding policy is a serialization-boundary concern in `calculate_meal_split_and_response_payload`, not a split-calculation concern.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - A non-periodized bypass branch changes behavior for `LOW`/`NORMAL` even when `training_before_meal` is present; precedence tests should pin this to avoid regressions.
+    - Existing pre-rounding split assertions must be adjusted once Phase 7 boundary rounding is introduced; otherwise they fail on expected rounded payload values.
   - Useful context (e.g., "the evaluation panel is in component X")
-    - `make quality` remains the source-of-truth gate for Ralph completion (`ruff` + `mypy --strict src` + full test suite).
+    - Representative fractional carb fixtures should include thousandths to exercise deterministic two-decimal boundary behavior.
 ---
-
-## 2026-03-03 13:13:29 CET - US-006
+## [2026-03-03 15:05:33 CET] - [US-006]
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
-- Implemented deterministic non-periodized bypass behavior in `calculate_periodized_carb_allocation(...)` so `LOW` and `NORMAL` carb modes always return canonical equal split allocations (`daily_carbs_g / 6.0`) regardless of training inputs.
-- Documented bypass semantics in the domain service docstring as Phase 6 placeholder behavior for later Phase 7 integration.
-- Added bypass-focused tests for `LOW` and `NORMAL` modes that pin exact division semantics (no rounding) on non-even daily carb totals.
-- Ran quality checks via `make quality` (`ruff`, `mypy --strict src`, `pytest`), all passing.
-- Files changed:
-  - src/mealplan/domain/services.py
-  - tests/unit/test_domain_services.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+- Implemented deterministic Phase 7 residual reconciliation after meal-boundary rounding, applying per-macro corrections only to `evening-snack` in fixed order `carbs_g`, `protein_g`, `fat_g`.
+- Added post-adjustment reconciliation guard that raises `DomainRuleError` with prefix `meal_assembly.reconciliation` when rounded meal totals still mismatch macro targets.
+- Updated domain-service tests to assert evening-snack-only residual placement and updated existing rounding/equal-split assertions to match reconciliation behavior.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `tests/unit/test_domain_services.py`
+  - `AGENT.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Non-periodized bypass behavior should depend only on carb mode (`LOW`/`NORMAL`), not on training timing inputs, to keep Phase 6 precedence deterministic.
+    - Phase 7 reconciliation is part of payload assembly boundary logic: first round each meal macro to two decimals, then apply residuals to canonical last meal only.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Use a non-divisible-by-6 daily-carb test value (for example `301.0`) to catch accidental rounding in equal-split bypass logic.
+    - Existing tests that expect identical per-meal split values must account for evening-snack residual adjustments once reconciliation is enabled.
   - Useful context (e.g., "the evaluation panel is in component X")
-    - Existing precedence tests already cover bypass dominance and should be kept alongside numeric no-rounding checks.
+    - Strict typing in domain services is easiest to preserve by using internal `TypedDict` rows for meal payload arithmetic while keeping public API return type as `dict[str, object]`.
 ---
-
-## 2026-03-03 13:15:55 CET - US-007
+## [2026-03-03 15:08:14 CET] - [US-007]
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
-- Added reconciliation-focused unit coverage for Phase 6 allocation checks: one boundary pass case (`delta` within `1e-9`) and one deterministic fail case (`delta` above tolerance) with stable `DomainRuleError` prefix assertion.
-- Confirmed quality gates pass via `make quality` (`ruff`, `mypy --strict src`, `pytest`).
-- Files changed:
-  - tests/unit/test_domain_services.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+- Implemented a dedicated response assembly helper in `domain/services.py` to build top-level fields plus `meals[]`, and routed the Phase 7 assembler API through that helper.
+- Added tests for helper output shape/field presence and contract compatibility by validating assembled payloads against `MealPlanResponse`.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `tests/unit/test_domain_services.py`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - For tolerance rules, explicitly test both `<= tolerance` and `> tolerance` branches to lock deterministic numeric behavior.
+    - For response-shape stories, keep a focused payload-construction helper and lock compatibility by parsing with `MealPlanResponse.model_validate(...)`.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Reconciliation fail paths are hard to trigger through the public allocator API; direct helper-level tests are the most reliable way to pin error-category behavior.
+    - `MealPlanResponse` uses strict floats and canonical meal-order validation, so helper tests should feed float literals and canonical `CANONICAL_MEAL_ORDER` rows.
   - Useful context (e.g., "the evaluation panel is in component X")
-    - Prefix-only regex checks (for example `^carb_reconciliation:`) keep error tests stable while allowing diagnostic numeric details to vary.
+    - Current payload assembly helper remains domain-local (`_assemble_meal_split_response_payload`) while the public contract stays `calculate_meal_split_and_response_payload(...)`.
 ---
-
-## 2026-03-03 13:18:31 CET - US-008
+## [2026-03-03 15:10:34 CET] - [US-008]
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
-- Added an exhaustive combinatorial precedence/conflict matrix test for `calculate_periodized_carb_allocation(...)` covering all canonical `training_before_meal` values x all `TrainingLoadTomorrow` states.
-- Matrix assertions validate both role selection (exact high-meal set per precedence/conflict branch) and numeric allocation behavior (per-meal expectations plus reconciliation total within tolerance).
-- Ran quality checks via `make quality` (`ruff`, `mypy --strict src`, `pytest`), all passing.
-- Files changed:
-  - tests/unit/test_domain_services.py
-  - AGENT.md
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+- Added reconciliation policy tests for both no-adjustment and drift-failure paths in Phase 7 meal assembly.
+- Added a deterministic no-adjustment test that verifies evening-snack remains unchanged when rounded meal totals already match top-level targets.
+- Added an unreconcilable sub-cent target test that asserts `DomainRuleError` with stable `meal_assembly.reconciliation` prefix when cent-based residual adjustment cannot match top-level totals.
+- Files changed
+  - `tests/unit/test_domain_services.py`
+  - `AGENT.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - Exhaustive matrix tests are best expressed as `CANONICAL_MEAL_ORDER x TrainingLoadTomorrow` parameterization with deterministic case IDs to lock precedence/conflict behavior.
+    - Reconciliation failure-path tests are easiest to trigger with sub-cent macro targets because cent-rounded residual steps cannot perfectly satisfy those totals.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Even with exact floating values in many cases, keep a reconciliation assertion using `CARB_RECONCILIATION_TOLERANCE` to avoid brittle failures if numeric internals evolve.
+    - Assert only the stable error prefix (`^meal_assembly\\.reconciliation:`) for reconciliation failures instead of brittle full-message snapshots.
   - Useful context (e.g., "the evaluation panel is in component X")
-    - Existing focused precedence tests can remain as targeted guardrails; the exhaustive matrix supplements them for full branch coverage.
+    - Existing drift-correction test already covers the successful residual path; this story needed explicit no-adjustment and unreconcilable-path tests.
 ---
-## 2026-03-03 13:20:23 CET - US-009
+## [2026-03-03 15:14:37 CET] - [US-009]
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
-- Updated Phase 6 periodization documentation contracts across architecture, requirements, and model docs.
-- Added explicit canonical allocator API boundary (`calculate_periodized_carb_allocation(...) -> dict[MealName, float]`), deterministic non-periodized equal-split bypass semantics, conflict behavior for dinner/evening-snack training cases, and reconciliation tolerance policy (`abs(sum - target) <= 1e-9`).
-- Confirmed quality gates pass with `make quality` (`ruff`, `mypy --strict src`, `pytest`).
-- Files changed:
-  - docs/ARCHITECTURE.md
-  - docs/REQUIREMENTS.md
-  - docs/MODEL.md
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+- Documented Phase 7 domain assembly boundary in architecture docs, including canonical API, two-decimal meal-boundary rounding, and deterministic residual reconciliation policy.
+- Added explicit functional requirements for Phase 7 response assembly: canonical six-meal ordering, boundary-only rounding, fixed residual target (`evening-snack`), and fixed macro correction order (`carbs_g`, `protein_g`, `fat_g`).
+- Expanded model contracts with a dedicated Phase 7 meal assembly section defining API signature, input/output contract, key-coverage validation, rounding boundary, and reconciliation failure behavior.
+- Files changed
+  - `docs/ARCHITECTURE.md`
+  - `docs/REQUIREMENTS.md`
+  - `docs/MODEL.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
   - Patterns discovered (e.g., "this codebase uses X for Y")
-    - For phase-level rule changes, keep `docs/ARCHITECTURE.md` (layer boundary), `docs/REQUIREMENTS.md` (functional behavior), and `docs/MODEL.md` (typed contract/invariants) synchronized in the same iteration.
+    - Phase-level documentation updates should keep architecture boundary ownership in `ARCHITECTURE.md`, functional rule statements in `REQUIREMENTS.md`, and domain API/invariant details in `MODEL.md`.
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-    - Periodization wording can drift across docs unless precedence, conflict handling, and tolerance values are expressed with the same concrete terms in all three documents.
+    - Phase 7 docs need both residual target meal (`evening-snack`) and deterministic macro correction order (`carbs_g`, `protein_g`, `fat_g`) stated explicitly to avoid ambiguity.
   - Useful context (e.g., "the evaluation panel is in component X")
-    - `make quality` remains the required completion gate for documentation stories as well, not only code stories.
+    - Existing docs already contained partial rounding/reconciliation language; this story required tightening them into explicit contract wording.
 ---

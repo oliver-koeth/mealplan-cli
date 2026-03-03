@@ -144,6 +144,13 @@ mealplan/
 - Redistribution algorithm:
   - High meals fixed at 30% each of total carbs.
   - Remaining carbs split evenly over non-high meals.
+- Phase 7 meal assembly boundary:
+  - Canonical domain API: `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal) -> dict[str, object]`.
+  - Domain API builds top-level response fields plus canonical `meals[]`; no Phase 7 application-layer wrapper.
+  - Build `MealAllocation` rows and validate canonical order/coverage before payload serialization.
+  - Round meal macro fields (`carbs_g`, `protein_g`, `fat_g`) to 2 decimals at serialization boundary only.
+  - Reconcile rounding drift deterministically by adjusting only canonical last meal (`evening-snack`) in fixed macro order: `carbs_g`, `protein_g`, `fat_g`.
+  - If totals still mismatch after residual adjustment, raise `DomainRuleError` with prefix `meal_assembly.reconciliation`.
 - Precedence and deterministic ordering:
   - Meal order fixed: breakfast -> morning-snack -> lunch -> afternoon-snack -> dinner -> evening-snack.
   - Apply precedence from PRD section 8.5 exactly: non-periodized bypass -> post-training highs -> next-day high override unless conflict -> reconciliation check.
