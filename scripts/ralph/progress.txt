@@ -1,6 +1,7 @@
 ## Codebase Patterns
 - Keep Typer option declarations as module-level constants (for example `FOO_OPTION = typer.Option(...)`) and reuse them in command signatures to satisfy Ruff `B008`.
 - For CLI integration tests of `mealplan calculate`, use service-valid deterministic input combinations; some payloads can intentionally fail with domain reconciliation errors and should be reserved for error-path coverage.
+- For Typer options with bounded allowed values, use `Literal[...]` (or enums) in command signatures so invalid choices fail during CLI parsing with canonical validation exit code `2`.
 
 # Ralph Progress Log
 Started: Tue Mar  3 18:42:07 CET 2026
@@ -19,5 +20,24 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: Typer option factories should be declared once at module scope to avoid Ruff `B008` in strict lint mode.
   - Gotchas encountered: Some seemingly valid calculation inputs produce expected domain reconciliation failures (`ExitCode.DOMAIN`), so happy-path CLI tests must use known service-valid input sets.
-  - Useful context: Current `calculate` command always emits JSON while accepting `--format`/`--debug` flags; later stories can evolve behavior without changing flag contract.
+- Useful context: Current `calculate` command always emits JSON while accepting `--format`/`--debug` flags; later stories can evolve behavior without changing flag contract.
+---
+## [2026-03-03 18:48:39 CET] - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Enforced strict typed parsing for `--format` by annotating the CLI parameter as `Literal["json", "text", "table"]`, ensuring invalid values fail at the parser boundary.
+- Added CLI integration tests for representative strict parsing failures and deterministic validation behavior:
+  - missing required option (`--age`)
+  - invalid enum option (`--gender`)
+  - invalid bounded option (`--format`)
+  - optional training field passthrough to application semantic validation (no duplicated CLI business rule checks)
+- Files changed:
+  - AGENT.md
+  - src/mealplan/cli/main.py
+  - tests/cli/test_calculate.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: `Literal[...]` annotations integrate cleanly with Typer for strict option-choice enforcement without adding custom parser code.
+  - Gotchas encountered: Typer parser errors are emitted by Click before `main()` exception mapping, but they still produce canonical validation-class exit code `2`; tests should assert stable stderr fragments instead of full formatting blocks.
+  - Useful context: Application-level training semantics (for example requiring `training_before_meal` when zone minutes are non-zero) should remain in application validation and be verified via CLI integration tests.
 ---

@@ -59,3 +59,132 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
         "dinner",
         "evening-snack",
     ]
+
+
+def test_calculate_missing_required_option_returns_validation_exit_code() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "calculate",
+            "--gender",
+            "male",
+            "--height",
+            "180",
+            "--weight",
+            "75",
+            "--activity",
+            "medium",
+            "--carbs",
+            "low",
+            "--training-tomorrow",
+            "high",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "Missing option '--age'" in result.stderr
+
+
+def test_calculate_invalid_enum_option_returns_validation_exit_code() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "calculate",
+            "--age",
+            "40",
+            "--gender",
+            "invalid",
+            "--height",
+            "180",
+            "--weight",
+            "75",
+            "--activity",
+            "medium",
+            "--carbs",
+            "low",
+            "--training-tomorrow",
+            "high",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "Invalid value for '--gender'" in result.stderr
+
+
+def test_calculate_invalid_format_choice_returns_validation_exit_code() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "calculate",
+            "--age",
+            "40",
+            "--gender",
+            "male",
+            "--height",
+            "180",
+            "--weight",
+            "75",
+            "--activity",
+            "medium",
+            "--carbs",
+            "low",
+            "--training-tomorrow",
+            "high",
+            "--format",
+            "xml",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "Invalid value for '--format'" in result.stderr
+
+
+def test_calculate_training_fields_are_parsed_then_validated_by_application() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "calculate",
+            "--age",
+            "40",
+            "--gender",
+            "male",
+            "--height",
+            "180",
+            "--weight",
+            "75",
+            "--activity",
+            "medium",
+            "--carbs",
+            "low",
+            "--training-tomorrow",
+            "high",
+            "--training-zones",
+            '{"2": 45}',
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert (
+        "Error: training_session.training_before_meal: required when total zones_minutes > 0"
+        in result.stderr
+    )

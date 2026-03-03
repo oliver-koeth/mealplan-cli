@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Literal
 
 import typer
 
@@ -51,6 +52,7 @@ DEBUG_OPTION = typer.Option(
     "--debug",
     help="Enable debug output placeholder.",
 )
+OutputFormat = Literal["json", "text", "table"]
 
 
 @app.callback()
@@ -79,7 +81,7 @@ def calculate_command(
     training_tomorrow: TrainingLoadTomorrow = TRAINING_TOMORROW_OPTION,
     training_zones: str | None = TRAINING_ZONES_OPTION,
     training_before: MealName | None = TRAINING_BEFORE_OPTION,
-    output_format: str = OUTPUT_FORMAT_OPTION,
+    output_format: OutputFormat = OUTPUT_FORMAT_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
     """Run production mealplan calculation from typed CLI inputs."""
