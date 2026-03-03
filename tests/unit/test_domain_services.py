@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Mapping
+from typing import cast
 
 import pytest
 
@@ -278,6 +279,46 @@ def test_meal_split_keeps_fractional_macro_split_before_rounding() -> None:
     assert meals[0]["fat_g"] == expected_per_meal_fat_g
     assert meals[0]["protein_g"] != round(expected_per_meal_protein_g, 2)
     assert meals[0]["fat_g"] != round(expected_per_meal_fat_g, 2)
+
+
+def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:
+    incomplete_carb_allocation = dict(
+        zip(
+            CANONICAL_MEAL_ORDER[:-1],
+            [50.0, 50.0, 50.0, 50.0, 50.0],
+            strict=True,
+        )
+    )
+
+    with pytest.raises(DomainRuleError, match=r"^meal_assembly\.carb_allocation:"):
+        calculate_meal_split_and_response_payload(
+            tdee_kcal=2400.0,
+            training_carbs_g=70.0,
+            protein_g=180.0,
+            carbs_g=300.0,
+            fat_g=70.0,
+            carb_allocation_g_by_meal=incomplete_carb_allocation,
+        )
+
+
+def test_meal_split_raises_for_extra_carb_allocation_meals() -> None:
+    carb_allocation_with_extra_key = cast(
+        Mapping[MealName, float],
+        {
+            **dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
+            "late-night": 0.0,
+        },
+    )
+
+    with pytest.raises(DomainRuleError, match=r"^meal_assembly\.carb_allocation:"):
+        calculate_meal_split_and_response_payload(
+            tdee_kcal=2400.0,
+            training_carbs_g=70.0,
+            protein_g=180.0,
+            carbs_g=300.0,
+            fat_g=70.0,
+            carb_allocation_g_by_meal=carb_allocation_with_extra_key,
+        )
 
 
 def test_calculate_periodized_carb_allocation_marks_two_post_training_meals_high() -> None:

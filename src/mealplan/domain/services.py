@@ -102,6 +102,8 @@ def calculate_meal_split_and_response_payload(
     carb_allocation_g_by_meal: Mapping[MealName, float],
 ) -> dict[str, object]:
     """Return canonical response payload from top-level targets and meal carb allocation."""
+    _validate_carb_allocation_keys(carb_allocation_g_by_meal=carb_allocation_g_by_meal)
+
     per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
     per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
 
@@ -134,6 +136,37 @@ def calculate_meal_split_and_response_payload(
         "fat_g": fat_g,
         "meals": meals,
     }
+
+
+def _validate_carb_allocation_keys(
+    *,
+    carb_allocation_g_by_meal: Mapping[MealName, float],
+) -> None:
+    canonical_meal_set = set(CANONICAL_MEAL_ORDER)
+    provided_meal_set = set(carb_allocation_g_by_meal.keys())
+    if provided_meal_set == canonical_meal_set:
+        return
+
+    missing_meals = [
+        canonical_meal.value
+        for canonical_meal in CANONICAL_MEAL_ORDER
+        if canonical_meal not in provided_meal_set
+    ]
+    extra_meals = sorted(
+        _meal_key_label(meal_key)
+        for meal_key in provided_meal_set
+        if meal_key not in canonical_meal_set
+    )
+    raise DomainRuleError(
+        "meal_assembly.carb_allocation: "
+        f"missing={missing_meals}, extra={extra_meals}"
+    )
+
+
+def _meal_key_label(meal_key: object) -> str:
+    if isinstance(meal_key, MealName):
+        return meal_key.value
+    return repr(meal_key)
 
 
 def _equal_split_allocation(*, daily_carbs_g: float) -> dict[MealName, float]:

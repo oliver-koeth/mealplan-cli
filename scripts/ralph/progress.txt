@@ -3,6 +3,7 @@
 - For new domain orchestration APIs in `src/mealplan/domain/services.py`, add a stable `inspect.signature(...)` regression test in `tests/unit/test_domain_services.py` to prevent interface drift.
 - For meal-assembly domain outputs, construct `MealAllocation` rows and validate with `validate_meal_allocation_invariants` before converting to response dictionaries.
 - For Phase 7 meal-split precision rules, use fractional protein/fat fixtures and assert per-meal values are exact `total / 6.0` (not pre-rounded boundary values).
+- For Phase 7 assembler carb inputs, validate allocation map keys against exact `CANONICAL_MEAL_ORDER` coverage (no missing/extra keys) and raise `DomainRuleError` prefixed `meal_assembly.carb_allocation`.
 
 Started: Tue Mar  3 14:50:04 CET 2026
 ---
@@ -58,4 +59,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Ruff line-length (`E501`) is strict at 100 chars; long descriptive test names need shortening.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Existing canonical payload-shape test already verifies equal split for divisible values; fractional cases are required to prove pre-rounding behavior.
+---
+## [2026-03-03 14:59:04 CET] - [US-004]
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented strict carb allocation map validation in the Phase 7 meal assembler to enforce exact canonical meal-key coverage before meal-row construction.
+- Added deterministic domain error handling for missing/extra carb allocation keys with stable prefix `meal_assembly.carb_allocation`.
+- Added unit tests for missing-key and extra-key carb allocation failures while preserving carb carry-through behavior assertions.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `tests/unit/test_domain_services.py`
+  - `AGENT.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Phase 7 meal assembly should fail fast on carb allocation key-shape drift before constructing `MealAllocation` rows to avoid nondeterministic `KeyError` behavior.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - New Phase 7 error tests should assert stable error-prefix regex (`^meal_assembly\\.carb_allocation:`) instead of full message text snapshots.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Because typed mappings can still carry runtime-invalid keys, tests use `typing.cast` to inject extra-key scenarios and verify domain guards.
 ---
