@@ -184,12 +184,12 @@ def test_calculate_periodized_carb_allocation_marks_two_post_training_meals_high
 
     assert list(allocation.keys()) == list(CANONICAL_MEAL_ORDER)
     assert allocation == {
-        MealName.BREAKFAST: 60.0,
-        MealName.MORNING_SNACK: 60.0,
+        MealName.BREAKFAST: 36.0,
+        MealName.MORNING_SNACK: 36.0,
         MealName.LUNCH: 108.0,
         MealName.AFTERNOON_SNACK: 108.0,
-        MealName.DINNER: 60.0,
-        MealName.EVENING_SNACK: 60.0,
+        MealName.DINNER: 36.0,
+        MealName.EVENING_SNACK: 36.0,
     }
 
 
@@ -203,6 +203,22 @@ def test_calculate_periodized_carb_allocation_wraps_second_high_meal_to_breakfas
 
     assert allocation[MealName.EVENING_SNACK] == 90.0
     assert allocation[MealName.BREAKFAST] == 90.0
+
+
+def test_calculate_periodized_carb_allocation_splits_remaining_carbs_evenly() -> None:
+    allocation = calculate_periodized_carb_allocation(
+        carb_mode=CarbMode.PERIODIZED,
+        daily_carbs_g=250.0,
+        training_before_meal=MealName.MORNING_SNACK,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+    )
+
+    assert allocation[MealName.MORNING_SNACK] == 75.0
+    assert allocation[MealName.LUNCH] == 75.0
+    assert allocation[MealName.BREAKFAST] == 25.0
+    assert allocation[MealName.AFTERNOON_SNACK] == 25.0
+    assert allocation[MealName.DINNER] == 25.0
+    assert allocation[MealName.EVENING_SNACK] == 25.0
 
 
 @pytest.mark.parametrize("carb_mode", [CarbMode.LOW, CarbMode.NORMAL, CarbMode.PERIODIZED])

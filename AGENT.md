@@ -62,6 +62,7 @@ When in doubt, update those source docs instead of expanding this file.
 33. When training-fueling boundary ownership changes or is clarified, keep docs synchronized by topic: put architecture-layer ownership in `docs/ARCHITECTURE.md`, functional rule wording in `docs/REQUIREMENTS.md`, and domain contract details in `docs/MODEL.md`.
 34. For stable cross-layer domain service interfaces, add a unit test that pins `inspect.signature(...)` so parameter and return-type contract drift is caught early.
 35. For canonical meal-keyed mappings that assign one shared scalar value, prefer `dict.fromkeys(CANONICAL_MEAL_ORDER, value)` to satisfy Ruff `C420` and keep deterministic key order.
+36. For periodized allocations with selected high meals, compute low-meal residuals from `daily_carbs_g - sum(high allocations)` and divide by `len(CANONICAL_MEAL_ORDER) - len(high_meals)` rather than hardcoding meal counts.
 
 ## Ralph Runner
 
