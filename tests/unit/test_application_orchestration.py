@@ -2,14 +2,39 @@
 
 from __future__ import annotations
 
-from typing import Any
+import inspect
+from typing import Any, get_type_hints
 
 import pytest
 
 from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
-from mealplan.application.orchestration import validate_meal_plan_flow
+from mealplan.application.orchestration import MealPlanCalculationService, validate_meal_plan_flow
 from mealplan.shared.errors import DomainRuleError, ValidationError
 from mealplan.shared.exit_codes import ExitCode, map_exception_to_exit_code
+
+
+def test_meal_plan_calculation_service_has_canonical_api_signature() -> None:
+    """Application service should expose a stable calculate(request) contract."""
+    signature = inspect.signature(MealPlanCalculationService.calculate)
+    type_hints = get_type_hints(MealPlanCalculationService.calculate)
+
+    assert "request" in signature.parameters
+    assert type_hints["request"] is MealPlanRequest
+    assert type_hints["return"] is MealPlanResponse
+
+
+def test_meal_plan_calculation_service_calculate_is_deterministic(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
+    """Service should return deterministic output for identical typed request input."""
+    request = MealPlanRequest.model_validate(meal_plan_request_payload)
+    service = MealPlanCalculationService()
+
+    first = service.calculate(request)
+    second = service.calculate(request)
+
+    assert isinstance(first, MealPlanResponse)
+    assert first == second
 
 
 def test_validate_meal_plan_flow_runs_schema_semantic_then_domain_checks(

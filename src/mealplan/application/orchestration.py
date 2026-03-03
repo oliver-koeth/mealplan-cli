@@ -13,6 +13,19 @@ from mealplan.domain.validation import (
 )
 
 
+class MealPlanCalculationService:
+    """Canonical application orchestration boundary for meal plan calculation.
+
+    Phase 8 note:
+    - This service method is the only public application entrypoint for calculation.
+    - Subsequent Phase 8 stories wire stage composition behind this stable contract.
+    """
+
+    def calculate(self, request: MealPlanRequest) -> MealPlanResponse:
+        """Run deterministic meal-plan calculation for a validated request."""
+        return MealPlanResponse.placeholder()
+
+
 def validate_meal_plan_flow(
     request_payload: object,
     response: MealPlanResponse,

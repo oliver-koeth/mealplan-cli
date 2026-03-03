@@ -75,6 +75,7 @@ When in doubt, update those source docs instead of expanding this file.
 46. For Phase 7 meal assembly reconciliation, apply residual correction only to `MealName.EVENING_SNACK`, process macro dimensions in fixed order (`carbs_g`, `protein_g`, `fat_g`), and raise `DomainRuleError` with `meal_assembly.reconciliation` prefix if post-adjustment totals still mismatch targets.
 47. For Phase 7 response-shape updates, keep top-level-plus-meals payload construction in a dedicated helper and verify compatibility by parsing assembler output with `MealPlanResponse.model_validate(...)` in domain service tests.
 48. For Phase 7 reconciliation failure-path tests, use sub-cent macro targets (more than two decimals) to exercise unreconcilable drift and assert only the stable `meal_assembly.reconciliation` error prefix.
+49. For API signature tests on modules using `from __future__ import annotations`, resolve annotations with `typing.get_type_hints(...)` instead of asserting raw `inspect.signature(...).annotation` values, because raw annotations may be strings.
 
 ## Ralph Runner
 
