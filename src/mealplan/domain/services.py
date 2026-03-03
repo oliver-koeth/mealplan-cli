@@ -55,9 +55,19 @@ def calculate_periodized_carb_allocation(
     training_before_meal: MealName | None,
     training_load_tomorrow: TrainingLoadTomorrow,
 ) -> dict[MealName, float]:
-    """Return deterministic canonical six-meal carb allocation for Phase 6 entrypoint."""
+    """Return deterministic canonical six-meal carb allocation for Phase 6 entrypoint.
+
+    Phase 6 note:
+    - ``LOW`` and ``NORMAL`` carb modes intentionally bypass redistribution rules.
+    - Bypass semantics are a temporary placeholder until Phase 7 meal assembly.
+    """
     # 1) Non-periodized bypass: return deterministic equal split.
-    if carb_mode is not CarbMode.PERIODIZED or training_before_meal is None:
+    if carb_mode is not CarbMode.PERIODIZED:
+        allocation = _equal_split_allocation(daily_carbs_g=daily_carbs_g)
+        _validate_carb_reconciliation(allocation=allocation, daily_carbs_g=daily_carbs_g)
+        return allocation
+
+    if training_before_meal is None:
         allocation = _equal_split_allocation(daily_carbs_g=daily_carbs_g)
         _validate_carb_reconciliation(allocation=allocation, daily_carbs_g=daily_carbs_g)
         return allocation

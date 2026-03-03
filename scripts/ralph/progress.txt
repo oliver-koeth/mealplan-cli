@@ -7,6 +7,7 @@ Started: Tue Mar  3 12:56:03 CET 2026
 - For two-high-meal periodization, compute low-meal carbs from residual (`daily - sum(highs)`) and divide by dynamic non-high meal count (`len(CANONICAL_MEAL_ORDER) - len(high_meals)`) to avoid hardcoded meal-count assumptions.
 - Encode tomorrow-high conflict handling as an explicit branch: if `training_before_meal` is `dinner` or `evening-snack`, preserve post-training highs and skip the `dinner` override.
 - Keep precedence stage order explicit in `calculate_periodized_carb_allocation`: non-periodized bypass -> post-training highs -> tomorrow-high override/conflict branch -> reconciliation check.
+- Keep non-periodized bypass semantics independent of training context: `CarbMode.LOW` and `CarbMode.NORMAL` must always return canonical equal split (`daily_carbs_g / 6.0`) with no rounding in Phase 6.
 ---
 
 ## 2026-03-03 13:02:25 CET - US-001
@@ -108,4 +109,24 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - A non-periodized bypass branch changes behavior for `LOW`/`NORMAL` even when `training_before_meal` is present; precedence tests should pin this to avoid regressions.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `make quality` remains the source-of-truth gate for Ralph completion (`ruff` + `mypy --strict src` + full test suite).
+---
+
+## 2026-03-03 13:13:29 CET - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Implemented deterministic non-periodized bypass behavior in `calculate_periodized_carb_allocation(...)` so `LOW` and `NORMAL` carb modes always return canonical equal split allocations (`daily_carbs_g / 6.0`) regardless of training inputs.
+- Documented bypass semantics in the domain service docstring as Phase 6 placeholder behavior for later Phase 7 integration.
+- Added bypass-focused tests for `LOW` and `NORMAL` modes that pin exact division semantics (no rounding) on non-even daily carb totals.
+- Ran quality checks via `make quality` (`ruff`, `mypy --strict src`, `pytest`), all passing.
+- Files changed:
+  - src/mealplan/domain/services.py
+  - tests/unit/test_domain_services.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Non-periodized bypass behavior should depend only on carb mode (`LOW`/`NORMAL`), not on training timing inputs, to keep Phase 6 precedence deterministic.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Use a non-divisible-by-6 daily-carb test value (for example `301.0`) to catch accidental rounding in equal-split bypass logic.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing precedence tests already cover bypass dominance and should be kept alongside numeric no-rounding checks.
 ---

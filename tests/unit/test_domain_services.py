@@ -253,6 +253,23 @@ def test_calculate_periodized_carb_allocation_precedence_non_periodized_bypass_w
     assert allocation == dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0)
 
 
+@pytest.mark.parametrize("carb_mode", [CarbMode.LOW, CarbMode.NORMAL])
+def test_calculate_periodized_carb_allocation_non_periodized_bypass_uses_exact_division(
+    carb_mode: CarbMode,
+) -> None:
+    daily_carbs_g = 301.0
+    expected_per_meal = daily_carbs_g / 6.0
+
+    allocation = calculate_periodized_carb_allocation(
+        carb_mode=carb_mode,
+        daily_carbs_g=daily_carbs_g,
+        training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.HIGH,
+    )
+
+    assert allocation == dict.fromkeys(CANONICAL_MEAL_ORDER, expected_per_meal)
+
+
 @pytest.mark.parametrize(
     "training_before_meal",
     [MealName.DINNER, MealName.EVENING_SNACK],
