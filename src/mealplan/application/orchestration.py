@@ -12,6 +12,7 @@ from mealplan.domain.enums import MealName
 from mealplan.domain.model import MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.services import (
     calculate_macro_targets,
+    calculate_meal_split_and_response_payload,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
     calculate_training_carbs_g,
@@ -50,11 +51,16 @@ class MealPlanCalculationService:
         tdee_kcal = self._run_energy_stage(validated_request)
         macro_targets = self._run_macro_stage(validated_request, tdee_kcal)
         training_carbs_g = self._run_fueling_stage(training_session)
-        _ = self._run_periodization_stage(validated_request, training_session, macro_targets)
+        carb_allocation_g_by_meal = self._run_periodization_stage(
+            validated_request,
+            training_session,
+            macro_targets,
+        )
         return self._run_assembly_stage(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
             macro_targets=macro_targets,
+            carb_allocation_g_by_meal=carb_allocation_g_by_meal,
         )
 
     def _run_energy_stage(self, request: MealPlanRequest) -> float:
@@ -100,12 +106,18 @@ class MealPlanCalculationService:
         tdee_kcal: float,
         training_carbs_g: float,
         macro_targets: MacroTargets,
+        carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
-        """Placeholder assembly-stage hook; wired in subsequent Phase 8 stories."""
-        _ = tdee_kcal, macro_targets
-        return MealPlanResponse.placeholder().model_copy(
-            update={"training_carbs_g": training_carbs_g},
+        """Return validated response model from canonical meal assembly payload."""
+        response_payload = calculate_meal_split_and_response_payload(
+            tdee_kcal=tdee_kcal,
+            training_carbs_g=training_carbs_g,
+            protein_g=macro_targets.protein_g,
+            carbs_g=macro_targets.carbs_g,
+            fat_g=macro_targets.fat_g,
+            carb_allocation_g_by_meal=carb_allocation_g_by_meal,
         )
+        return MealPlanResponse.model_validate(response_payload)
 
 
 def _validated_training_session(request: MealPlanRequest) -> ValidatedTrainingSession:
