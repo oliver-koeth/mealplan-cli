@@ -765,3 +765,107 @@ def test_validate_meal_plan_flow_surfaces_domain_errors(
     assert str(error_info.value) == "macro_targets.fat_g: must be greater than or equal to 0"
     assert map_exception_to_exit_code(error_info.value) is ExitCode.DOMAIN
     assert not isinstance(error_info.value, ValidationError)
+
+
+@pytest.mark.parametrize(
+    ("scenario_payload", "expected_training_carbs_g"),
+    [
+        (
+            {
+                "age": 18,
+                "gender": "male",
+                "height_cm": 160,
+                "weight_kg": 61.5,
+                "activity_level": "medium",
+                "carb_mode": "periodized",
+                "training_load_tomorrow": "high",
+                "training_session": {
+                    "zones_minutes": {"1": 20, "2": 40, "3": 0, "4": 0, "5": 0},
+                    "training_before_meal": "lunch",
+                },
+            },
+            60.0,
+        ),
+        (
+            {
+                "age": 18,
+                "gender": "male",
+                "height_cm": 160,
+                "weight_kg": 60.5,
+                "activity_level": "medium",
+                "carb_mode": "normal",
+                "training_load_tomorrow": "high",
+                "training_session": {
+                    "zones_minutes": {"1": 20, "2": 40, "3": 0, "4": 0, "5": 0},
+                    "training_before_meal": "lunch",
+                },
+            },
+            60.0,
+        ),
+        (
+            {
+                "age": 18,
+                "gender": "male",
+                "height_cm": 160,
+                "weight_kg": 60.5,
+                "activity_level": "medium",
+                "carb_mode": "normal",
+                "training_load_tomorrow": "high",
+                "training_session": None,
+            },
+            0.0,
+        ),
+    ],
+    ids=[
+        "periodized-with-training",
+        "non-periodized-with-training",
+        "omitted-training-session",
+    ],
+)
+def test_meal_plan_calculation_service_integration_success_matrix(
+    scenario_payload: dict[str, object],
+    expected_training_carbs_g: float,
+) -> None:
+    """Integration matrix: representative successful calculate(...) scenarios."""
+    request = MealPlanRequest.model_validate(scenario_payload)
+    response = MealPlanCalculationService().calculate(request)
+
+    assert isinstance(response, MealPlanResponse)
+    assert [meal.meal for meal in response.meals] == list(CANONICAL_MEAL_ORDER)
+    assert len(response.meals) == len(CANONICAL_MEAL_ORDER)
+    assert response.training_carbs_g == pytest.approx(expected_training_carbs_g)
+
+    carbs_total = sum(meal.carbs_g for meal in response.meals)
+    protein_total = sum(meal.protein_g for meal in response.meals)
+    fat_total = sum(meal.fat_g for meal in response.meals)
+    assert carbs_total == pytest.approx(response.carbs_g)
+    assert protein_total == pytest.approx(response.protein_g)
+    assert fat_total == pytest.approx(response.fat_g)
+
+
+def test_meal_plan_calculation_service_integration_validation_failure(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
+    """Integration matrix: semantic validation failure propagates from calculate(...)."""
+    payload = meal_plan_request_payload
+    payload["age"] = 0
+    request = MealPlanRequest.model_validate(payload)
+
+    with pytest.raises(ValidationError) as error_info:
+        MealPlanCalculationService().calculate(request)
+
+    assert str(error_info.value) == "age: must be greater than 0"
+    assert map_exception_to_exit_code(error_info.value) is ExitCode.VALIDATION
+
+
+def test_meal_plan_calculation_service_integration_meal_assembly_failure_propagation(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
+    """Integration matrix: downstream domain failures bubble through calculate(...)."""
+    request = MealPlanRequest.model_validate(meal_plan_request_payload)
+
+    with pytest.raises(DomainRuleError) as error_info:
+        MealPlanCalculationService().calculate(request)
+
+    assert "meal_assembly.reconciliation:" in str(error_info.value)
+    assert map_exception_to_exit_code(error_info.value) is ExitCode.DOMAIN

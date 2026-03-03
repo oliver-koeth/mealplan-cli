@@ -81,6 +81,7 @@ When in doubt, update those source docs instead of expanding this file.
 52. For omitted optional training input (`training_session=None`), keep orchestration tests that call `MealPlanCalculationService.calculate(...)` without monkeypatching to verify end-to-end zero-training behavior (`training_carbs_g == 0.0`) across representative carb modes.
 53. For periodization-stage orchestration, delegate directly to `calculate_periodized_carb_allocation(carb_mode, daily_carbs_g, training_before_meal, training_load_tomorrow)` and pass through the returned meal allocation map without duplicating precedence/override rules in application code.
 54. For application assembly-stage orchestration, delegate response dict construction to `calculate_meal_split_and_response_payload(...)` and parse via `MealPlanResponse.model_validate(...)`; avoid hand-building response payloads in `MealPlanCalculationService`.
+55. Keep Phase 8 application integration coverage in `tests/unit/test_application_orchestration.py` by invoking `MealPlanCalculationService.calculate(...)` directly across representative success and failure propagation scenarios (`ValidationError` and `DomainRuleError` `meal_assembly.reconciliation`) without CLI coupling.
 
 ## Ralph Runner
 

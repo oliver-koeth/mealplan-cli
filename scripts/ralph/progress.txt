@@ -8,6 +8,7 @@ Started: Tue Mar  3 15:44:48 CET 2026
 - For omitted `training_session`, assert zero-training behavior with direct `MealPlanCalculationService.calculate(...)` integration tests across carb modes, and pin canonical defaults (`zones 1..5 = 0`, `training_before_meal=None`) via `_validated_training_session`.
 - In periodization-stage orchestration, call `calculate_periodized_carb_allocation(...)` with canonical request/macro/training inputs and pass through its returned allocation map without re-implementing domain precedence rules.
 - In application assembly-stage orchestration, call `calculate_meal_split_and_response_payload(...)` and parse the result with `MealPlanResponse.model_validate(...)` instead of mutating response dicts in the service layer.
+- For application orchestration integration matrices, include both happy paths and failure propagation (`ValidationError`, `DomainRuleError` with `meal_assembly.reconciliation` prefix) via direct `MealPlanCalculationService.calculate(...)` calls instead of CLI tests.
 ---
 ## 2026-03-03 15:46:29 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
@@ -82,4 +83,14 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: the application service should treat assembly as a pure domain delegation boundary (domain returns payload dict, application validates into `MealPlanResponse`).
   - Gotchas encountered: full-stack orchestration tests can fail on domain reconciliation precision when macro targets contain sub-cent residuals; prefer canonical stage fixtures in orchestration-focused tests unless testing failure propagation explicitly.
   - Useful context: Phase 8 now returns real assembled `MealPlanResponse` objects from the application boundary rather than placeholder payloads.
+---
+## 2026-03-03 18:24:12 CET - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Added a representative application integration matrix in `tests/unit/test_application_orchestration.py` that exercises `MealPlanCalculationService.calculate(...)` directly for periodized-with-training, non-periodized-with-training, and omitted-`training_session` success scenarios.
+- Added integration failure coverage for semantic validation failure and downstream domain failure propagation (`meal_assembly.reconciliation`) with deterministic exit-code mapping assertions.
+- Files changed: `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- **Learnings for future iterations:**
+  - Patterns discovered: integration matrix tests are most stable when they assert canonical meal ordering and top-level/per-meal macro reconciliation invariants rather than exact per-meal numeric snapshots.
+  - Gotchas encountered: default fixture payloads can trigger reconciliation-domain failures in full-stack calculate flows; use that intentionally for propagation tests and isolate happy-path fixtures for success scenarios.
+  - Useful context: `tests/unit/test_application_orchestration.py` is now the canonical Phase 8 integration target for direct application-boundary coverage without CLI coupling.
 ---
