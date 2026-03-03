@@ -14,6 +14,7 @@ from mealplan.domain.services import (
     CARB_RECONCILIATION_TOLERANCE,
     _validate_carb_reconciliation,
     calculate_macro_targets,
+    calculate_meal_split_and_response_payload,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
 )
@@ -175,6 +176,57 @@ def test_calculate_periodized_carb_allocation_has_stable_orchestration_signature
         "training_before_meal: 'MealName | None', "
         "training_load_tomorrow: 'TrainingLoadTomorrow') -> 'dict[MealName, float]'"
     )
+
+
+def test_calculate_meal_split_and_response_payload_has_stable_orchestration_signature() -> None:
+    signature = inspect.signature(calculate_meal_split_and_response_payload)
+
+    assert str(signature) == (
+        "(tdee_kcal: 'float', training_carbs_g: 'float', "
+        "protein_g: 'float', carbs_g: 'float', fat_g: 'float', "
+        "carb_allocation_g_by_meal: 'Mapping[MealName, float]') -> 'dict[str, object]'"
+    )
+
+
+def test_calculate_meal_split_and_response_payload_returns_canonical_payload_shape() -> None:
+    carb_allocation_g_by_meal = dict(
+        zip(
+            CANONICAL_MEAL_ORDER,
+            [70.0, 30.0, 90.0, 40.0, 60.0, 10.0],
+            strict=True,
+        )
+    )
+
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=85.0,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
+        carb_allocation_g_by_meal=carb_allocation_g_by_meal,
+    )
+
+    assert list(payload.keys()) == [
+        "TDEE",
+        "training_carbs_g",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+        "meals",
+    ]
+    assert payload["TDEE"] == 2400.0
+    assert payload["training_carbs_g"] == 85.0
+    assert payload["protein_g"] == 180.0
+    assert payload["carbs_g"] == 300.0
+    assert payload["fat_g"] == 72.0
+
+    meals = payload["meals"]
+    assert isinstance(meals, list)
+    assert len(meals) == len(CANONICAL_MEAL_ORDER)
+    assert [entry["meal"] for entry in meals] == list(CANONICAL_MEAL_ORDER)
+    assert [entry["carbs_g"] for entry in meals] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
+    assert [entry["protein_g"] for entry in meals] == [30.0] * len(CANONICAL_MEAL_ORDER)
+    assert [entry["fat_g"] for entry in meals] == [12.0] * len(CANONICAL_MEAL_ORDER)
 
 
 def test_calculate_periodized_carb_allocation_marks_two_post_training_meals_high() -> None:

@@ -92,6 +92,38 @@ def calculate_periodized_carb_allocation(
     return allocation
 
 
+def calculate_meal_split_and_response_payload(
+    tdee_kcal: float,
+    training_carbs_g: float,
+    protein_g: float,
+    carbs_g: float,
+    fat_g: float,
+    carb_allocation_g_by_meal: Mapping[MealName, float],
+) -> dict[str, object]:
+    """Return canonical response payload from top-level targets and meal carb allocation."""
+    per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
+    per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
+
+    meals: list[dict[str, object]] = [
+        {
+            "meal": meal,
+            "carbs_g": carb_allocation_g_by_meal[meal],
+            "protein_g": per_meal_protein_g,
+            "fat_g": per_meal_fat_g,
+        }
+        for meal in CANONICAL_MEAL_ORDER
+    ]
+
+    return {
+        "TDEE": tdee_kcal,
+        "training_carbs_g": training_carbs_g,
+        "protein_g": protein_g,
+        "carbs_g": carbs_g,
+        "fat_g": fat_g,
+        "meals": meals,
+    }
+
+
 def _equal_split_allocation(*, daily_carbs_g: float) -> dict[MealName, float]:
     per_meal_carbs_g = daily_carbs_g / float(len(CANONICAL_MEAL_ORDER))
     return dict.fromkeys(CANONICAL_MEAL_ORDER, per_meal_carbs_g)
