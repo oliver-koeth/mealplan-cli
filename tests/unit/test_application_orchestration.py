@@ -69,8 +69,9 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
         steps.append("macro")
         return MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0)
 
-    def track_fueling(_: ValidatedTrainingSession) -> None:
+    def track_fueling(_: ValidatedTrainingSession) -> float:
         steps.append("fueling")
+        return 4.0
 
     def track_periodization(
         _: MealPlanRequest,
@@ -79,9 +80,15 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
     ) -> None:
         steps.append("periodization")
 
-    def track_assembly(*, tdee_kcal: float, macro_targets: MacroTargets) -> MealPlanResponse:
+    def track_assembly(
+        *,
+        tdee_kcal: float,
+        training_carbs_g: float,
+        macro_targets: MacroTargets,
+    ) -> MealPlanResponse:
         steps.append("assembly")
         assert tdee_kcal == 1.0
+        assert training_carbs_g == 4.0
         assert macro_targets == MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0)
         return MealPlanResponse.placeholder()
 
@@ -120,8 +127,9 @@ def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
         steps.append("macro")
         return MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0)
 
-    def track_fueling(_: ValidatedTrainingSession) -> None:
+    def track_fueling(_: ValidatedTrainingSession) -> float:
         steps.append("fueling")
+        return 0.0
 
     def track_periodization(
         _: MealPlanRequest,
@@ -130,9 +138,14 @@ def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
     ) -> None:
         steps.append("periodization")
 
-    def track_assembly(*, tdee_kcal: float, macro_targets: MacroTargets) -> MealPlanResponse:
+    def track_assembly(
+        *,
+        tdee_kcal: float,
+        training_carbs_g: float,
+        macro_targets: MacroTargets,
+    ) -> MealPlanResponse:
         steps.append("assembly")
-        _ = tdee_kcal, macro_targets
+        _ = tdee_kcal, training_carbs_g, macro_targets
         return MealPlanResponse.placeholder()
 
     monkeypatch.setattr(service, "_run_energy_stage", track_energy)
@@ -166,10 +179,15 @@ def test_meal_plan_calculation_service_uses_normalized_training_for_fueling_and_
         "_run_macro_stage",
         lambda _, __: MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0),
     )
+
+    def track_fueling_session(training_session: ValidatedTrainingSession) -> float:
+        normalized_sessions.append(training_session)
+        return 0.0
+
     monkeypatch.setattr(
         service,
         "_run_fueling_stage",
-        lambda training_session: normalized_sessions.append(training_session),
+        track_fueling_session,
     )
     monkeypatch.setattr(
         service,
@@ -179,7 +197,7 @@ def test_meal_plan_calculation_service_uses_normalized_training_for_fueling_and_
     monkeypatch.setattr(
         service,
         "_run_assembly_stage",
-        lambda *, tdee_kcal, macro_targets: MealPlanResponse.placeholder(),
+        lambda *, tdee_kcal, training_carbs_g, macro_targets: MealPlanResponse.placeholder(),
     )
 
     service.calculate(request)
@@ -221,12 +239,12 @@ def test_meal_plan_calculation_service_builds_user_profile_and_calls_energy_macr
         "mealplan.application.orchestration.calculate_macro_targets",
         fake_calculate_macro_targets,
     )
-    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: None)
+    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: 0.0)
     monkeypatch.setattr(service, "_run_periodization_stage", lambda _, __, ___: None)
     monkeypatch.setattr(
         service,
         "_run_assembly_stage",
-        lambda *, tdee_kcal, macro_targets: MealPlanResponse.placeholder(),
+        lambda *, tdee_kcal, training_carbs_g, macro_targets: MealPlanResponse.placeholder(),
     )
 
     service.calculate(request)
@@ -261,7 +279,7 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
 
     monkeypatch.setattr(service, "_run_energy_stage", lambda _: tdee_value)
     monkeypatch.setattr(service, "_run_macro_stage", lambda _, __: macro_value)
-    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: None)
+    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: 0.0)
 
     def capture_periodization(
         _: MealPlanRequest,
@@ -270,8 +288,14 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
     ) -> None:
         captured["periodization_macro"] = macro_targets
 
-    def capture_assembly(*, tdee_kcal: float, macro_targets: MacroTargets) -> MealPlanResponse:
+    def capture_assembly(
+        *,
+        tdee_kcal: float,
+        training_carbs_g: float,
+        macro_targets: MacroTargets,
+    ) -> MealPlanResponse:
         captured["assembly_tdee"] = tdee_kcal
+        captured["assembly_training_carbs"] = training_carbs_g
         captured["assembly_macro"] = macro_targets
         return MealPlanResponse.placeholder()
 
@@ -282,7 +306,64 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
 
     assert captured["periodization_macro"] == macro_value
     assert captured["assembly_tdee"] == tdee_value
+    assert captured["assembly_training_carbs"] == 0.0
     assert captured["assembly_macro"] == macro_value
+
+
+def test_meal_plan_calculation_service_calls_fueling_service_once_with_canonical_zones(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fueling stage should call the domain service exactly once with canonical zones 1..5."""
+    request_payload = meal_plan_request_payload
+    request_payload["training_session"]["zones_minutes"] = {"2": 35, "4": 15}
+    request = MealPlanRequest.model_validate(request_payload)
+    service = MealPlanCalculationService()
+    captured_calls: list[dict[int, int]] = []
+
+    def fake_calculate_training_carbs_g(zones_minutes: dict[int, int]) -> float:
+        captured_calls.append(zones_minutes)
+        return 50.0
+
+    monkeypatch.setattr(
+        "mealplan.application.orchestration.calculate_training_carbs_g",
+        fake_calculate_training_carbs_g,
+    )
+    monkeypatch.setattr(service, "_run_energy_stage", lambda _: 1.0)
+    monkeypatch.setattr(
+        service,
+        "_run_macro_stage",
+        lambda _, __: MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0),
+    )
+    monkeypatch.setattr(service, "_run_periodization_stage", lambda _, __, ___: None)
+
+    response = service.calculate(request)
+
+    assert captured_calls == [{1: 0, 2: 35, 3: 0, 4: 15, 5: 0}]
+    assert response.training_carbs_g == 50.0
+
+
+def test_meal_plan_calculation_service_fueling_zero_training_defaults_to_zero(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Omitted training session should call fueling with canonical zero-training zones."""
+    request_payload = meal_plan_request_payload
+    request_payload["training_session"] = None
+    request = MealPlanRequest.model_validate(request_payload)
+    service = MealPlanCalculationService()
+
+    monkeypatch.setattr(service, "_run_energy_stage", lambda _: 1.0)
+    monkeypatch.setattr(
+        service,
+        "_run_macro_stage",
+        lambda _, __: MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0),
+    )
+    monkeypatch.setattr(service, "_run_periodization_stage", lambda _, __, ___: None)
+
+    response = service.calculate(request)
+
+    assert response.training_carbs_g == 0.0
 
 
 def test_validate_meal_plan_flow_runs_schema_semantic_then_domain_checks(

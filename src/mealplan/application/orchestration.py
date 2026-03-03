@@ -10,7 +10,11 @@ from mealplan.application.parsing import parse_contract
 from mealplan.application.validation import normalize_training_zones, validate_semantic_input
 from mealplan.domain.enums import MealName
 from mealplan.domain.model import MacroTargets, MealAllocation, UserProfile
-from mealplan.domain.services import calculate_macro_targets, calculate_tdee_kcal
+from mealplan.domain.services import (
+    calculate_macro_targets,
+    calculate_tdee_kcal,
+    calculate_training_carbs_g,
+)
 from mealplan.domain.validation import (
     validate_carb_reconciliation_invariants,
     validate_macro_targets_invariants,
@@ -44,9 +48,13 @@ class MealPlanCalculationService:
 
         tdee_kcal = self._run_energy_stage(validated_request)
         macro_targets = self._run_macro_stage(validated_request, tdee_kcal)
-        self._run_fueling_stage(training_session)
+        training_carbs_g = self._run_fueling_stage(training_session)
         self._run_periodization_stage(validated_request, training_session, macro_targets)
-        return self._run_assembly_stage(tdee_kcal=tdee_kcal, macro_targets=macro_targets)
+        return self._run_assembly_stage(
+            tdee_kcal=tdee_kcal,
+            training_carbs_g=training_carbs_g,
+            macro_targets=macro_targets,
+        )
 
     def _run_energy_stage(self, request: MealPlanRequest) -> float:
         """Return canonical TDEE using typed user-profile input."""
@@ -66,9 +74,10 @@ class MealPlanCalculationService:
             tdee_kcal=tdee_kcal,
         )
 
-    def _run_fueling_stage(self, training_session: ValidatedTrainingSession) -> None:
-        """Placeholder fueling-stage hook using normalized training context."""
-        _ = training_session
+    def _run_fueling_stage(self, training_session: ValidatedTrainingSession) -> float:
+        """Return canonical training-fuel carbs from normalized training zone minutes."""
+        canonical_zones = _canonical_training_zones(training_session.zones_minutes)
+        return calculate_training_carbs_g(canonical_zones)
 
     def _run_periodization_stage(
         self,
@@ -83,11 +92,14 @@ class MealPlanCalculationService:
         self,
         *,
         tdee_kcal: float,
+        training_carbs_g: float,
         macro_targets: MacroTargets,
     ) -> MealPlanResponse:
         """Placeholder assembly-stage hook; wired in subsequent Phase 8 stories."""
         _ = tdee_kcal, macro_targets
-        return MealPlanResponse.placeholder()
+        return MealPlanResponse.placeholder().model_copy(
+            update={"training_carbs_g": training_carbs_g},
+        )
 
 
 def _validated_training_session(request: MealPlanRequest) -> ValidatedTrainingSession:
@@ -102,6 +114,10 @@ def _validated_training_session(request: MealPlanRequest) -> ValidatedTrainingSe
         ),
         training_before_meal=request.training_session.training_before_meal,
     )
+
+
+def _canonical_training_zones(zones_minutes: dict[int, int]) -> dict[int, int]:
+    return {zone: zones_minutes.get(zone, 0) for zone in range(1, 6)}
 
 
 def _user_profile_from_request(request: MealPlanRequest) -> UserProfile:
