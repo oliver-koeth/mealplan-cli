@@ -29,7 +29,13 @@ def calculate_macro_targets(
 
 
 def calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float:
-    """Return deterministic training fueling carbs from normalized zone minutes."""
+    """Return deterministic training fueling carbs as float from normalized zone minutes.
+
+    Contract:
+    - Accepts normalized canonical zone keys ``1..5`` with integer minute values.
+    - Returns a ``float`` for every valid input.
+    - Is pure/deterministic: identical inputs always produce identical outputs.
+    """
     total_minutes = sum(zones_minutes.values())
     if total_minutes == 0:
         return 0.0

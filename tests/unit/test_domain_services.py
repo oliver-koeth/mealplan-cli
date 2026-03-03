@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Mapping
 
 import pytest
@@ -12,6 +13,9 @@ from mealplan.domain.model import MacroTargets, UserProfile
 from mealplan.domain.services import (
     calculate_macro_targets,
     calculate_tdee_kcal,
+)
+from mealplan.domain.services import (
+    calculate_training_carbs_g as calculate_training_carbs_g_service,
 )
 
 
@@ -63,6 +67,12 @@ def test_calculate_training_carbs_g_is_deterministic_for_same_input() -> None:
     zones_minutes: Mapping[int, int] = {1: 10, 2: 0, 3: 15, 4: 5, 5: 0}
 
     assert calculate_training_carbs_g(zones_minutes) == calculate_training_carbs_g(zones_minutes)
+
+
+def test_calculate_training_carbs_g_has_stable_orchestration_signature() -> None:
+    signature = inspect.signature(calculate_training_carbs_g_service)
+
+    assert str(signature) == "(zones_minutes: 'Mapping[int, int]') -> 'float'"
 
 
 def test_calculate_training_carbs_g_returns_zero_for_all_zone_1_minutes() -> None:

@@ -7,6 +7,7 @@ Started: Tue Mar  3 09:26:51 CET 2026
 - Cover Phase 5 training-zone rules with `pytest.mark.parametrize` matrices and strict float literals to keep precedence and totals explicit.
 - Encode rule precedence intent directly in `pytest` case IDs/test names so future regressions are obvious from failing test output.
 - When fueling boundary ownership is clarified, update all three docs by topic in the same story: `docs/ARCHITECTURE.md` (layer ownership), `docs/REQUIREMENTS.md` (functional rule), and `docs/MODEL.md` (domain contract/invariants).
+- For stable orchestration-facing domain APIs, add a unit test that pins `inspect.signature(...)` to guard parameter/return type drift.
 
 ## 2026-03-03 09:28:03 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
@@ -92,4 +93,19 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Existing targeted tests may already cover parts of a matrix; still add a dedicated acceptance-aligned matrix when the backlog explicitly asks for representative category coverage.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Phase 5 fueling matrix coverage remains centralized in `tests/unit/test_domain_services.py` alongside other `calculate_training_carbs_g` precedence tests.
+---
+## 2026-03-03 11:11:46 CET - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Documented the canonical Phase 5 API contract in code and model docs for `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float`, including normalized-input scope and deterministic float return semantics.
+- Added a stable-interface unit test that pins the orchestration-facing signature to prevent parameter/return type drift.
+- Ran `make quality` successfully (ruff, mypy --strict, pytest).
+- Marked `US-007` as passing in `scripts/ralph/prd.json`.
+- Files changed: `src/mealplan/domain/services.py`, `tests/unit/test_domain_services.py`, `docs/MODEL.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - For stable cross-layer APIs, pair docstring/model-contract wording with a signature assertion test so interface regressions fail fast.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Ruff import ordering is part of `make quality`; adding `inspect`-based tests may require re-sorting imports before the full gate passes.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_domain_services.py` now covers both fueling rule behavior and public service contract shape for the Phase 5 entrypoint.
 ---

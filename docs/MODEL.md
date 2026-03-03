@@ -180,10 +180,14 @@ This document defines the canonical domain model for `mealplan`: object structur
 
 ### 6.2 Training Fuel Rule Contract
 - Input: normalized `zones_minutes: Mapping[int, int]` with canonical keys `1..5`
+- Canonical API: `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float`
 - Output: `training_carbs_g: float`
 - Logic:
   - If all non-zero minutes are zone 1 -> `0`
   - If any zone 2-5 has minutes > 0 -> `sum(minutes) * 1.0`
+- Return semantics:
+  - Always returns a `float` for valid normalized inputs.
+  - Deterministic/pure: identical input mappings always produce the same output value.
 - Boundary ownership:
   - Malformed training-zone payload rejection (out-of-range keys, negative minutes, non-integer minute values) is handled before domain fueling rules.
   - Domain fueling rule execution assumes Phase 3 normalization has already produced canonical zone minutes.
