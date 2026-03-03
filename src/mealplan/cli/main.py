@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import sys
+import traceback
 from typing import Literal
 
 import typer
@@ -22,6 +24,7 @@ from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 
 app = typer.Typer(no_args_is_help=True, help="Mealplan command-line interface.")
+_DEBUG_MODE = False
 
 SIMULATED_ERROR_OPTION = typer.Option(
     default=None,
@@ -91,6 +94,8 @@ def calculate_command(
     debug: bool = DEBUG_OPTION,
 ) -> None:
     """Run production mealplan calculation from typed CLI inputs."""
+    global _DEBUG_MODE
+    _DEBUG_MODE = debug
     request_payload: dict[str, object] = {
         "age": age,
         "gender": gender,
@@ -109,7 +114,6 @@ def calculate_command(
 
     request = parse_contract(MealPlanRequest, request_payload)
     response = MealPlanCalculationService().calculate(request)
-    _ = debug
     typer.echo(_render_output(response=response, output_format=output_format))
 
 
@@ -195,4 +199,6 @@ def main() -> None:
         app()
     except Exception as error:  # noqa: BLE001
         typer.echo(f"Error: {error}", err=True)
+        if _DEBUG_MODE:
+            traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
         raise SystemExit(int(map_exception_to_exit_code(error))) from None

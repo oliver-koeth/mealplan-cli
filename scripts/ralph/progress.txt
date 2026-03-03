@@ -5,6 +5,7 @@
 - For CLI invalid-JSON tests (for example `--training-zones`), assert a stable stderr prefix (such as `Error: training_zones: invalid JSON`) instead of decoder-specific details that may vary by Python/JSON parser version.
 - For CLI boundary-wiring checks, use `typer.testing.CliRunner` plus `monkeypatch` of `mealplan.cli.main.MealPlanCalculationService` to verify delegation and response-driven output in-process.
 - For CLI output-format support (`json`, `text`, `table`), derive human-readable renderers from `MealPlanResponse.model_dump(mode="json")` and iterate meals using `CANONICAL_MEAL_ORDER` to keep all formats deterministic and contract-aligned.
+- For CLI debug-mode behavior, keep concise single-line stderr errors as the default path and print full tracebacks only when command-level debug mode is explicitly enabled, preserving stdout success output semantics.
 
 # Ralph Progress Log
 Started: Tue Mar  3 18:42:07 CET 2026
@@ -89,5 +90,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: For multi-format CLI output, render from `MealPlanResponse.model_dump(mode="json")` so machine and human formats stay aligned with the response contract.
   - Gotchas encountered: Keep meal-row assertions keyed to `CANONICAL_MEAL_ORDER` in tests; naive string-split indexing can misread markdown-table rows.
-  - Useful context: `--format json` and omitted `--format` now both produce the same stable JSON payload path for automation consumers.
+- Useful context: `--format json` and omitted `--format` now both produce the same stable JSON payload path for automation consumers.
+---
+## [2026-03-03 18:57:29 CET] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Implemented `--debug` error behavior for `mealplan calculate` by threading command debug state to the CLI top-level exception handler.
+- Default failures now remain concise single-line stderr messages, while debug-enabled failures additionally print full Python traceback details to stderr for the same underlying error.
+- Added CLI subprocess tests validating stderr differences between default and debug error modes using deterministic invalid `--training-zones` JSON input.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - src/mealplan/cli/main.py
+  - tests/cli/test_error_handling.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Preserve concise error UX in the shared `main()` exception path and gate traceback emission behind explicit debug state to avoid noisy default stderr output.
+  - Gotchas encountered: Debug toggles implemented as module state must be set per command invocation so in-process test runs do not accidentally inherit prior debug behavior.
+  - Useful context: Invalid CLI parse-time errors (Click/Typer) still bypass custom exception mapping and remain validation exit code `2`; debug traceback handling applies to runtime exceptions raised within command execution.
 ---
