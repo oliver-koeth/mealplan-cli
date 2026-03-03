@@ -14,8 +14,8 @@ from mealplan.application.orchestration import (
     _validated_training_session,
     validate_meal_plan_flow,
 )
-from mealplan.domain.enums import CarbMode
-from mealplan.domain.model import MacroTargets, UserProfile
+from mealplan.domain.enums import CarbMode, MealName
+from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.shared.errors import DomainRuleError, ValidationError
 from mealplan.shared.exit_codes import ExitCode, map_exception_to_exit_code
 
@@ -309,6 +309,94 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
     assert captured["assembly_tdee"] == tdee_value
     assert captured["assembly_training_carbs"] == 0.0
     assert captured["assembly_macro"] == macro_value
+
+
+@pytest.mark.parametrize(
+    ("carb_mode", "training_session_payload", "expected_training_before_meal"),
+    [
+        (
+            "periodized",
+            {"zones_minutes": {"2": 30}, "training_before_meal": "lunch"},
+            MealName.LUNCH,
+        ),
+        ("normal", None, None),
+    ],
+)
+def test_meal_plan_calculation_service_calls_periodization_with_canonical_arguments(
+    meal_plan_request_payload: dict[str, Any],
+    carb_mode: str,
+    training_session_payload: dict[str, Any] | None,
+    expected_training_before_meal: MealName | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Periodization hook should call the canonical domain service for all carb modes."""
+    request_payload = meal_plan_request_payload
+    request_payload["carb_mode"] = carb_mode
+    request_payload["training_session"] = training_session_payload
+    request = MealPlanRequest.model_validate(request_payload)
+    service = MealPlanCalculationService()
+    macro_targets = MacroTargets(protein_g=111.0, carbs_g=222.5, fat_g=55.0)
+    captured_calls: list[tuple[CarbMode, float, MealName | None, object]] = []
+
+    def fake_calculate_periodized_carb_allocation(
+        carb_mode: CarbMode,
+        daily_carbs_g: float,
+        training_before_meal: MealName | None,
+        training_load_tomorrow: object,
+    ) -> dict[MealName, float]:
+        captured_calls.append(
+            (carb_mode, daily_carbs_g, training_before_meal, training_load_tomorrow)
+        )
+        return dict.fromkeys(CANONICAL_MEAL_ORDER, daily_carbs_g / 6.0)
+
+    monkeypatch.setattr(service, "_run_energy_stage", lambda _: 1.0)
+    monkeypatch.setattr(service, "_run_macro_stage", lambda _, __: macro_targets)
+    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: 0.0)
+    monkeypatch.setattr(
+        "mealplan.application.orchestration.calculate_periodized_carb_allocation",
+        fake_calculate_periodized_carb_allocation,
+    )
+    monkeypatch.setattr(
+        service,
+        "_run_assembly_stage",
+        lambda *, tdee_kcal, training_carbs_g, macro_targets: MealPlanResponse.placeholder(),
+    )
+
+    service.calculate(request)
+
+    assert captured_calls == [
+        (
+            request.carb_mode,
+            222.5,
+            expected_training_before_meal,
+            request.training_load_tomorrow,
+        )
+    ]
+
+
+def test_meal_plan_calculation_service_periodization_stage_passthroughs_domain_allocation(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Application periodization stage should not duplicate/override domain allocation rules."""
+    request = MealPlanRequest.model_validate(meal_plan_request_payload)
+    service = MealPlanCalculationService()
+    training_session = _validated_training_session(request)
+    macro_targets = MacroTargets(protein_g=100.0, carbs_g=240.0, fat_g=70.0)
+    expected_allocation = dict.fromkeys(CANONICAL_MEAL_ORDER, 40.0)
+
+    monkeypatch.setattr(
+        "mealplan.application.orchestration.calculate_periodized_carb_allocation",
+        lambda **_: expected_allocation,
+    )
+
+    allocation = service._run_periodization_stage(
+        request=request,
+        training_session=training_session,
+        macro_targets=macro_targets,
+    )
+
+    assert allocation == expected_allocation
 
 
 def test_meal_plan_calculation_service_calls_fueling_service_once_with_canonical_zones(

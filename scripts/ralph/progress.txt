@@ -6,6 +6,7 @@ Started: Tue Mar  3 15:44:48 CET 2026
 - In `MealPlanCalculationService`, keep stage dataflow explicit by returning stage outputs (`tdee_kcal`, `MacroTargets`) and passing them into downstream hooks instead of storing mutable service state.
 - In fueling-stage orchestration, convert normalized training zones into a canonical integer-key map for zones `1..5` before calling `calculate_training_carbs_g`, and invoke it exactly once per service `calculate(...)`.
 - For omitted `training_session`, assert zero-training behavior with direct `MealPlanCalculationService.calculate(...)` integration tests across carb modes, and pin canonical defaults (`zones 1..5 = 0`, `training_before_meal=None`) via `_validated_training_session`.
+- In periodization-stage orchestration, call `calculate_periodized_carb_allocation(...)` with canonical request/macro/training inputs and pass through its returned allocation map without re-implementing domain precedence rules.
 ---
 ## 2026-03-03 15:46:29 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
@@ -59,4 +60,14 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: omitted optional training context should be covered with real service integration tests (not only monkeypatched stage tests) to ensure validation+fueling flow stays stable.
   - Gotchas encountered: long descriptive pytest function names can violate Ruff `E501`; keep names concise enough for the repository line-length policy.
 - Useful context: zero-training behavior is now pinned both at the stage-input normalization boundary and end-to-end service output (`training_carbs_g == 0.0`).
+---
+## 2026-03-03 17:53:35 CET - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented Phase 8 periodization-stage composition in `MealPlanCalculationService` by wiring `_run_periodization_stage(...)` to `calculate_periodized_carb_allocation(...)` with canonical arguments (`carb_mode`, `daily_carbs_g`, `training_before_meal`, `training_load_tomorrow`).
+- Added orchestration tests covering representative periodized and non-periodized service flows, asserting canonical periodization-call arguments and passthrough allocation behavior.
+- Files changed: `src/mealplan/application/orchestration.py`, `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
+- **Learnings for future iterations:**
+  - Patterns discovered: keep periodization precedence/override ownership in `mealplan.domain.services.calculate_periodized_carb_allocation` and keep application orchestration as argument plumbing only.
+  - Gotchas encountered: new parametrized orchestration matrix tests can easily exceed Ruff line length; split tuple payloads across lines to stay under `line-length = 100`.
+- Useful context: periodization is now invoked during `MealPlanCalculationService.calculate(...)` for both periodized and non-periodized modes, preparing direct handoff of meal allocations to Phase 7 assembly wiring.
 ---

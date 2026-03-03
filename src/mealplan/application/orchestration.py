@@ -12,6 +12,7 @@ from mealplan.domain.enums import MealName
 from mealplan.domain.model import MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.services import (
     calculate_macro_targets,
+    calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
     calculate_training_carbs_g,
 )
@@ -49,7 +50,7 @@ class MealPlanCalculationService:
         tdee_kcal = self._run_energy_stage(validated_request)
         macro_targets = self._run_macro_stage(validated_request, tdee_kcal)
         training_carbs_g = self._run_fueling_stage(training_session)
-        self._run_periodization_stage(validated_request, training_session, macro_targets)
+        _ = self._run_periodization_stage(validated_request, training_session, macro_targets)
         return self._run_assembly_stage(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
@@ -84,9 +85,14 @@ class MealPlanCalculationService:
         request: MealPlanRequest,
         training_session: ValidatedTrainingSession,
         macro_targets: MacroTargets,
-    ) -> None:
-        """Placeholder periodization-stage hook using normalized training context."""
-        _ = request, training_session, macro_targets
+    ) -> dict[MealName, float]:
+        """Return canonical meal-level carb allocation from periodization stage."""
+        return calculate_periodized_carb_allocation(
+            carb_mode=request.carb_mode,
+            daily_carbs_g=macro_targets.carbs_g,
+            training_before_meal=training_session.training_before_meal,
+            training_load_tomorrow=request.training_load_tomorrow,
+        )
 
     def _run_assembly_stage(
         self,
