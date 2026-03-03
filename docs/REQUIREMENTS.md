@@ -207,6 +207,18 @@ JSON structure:
 "carbs_g": number, "fat_g": number, "meals": \[
 {"meal":"breakfast","carbs_g":x,"protein_g":y,"fat_g":z} \] }
 
+### 9.1 Phase 7 Assembly and Rounding Contract
+
+-   Canonical meal-assembly API is domain-only in Phase 7:
+    `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal)`.
+-   Response `meals` must contain exactly six canonical entries in this order:
+    `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`.
+-   Per-meal `carbs_g`, `protein_g`, and `fat_g` values are rounded to 2 decimals at output boundary only.
+-   Top-level fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) remain canonical inputs and are not re-derived from rounded meal rows.
+-   If rounded meal totals drift from top-level targets, residual correction is applied only to `evening-snack`.
+-   Residual macro correction order is deterministic and fixed:
+    `carbs_g`, then `protein_g`, then `fat_g`.
+
 ------------------------------------------------------------------------
 
 ## 10. Validation

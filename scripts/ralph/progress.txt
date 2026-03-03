@@ -7,6 +7,7 @@
 - For Phase 7 reconciliation, adjust rounding residuals only on the canonical last meal (`evening-snack`) in fixed macro order (`carbs_g`, `protein_g`, `fat_g`), and fail with `meal_assembly.reconciliation` if totals still drift.
 - For Phase 7 response-shape changes, validate domain payload compatibility by parsing assembler output with `MealPlanResponse.model_validate(...)` in domain service tests.
 - For Phase 7 reconciliation failure-path coverage, use sub-cent macro targets (more than two decimals) so drift remains unreconcilable after cent-based adjustment, then assert the stable `meal_assembly.reconciliation` prefix.
+- For phase-contract documentation updates, keep topic ownership aligned: architecture boundaries in `docs/ARCHITECTURE.md`, functional rules in `docs/REQUIREMENTS.md`, and API/invariant specifics in `docs/MODEL.md`.
 
 Started: Tue Mar  3 14:50:04 CET 2026
 ---
@@ -153,4 +154,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Assert only the stable error prefix (`^meal_assembly\\.reconciliation:`) for reconciliation failures instead of brittle full-message snapshots.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Existing drift-correction test already covers the successful residual path; this story needed explicit no-adjustment and unreconcilable-path tests.
+---
+## [2026-03-03 15:14:37 CET] - [US-009]
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
+- Documented Phase 7 domain assembly boundary in architecture docs, including canonical API, two-decimal meal-boundary rounding, and deterministic residual reconciliation policy.
+- Added explicit functional requirements for Phase 7 response assembly: canonical six-meal ordering, boundary-only rounding, fixed residual target (`evening-snack`), and fixed macro correction order (`carbs_g`, `protein_g`, `fat_g`).
+- Expanded model contracts with a dedicated Phase 7 meal assembly section defining API signature, input/output contract, key-coverage validation, rounding boundary, and reconciliation failure behavior.
+- Files changed
+  - `docs/ARCHITECTURE.md`
+  - `docs/REQUIREMENTS.md`
+  - `docs/MODEL.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Phase-level documentation updates should keep architecture boundary ownership in `ARCHITECTURE.md`, functional rule statements in `REQUIREMENTS.md`, and domain API/invariant details in `MODEL.md`.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Phase 7 docs need both residual target meal (`evening-snack`) and deterministic macro correction order (`carbs_g`, `protein_g`, `fat_g`) stated explicitly to avoid ambiguity.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing docs already contained partial rounding/reconciliation language; this story required tightening them into explicit contract wording.
 ---
