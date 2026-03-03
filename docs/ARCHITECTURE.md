@@ -109,6 +109,19 @@ mealplan/
   - Enforce sequence: validate -> calculate energy/macros -> meal allocation -> response.
 - Use-case service:
   - `MealPlanCalculationService` is stateless and deterministic.
+  - Canonical Phase 8 application boundary is `src/mealplan/application/orchestration.py::MealPlanCalculationService.calculate(request: MealPlanRequest) -> MealPlanResponse`.
+- Phase 8 deterministic stage sequence:
+  1. Validation-first gate via `validate_meal_plan_flow(...)`.
+  2. Training context normalization via `_validated_training_session(...)`.
+  3. Energy stage via `calculate_tdee_kcal(...)`.
+  4. Macro stage via `calculate_macro_targets(...)`.
+  5. Fueling stage via `calculate_training_carbs_g(...)`.
+  6. Periodization stage via `calculate_periodized_carb_allocation(...)`.
+  7. Assembly stage via `calculate_meal_split_and_response_payload(...)`, then boundary parse with `MealPlanResponse.model_validate(...)`.
+- Omitted training-session behavior at the application boundary:
+  - If `request.training_session is None`, orchestration must use canonical zero-training defaults:
+    - `zones_minutes = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}`
+    - `training_before_meal = None`
 - Request/response flow:
   - `CalculatePlanRequest` -> domain engine -> `CalculatePlanResponse`.
 - State behavior:
