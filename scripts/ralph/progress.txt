@@ -7,6 +7,7 @@ Started: Tue Mar  3 20:39:20 CET 2026
 - For hybrid golden assertions, centralize tolerance behavior in `tests/golden/helpers.py`: keep strict structure/key/list/string checks and allow only macro/energy numeric fields to vary within absolute tolerance `0.01`.
 - For packaging validation, use `scripts/checks/verify_package_artifacts.py` as the single gate: run `uv build`, require exactly one wheel and one sdist in `dist/`, and validate wheel `entry_points.txt` plus sdist/wheel metadata (`Name`, `Version`).
 - For installability validation, use `scripts/checks/verify_install_workflow.py` against a built `dist/*.whl`: install into a fresh temporary virtualenv, run both `mealplan --help` and `python -m mealplan --help`, and execute one JSON `mealplan calculate` smoke command from outside the repo source tree.
+- Keep release-go/no-go steps in `docs/RELEASE_CHECKLIST.md`, and align every listed command with executable gates (`make quality`, `make package-check`, `make install-smoke-check`) so docs and CI-facing checks do not drift.
 
 ---
 ## 2026-03-03 20:51:05 CET - US-001
@@ -105,5 +106,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: Keep install smoke checks truly isolated by running commands from a temporary directory with a fresh venv so source-tree imports cannot hide packaging/install issues.
   - Gotchas encountered: `uv build` regenerates `src/mealplan_cli.egg-info`; remove it before commit to keep the tree clean.
-  - Useful context: Current CI runs install smoke verification in the same `quality` job; later CI restructuring can split this into a dedicated install-smoke job without changing check scripts.
+- Useful context: Current CI runs install smoke verification in the same `quality` job; later CI restructuring can split this into a dedicated install-smoke job without changing check scripts.
+---
+## 2026-03-03 21:08:17 CET - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Added a dedicated release-readiness checklist at `docs/RELEASE_CHECKLIST.md` with explicit pre-release gates, exact commands, and expected outcomes.
+- Included checklist coverage for quality gates, golden snapshot criteria, packaging verification, isolated install-smoke validation, CI-green confirmation, and first usable release versioning/release-note expectations.
+- Linked the checklist from `README.md` and added a reusable repo rule in `AGENT.md` to keep checklist steps aligned with automated gates.
+- Files changed:
+  - AGENT.md
+  - README.md
+  - docs/RELEASE_CHECKLIST.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Keep release checklists executable, with each checklist item mapped to an existing command or CI gate.
+  - Gotchas encountered: Running `package-check` and `install-smoke-check` in parallel can produce a false negative when install verification starts before wheel build completion.
+  - Useful context: Packaging verification creates transient `src/mealplan_cli.egg-info`; remove it from the working tree before commit.
 ---

@@ -96,6 +96,7 @@ When in doubt, update those source docs instead of expanding this file.
 67. For golden snapshot comparisons, reuse `tests/golden/helpers.py` hybrid assertions: enforce strict key/list ordering and string fields, and apply only `NUMERIC_TOLERANCE_ABS = 0.01` to approved energy/macro numeric fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, and `meals[*].{protein_g,carbs_g,fat_g}`).
 68. For packaging verification, run `scripts/checks/verify_package_artifacts.py`: it must execute `uv build`, assert exactly one wheel and one sdist in `dist/`, validate package name/version metadata, and confirm the `mealplan` console entry point in wheel `entry_points.txt`.
 69. For installability verification, run `scripts/checks/verify_install_workflow.py` after packaging checks: install `dist/*.whl` into a fresh temp virtualenv, run both `mealplan --help` and `python -m mealplan --help` from outside the repo source tree, and include one `mealplan calculate ... --format json` smoke command.
+70. Keep release-readiness steps in `docs/RELEASE_CHECKLIST.md` aligned with executable local/CI gates (`make quality`, `make package-check`, `make install-smoke-check`) so documentation and automation do not drift.
 
 ## Ralph Runner
 

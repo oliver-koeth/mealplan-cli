@@ -137,6 +137,11 @@ Golden tests use a hybrid policy:
   `uv run python scripts/checks/verify_package_artifacts.py`
   `uv run python scripts/checks/verify_install_workflow.py`
 
+## Release Readiness
+
+- Follow `docs/RELEASE_CHECKLIST.md` before publishing a release candidate.
+- The checklist covers quality gates, golden snapshot pass criteria, packaging and isolated install-smoke verification, and first usable release versioning/release-note expectations.
+
 ## Contributing
 
 Contributor workflow and architecture-boundary expectations are documented in
