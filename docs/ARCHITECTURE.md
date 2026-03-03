@@ -91,17 +91,28 @@ mealplan/
 ## 5. CLI Layer Architecture
 - Parsing strategy: `Typer` for command ergonomics and type-aware help.
 - Command model:
-  - Single main command (`mealplan`) with optional subcommands later (`calculate`, `validate-input`).
+  - Root command: `mealplan`.
+  - Stable subcommands in Phase 9: `mealplan probe` and `mealplan calculate`.
+  - `probe` remains a deterministic scaffolding command and must not change behavior when evolving `calculate`.
+  - `calculate` is the production boundary and accepts the canonical flags:
+    - required: `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`
+    - optional: `--training-zones`, `--training-before`, `--format`, `--debug`
 - Validation flow:
   - Parse primitive CLI inputs.
   - Convert to request DTO.
+  - Parse `--training-zones` as a JSON string only (no file-path or shorthand forms).
   - Run application-level validator (domain-safe constraints).
 - Error flow:
-  - Catch typed exceptions and map to exit codes.
-  - Emit concise user message; optional `--debug` includes traceback.
+  - Parse-time flag/type failures return validation exit code (`2`) from Typer/Click.
+  - Runtime command exceptions are mapped centrally in `main()`:
+    - `ValidationError` -> `2`
+    - `DomainRuleError` -> `3`
+    - unknown/runtime infrastructure failures -> `4`
+  - Emit concise single-line stderr by default; `--debug` includes traceback for the same error.
 - Output strategy:
   - Default JSON (machine-readable, stable keys).
   - Optional `--format table|text|json`, with JSON canonical for integrations.
+  - Successful outputs stay on stdout for all formats; failures are emitted on stderr.
 
 ## 6. Application Layer
 - Responsibilities:
@@ -311,9 +322,14 @@ mealplan/
   - Domain errors are rule violations; infrastructure errors are parse/render/runtime adapter issues.
 - Exit codes:
   - `0` success, `2` validation/input error, `3` domain rule violation, `4` infrastructure/runtime failure.
+- Canonical mapping source:
+  - `src/mealplan/shared/exit_codes.py::map_exception_to_exit_code`.
+- CLI parse/runtime boundary:
+  - Typer/Click parse failures (invalid/missing flags) are validation-class failures and exit with `2` before command handlers execute.
+  - Command/runtime exceptions are mapped by `main()` through `map_exception_to_exit_code(...)`.
 - User vs debug output:
   - Human-readable single-line message by default.
-  - `--debug` adds traceback and context payload.
+  - `--debug` adds traceback on stderr without changing successful stdout payload semantics.
 - Fail-fast:
   - Stop on first unrecoverable invalid state; no silent fallback values.
 

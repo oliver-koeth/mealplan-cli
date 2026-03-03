@@ -38,6 +38,66 @@ Tests follow the same intent and are grouped by scope:
   `.venv/bin/uv run mypy --strict src`
   `.venv/bin/uv run pytest`
 
+## CLI Usage
+
+- Show command help:
+  `uv run mealplan --help`
+- Show calculate help:
+  `uv run mealplan calculate --help`
+
+`mealplan calculate` accepts these canonical required flags:
+
+- `--age`
+- `--gender` (`male|female`)
+- `--height` (cm)
+- `--weight` (kg)
+- `--activity` (`low|medium|high`)
+- `--carbs` (`low|normal|periodized`)
+- `--training-tomorrow` (`low|medium|high`)
+
+Optional flags:
+
+- `--training-zones` (JSON string only, for example `'{"1": 20, "2": 40}'`)
+- `--training-before` (`breakfast|morning-snack|lunch|afternoon-snack|dinner|evening-snack`)
+- `--format` (`json|text|table`, default `json`)
+- `--debug`
+
+Concrete examples:
+
+```bash
+# Default JSON output (stdout)
+uv run mealplan calculate \
+  --age 40 --gender male --height 180 --weight 75 \
+  --activity medium --carbs low --training-tomorrow high
+
+# Explicit text output with training context
+uv run mealplan calculate \
+  --age 40 --gender male --height 180 --weight 75 \
+  --activity medium --carbs periodized --training-tomorrow high \
+  --training-zones '{"1": 20, "2": 40, "3": 0, "4": 0, "5": 0}' \
+  --training-before lunch \
+  --format text
+
+# Explicit table output
+uv run mealplan calculate \
+  --age 40 --gender male --height 180 --weight 75 \
+  --activity medium --carbs normal --training-tomorrow medium \
+  --format table
+```
+
+## Exit Codes and Debug Behavior
+
+- `0`: success
+- `2`: validation/input errors (including invalid flag values and invalid `--training-zones` JSON)
+- `3`: domain rule violations
+- `4`: runtime/infrastructure failures
+
+Error output behavior:
+
+- Default: concise `Error: ...` message on stderr
+- With `--debug`: same message plus traceback details on stderr
+- Successful command payloads always stay on stdout
+
 ## CI Expectations
 
 - GitHub Actions runs on every `push` and `pull_request`.

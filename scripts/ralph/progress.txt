@@ -1,108 +1,158 @@
-# Ralph Progress Log
-Started: Tue Mar  3 15:44:48 CET 2026
 ## Codebase Patterns
-- For API signature tests in files with postponed annotations (`from __future__ import annotations`), use `typing.get_type_hints` to assert resolved types instead of raw `inspect.signature(...).annotation` values.
-- When normalizing `TrainingSession.zones_minutes` in strict-typed application code, pass the contract dict through `normalize_training_zones(...)` and cast keys to `int | str` for mypy compatibility.
-- In `MealPlanCalculationService`, keep stage dataflow explicit by returning stage outputs (`tdee_kcal`, `MacroTargets`) and passing them into downstream hooks instead of storing mutable service state.
-- In fueling-stage orchestration, convert normalized training zones into a canonical integer-key map for zones `1..5` before calling `calculate_training_carbs_g`, and invoke it exactly once per service `calculate(...)`.
-- For omitted `training_session`, assert zero-training behavior with direct `MealPlanCalculationService.calculate(...)` integration tests across carb modes, and pin canonical defaults (`zones 1..5 = 0`, `training_before_meal=None`) via `_validated_training_session`.
-- In periodization-stage orchestration, call `calculate_periodized_carb_allocation(...)` with canonical request/macro/training inputs and pass through its returned allocation map without re-implementing domain precedence rules.
-- In application assembly-stage orchestration, call `calculate_meal_split_and_response_payload(...)` and parse the result with `MealPlanResponse.model_validate(...)` instead of mutating response dicts in the service layer.
-- For application orchestration integration matrices, include both happy paths and failure propagation (`ValidationError`, `DomainRuleError` with `meal_assembly.reconciliation` prefix) via direct `MealPlanCalculationService.calculate(...)` calls instead of CLI tests.
-- When Phase 8 application orchestration contracts change, keep `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, and `docs/MODEL.md` synchronized in the same iteration to avoid boundary-contract drift.
+- Keep Typer option declarations as module-level constants (for example `FOO_OPTION = typer.Option(...)`) and reuse them in command signatures to satisfy Ruff `B008`.
+- For CLI integration tests of `mealplan calculate`, use service-valid deterministic input combinations; some payloads can intentionally fail with domain reconciliation errors and should be reserved for error-path coverage.
+- For Typer options with bounded allowed values, use `Literal[...]` (or enums) in command signatures so invalid choices fail during CLI parsing with canonical validation exit code `2`.
+- For CLI invalid-JSON tests (for example `--training-zones`), assert a stable stderr prefix (such as `Error: training_zones: invalid JSON`) instead of decoder-specific details that may vary by Python/JSON parser version.
+- For CLI boundary-wiring checks, use `typer.testing.CliRunner` plus `monkeypatch` of `mealplan.cli.main.MealPlanCalculationService` to verify delegation and response-driven output in-process.
+- For CLI output-format support (`json`, `text`, `table`), derive human-readable renderers from `MealPlanResponse.model_dump(mode="json")` and iterate meals using `CANONICAL_MEAL_ORDER` to keep all formats deterministic and contract-aligned.
+- For CLI debug-mode behavior, keep concise single-line stderr errors as the default path and print full tracebacks only when command-level debug mode is explicitly enabled, preserving stdout success output semantics.
+- For CLI exit-code mapping tests that must exercise `main()` handler logic, monkeypatch `sys.argv` and `mealplan.cli.main.MealPlanCalculationService`, call `main()`, and assert `SystemExit.code` plus stable stderr fragments.
+- When CLI behavior contracts change, keep documentation synchronized in the same iteration across `docs/ARCHITECTURE.md` (boundary and error strategy), `docs/REQUIREMENTS.md` (contract wording), and `README.md` (usage examples).
+
+# Ralph Progress Log
+Started: Tue Mar  3 18:42:07 CET 2026
 ---
-## 2026-03-03 15:46:29 CET - US-001
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
-- Implemented `MealPlanCalculationService` in application orchestration with canonical `calculate(request: MealPlanRequest) -> MealPlanResponse` API and deterministic placeholder response behavior.
-- Added unit coverage for service API signature stability and deterministic output for identical typed request input.
-- Files changed: `src/mealplan/application/orchestration.py`, `src/mealplan/application/__init__.py`, `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
-- **Learnings for future iterations:**
-  - Patterns discovered: signature assertions must resolve annotations via `typing.get_type_hints` because application modules use postponed evaluation of annotations.
-  - Gotchas encountered: direct `inspect.signature(...).annotation is SomeType` comparisons can fail due to string annotations.
-- Useful context: Phase 8 orchestration now has a canonical service boundary to incrementally wire domain stages in subsequent stories.
----
-## 2026-03-03 15:50:36 CET - US-002
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
-- Implemented validation-first orchestration in `MealPlanCalculationService.calculate(...)` so request validation runs before any stage hooks and failures stop stage execution.
-- Added normalized training-session extraction (`ValidatedTrainingSession`) and passed it explicitly into fueling/periodization stage hooks to avoid raw request payload usage.
-- Added orchestration tests for stage ordering, fail-fast behavior on validation errors, and normalized training propagation.
-- Files changed: `src/mealplan/application/orchestration.py`, `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- **Learnings for future iterations:**
-  - Patterns discovered: keep stage hooks explicit in application orchestration so tests can assert ordering and fail-fast behavior without depending on downstream domain implementations.
-  - Gotchas encountered: `TrainingSession.zones_minutes` contract typing (`Literal` string keys) needs a narrow cast before reuse with `normalize_training_zones` under `mypy --strict`.
-- Useful context: validation-first behavior is now enforced at `MealPlanCalculationService` entrypoint, making later stage wiring safe to add incrementally.
----
-## 2026-03-03 15:53:46 CET - US-003
+## [2026-03-03 18:45:50 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
-- Implemented Phase 8 energy and macro stage composition in `MealPlanCalculationService`: build typed `UserProfile`, call `calculate_tdee_kcal`, then call `calculate_macro_targets` with canonical arguments.
-- Threaded stage outputs through orchestration (`tdee_kcal` and `MacroTargets`) into downstream periodization and assembly hooks, preserving full-precision values at the application layer.
-- Added orchestration tests that pin canonical service calls and verify energy/macro outputs are forwarded downstream without rounding.
-- Files changed: `src/mealplan/application/orchestration.py`, `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
+- Implemented a new `mealplan calculate` CLI command with canonical flags: `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`, `--training-zones`, `--training-before`, `--format`, `--debug`.
+- Added CLI-to-application request mapping (`activity` -> `activity_level`, `carbs` -> `carb_mode`, training inputs -> `training_session`) and wired command execution to `MealPlanCalculationService.calculate(...)`.
+- Added JSON-string parsing for `--training-zones` into request payload and mapped invalid JSON to `ValidationError`, while keeping `probe` command behavior unchanged.
+- Added CLI integration coverage for the calculation command’s canonical flag path and JSON response shape.
+- Files changed:
+  - src/mealplan/cli/main.py
+  - tests/cli/test_calculate.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
 - **Learnings for future iterations:**
-  - Patterns discovered: explicit return-and-pass hook signatures make stage composition testable without introducing hidden mutable state in the service.
-  - Gotchas encountered: when hook signatures evolve, existing monkeypatched tests must be updated to return valid typed stage outputs or they silently break flow assumptions.
-- Useful context: macro outputs now arrive at periodization as `MacroTargets`, so upcoming stories can consume `macro_targets.carbs_g` directly for carb allocation.
+  - Patterns discovered: Typer option factories should be declared once at module scope to avoid Ruff `B008` in strict lint mode.
+  - Gotchas encountered: Some seemingly valid calculation inputs produce expected domain reconciliation failures (`ExitCode.DOMAIN`), so happy-path CLI tests must use known service-valid input sets.
+- Useful context: Current `calculate` command always emits JSON while accepting `--format`/`--debug` flags; later stories can evolve behavior without changing flag contract.
 ---
-## 2026-03-03 17:47:56 CET - US-004
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
-- Wired fueling stage composition in `MealPlanCalculationService` by calling `calculate_training_carbs_g` with canonical zones `1..5`, exactly once per request.
-- Threaded `training_carbs_g` from fueling into assembly-stage hook so training fuel output is carried in the application response boundary.
-- Added orchestration tests for mixed-zone canonical mapping and omitted-training zero defaults, plus updated stage-hook test doubles for new `training_carbs_g` flow.
-- Files changed: `src/mealplan/application/orchestration.py`, `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
-- **Learnings for future iterations:**
-  - Fueling composition is easiest to test by monkeypatching `mealplan.application.orchestration.calculate_training_carbs_g` and asserting canonical zone payload + call count.
-  - When stage hook signatures change in `MealPlanCalculationService`, existing orchestration tests that monkeypatch `_run_assembly_stage` and `_run_fueling_stage` must be updated in lockstep.
-  - `MealPlanResponse.placeholder()` can be safely reused with `model_copy(update=...)` to carry newly wired stage outputs while later stories finish full payload assembly.
----
-## 2026-03-03 17:50:36 CET - US-005
+## [2026-03-03 18:48:39 CET] - US-002
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
-- Added omitted-training integration coverage in `tests/unit/test_application_orchestration.py` by exercising `MealPlanCalculationService.calculate(...)` directly for both `periodized` and `normal` carb modes with `training_session=None`.
-- Added deterministic defaults coverage asserting `_validated_training_session(...)` maps omitted training to canonical zero zones (`1..5`) and `training_before_meal=None`.
-- Files changed: `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
+- Enforced strict typed parsing for `--format` by annotating the CLI parameter as `Literal["json", "text", "table"]`, ensuring invalid values fail at the parser boundary.
+- Added CLI integration tests for representative strict parsing failures and deterministic validation behavior:
+  - missing required option (`--age`)
+  - invalid enum option (`--gender`)
+  - invalid bounded option (`--format`)
+  - optional training field passthrough to application semantic validation (no duplicated CLI business rule checks)
+- Files changed:
+  - AGENT.md
+  - src/mealplan/cli/main.py
+  - tests/cli/test_calculate.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
 - **Learnings for future iterations:**
-  - Patterns discovered: omitted optional training context should be covered with real service integration tests (not only monkeypatched stage tests) to ensure validation+fueling flow stays stable.
-  - Gotchas encountered: long descriptive pytest function names can violate Ruff `E501`; keep names concise enough for the repository line-length policy.
-- Useful context: zero-training behavior is now pinned both at the stage-input normalization boundary and end-to-end service output (`training_carbs_g == 0.0`).
+  - Patterns discovered: `Literal[...]` annotations integrate cleanly with Typer for strict option-choice enforcement without adding custom parser code.
+  - Gotchas encountered: Typer parser errors are emitted by Click before `main()` exception mapping, but they still produce canonical validation-class exit code `2`; tests should assert stable stderr fragments instead of full formatting blocks.
+  - Useful context: Application-level training semantics (for example requiring `training_before_meal` when zone minutes are non-zero) should remain in application validation and be verified via CLI integration tests.
 ---
-## 2026-03-03 17:53:35 CET - US-006
+## [2026-03-03 18:50:13 CET] - US-003
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
-- Implemented Phase 8 periodization-stage composition in `MealPlanCalculationService` by wiring `_run_periodization_stage(...)` to `calculate_periodized_carb_allocation(...)` with canonical arguments (`carb_mode`, `daily_carbs_g`, `training_before_meal`, `training_load_tomorrow`).
-- Added orchestration tests covering representative periodized and non-periodized service flows, asserting canonical periodization-call arguments and passthrough allocation behavior.
-- Files changed: `src/mealplan/application/orchestration.py`, `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
+- Added CLI integration coverage for strict `--training-zones` JSON-string handling in `mealplan calculate`.
+- Added a success-path test proving JSON-string zones payload is accepted and parsed through the CLI boundary.
+- Added a failure-path test proving malformed JSON is rejected deterministically as validation-class failure with exit code `2`.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - tests/cli/test_calculate.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
 - **Learnings for future iterations:**
-  - Patterns discovered: keep periodization precedence/override ownership in `mealplan.domain.services.calculate_periodized_carb_allocation` and keep application orchestration as argument plumbing only.
-  - Gotchas encountered: new parametrized orchestration matrix tests can easily exceed Ruff line length; split tuple payloads across lines to stay under `line-length = 100`.
-- Useful context: periodization is now invoked during `MealPlanCalculationService.calculate(...)` for both periodized and non-periodized modes, preparing direct handoff of meal allocations to Phase 7 assembly wiring.
+  - Patterns discovered: For CLI invalid-JSON cases, assert stable error prefixes and exit codes rather than full JSON decoder diagnostics.
+  - Gotchas encountered: The `training_before_meal` semantic dependency remains application-owned; for JSON-parsing-only success tests, use all-zero zones to avoid triggering semantic validation failures.
+- Useful context: `--training-zones` is intentionally treated as raw JSON string input only in Phase 9; non-JSON strings naturally fail through the same validation path.
 ---
-## 2026-03-03 17:58:05 CET - US-007
+## [2026-03-03 18:52:26 CET] - US-004
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
-- Wired Phase 7 assembly composition in `MealPlanCalculationService` by passing periodization output into `_run_assembly_stage(...)`, delegating payload construction to `calculate_meal_split_and_response_payload(...)`, and parsing the returned payload with `MealPlanResponse.model_validate(...)`.
-- Updated orchestration tests to reflect the assembly-stage contract (`carb_allocation_g_by_meal` flow), added focused assertions that assembly delegates to the canonical domain service, and verified periodization allocation is forwarded unchanged.
-- Adjusted deterministic/omitted-training orchestration tests to use canonical stage outputs where needed so they assert orchestration intent without tripping unrelated reconciliation precision failures.
-- Files changed: `src/mealplan/application/orchestration.py`, `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
+- Added CLI in-process boundary tests proving `mealplan calculate` delegates to `MealPlanCalculationService.calculate(...)` through Typer command invocation.
+- Added deterministic output-path coverage asserting CLI stdout is serialized directly from the `MealPlanResponse` returned by the application service.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - AGENT.md
+  - tests/cli/test_calculate.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
 - **Learnings for future iterations:**
-  - Patterns discovered: the application service should treat assembly as a pure domain delegation boundary (domain returns payload dict, application validates into `MealPlanResponse`).
-  - Gotchas encountered: full-stack orchestration tests can fail on domain reconciliation precision when macro targets contain sub-cent residuals; prefer canonical stage fixtures in orchestration-focused tests unless testing failure propagation explicitly.
-  - Useful context: Phase 8 now returns real assembled `MealPlanResponse` objects from the application boundary rather than placeholder payloads.
+  - Patterns discovered: For command-boundary wiring tests, `CliRunner` + service monkeypatching is simpler and more deterministic than subprocess-based assertions.
+  - Gotchas encountered: Keep fake service return values schema-valid and in canonical meal order so tests validate CLI wiring, not contract/order invariants.
+  - Useful context: Existing subprocess CLI tests remain useful for real exit-code behavior, while in-process `CliRunner` tests cover delegation semantics precisely.
 ---
-## 2026-03-03 18:24:12 CET - US-008
+## [2026-03-03 18:55:28 CET] - US-005
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
-- Added a representative application integration matrix in `tests/unit/test_application_orchestration.py` that exercises `MealPlanCalculationService.calculate(...)` directly for periodized-with-training, non-periodized-with-training, and omitted-`training_session` success scenarios.
-- Added integration failure coverage for semantic validation failure and downstream domain failure propagation (`meal_assembly.reconciliation`) with deterministic exit-code mapping assertions.
-- Files changed: `tests/unit/test_application_orchestration.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Implemented `--format` rendering behavior for `mealplan calculate` with supported values `json`, `text`, and `table`, keeping `json` as the default output format.
+- Added dedicated CLI render helpers for text/table output that include canonical top-level fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) and all six canonical meals in canonical order.
+- Added integration coverage for default JSON output plus explicit text and table format selection behavior.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/cli/main.py
+  - tests/cli/test_calculate.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
 - **Learnings for future iterations:**
-  - Patterns discovered: integration matrix tests are most stable when they assert canonical meal ordering and top-level/per-meal macro reconciliation invariants rather than exact per-meal numeric snapshots.
-  - Gotchas encountered: default fixture payloads can trigger reconciliation-domain failures in full-stack calculate flows; use that intentionally for propagation tests and isolate happy-path fixtures for success scenarios.
-  - Useful context: `tests/unit/test_application_orchestration.py` is now the canonical Phase 8 integration target for direct application-boundary coverage without CLI coupling.
+  - Patterns discovered: For multi-format CLI output, render from `MealPlanResponse.model_dump(mode="json")` so machine and human formats stay aligned with the response contract.
+  - Gotchas encountered: Keep meal-row assertions keyed to `CANONICAL_MEAL_ORDER` in tests; naive string-split indexing can misread markdown-table rows.
+- Useful context: `--format json` and omitted `--format` now both produce the same stable JSON payload path for automation consumers.
 ---
-## 2026-03-03 18:26:36 CET - US-009
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
-- Documented explicit Phase 8 application orchestration boundary and deterministic stage sequence in architecture docs, including validation-first behavior and canonical stage composition order.
-- Added requirements-level functional flow notes for `MealPlanCalculationService.calculate(...)`, including omitted `training_session` semantics and expected zero-training output behavior (`training_carbs_g = 0.0`).
-- Added model-level application boundary contract notes clarifying the return type (`MealPlanResponse`) and the canonical zero-training defaults when `training_session` is omitted.
-- Files changed: `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `docs/MODEL.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
+## [2026-03-03 18:57:29 CET] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Implemented `--debug` error behavior for `mealplan calculate` by threading command debug state to the CLI top-level exception handler.
+- Default failures now remain concise single-line stderr messages, while debug-enabled failures additionally print full Python traceback details to stderr for the same underlying error.
+- Added CLI subprocess tests validating stderr differences between default and debug error modes using deterministic invalid `--training-zones` JSON input.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - src/mealplan/cli/main.py
+  - tests/cli/test_error_handling.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
 - **Learnings for future iterations:**
-  - Patterns discovered: keep Phase 8 orchestration contract details synchronized across architecture, requirements, and model docs whenever boundary behavior changes.
-  - Gotchas encountered: documenting `training_session=None` behavior in only one doc causes contract ambiguity across layers; update all three docs together.
-  - Useful context: docs now state canonical service API and stage order matching `MealPlanCalculationService.calculate(...)` implementation.
+  - Patterns discovered: Preserve concise error UX in the shared `main()` exception path and gate traceback emission behind explicit debug state to avoid noisy default stderr output.
+  - Gotchas encountered: Debug toggles implemented as module state must be set per command invocation so in-process test runs do not accidentally inherit prior debug behavior.
+- Useful context: Invalid CLI parse-time errors (Click/Typer) still bypass custom exception mapping and remain validation exit code `2`; debug traceback handling applies to runtime exceptions raised within command execution.
+---
+## [2026-03-03 19:00:01 CET] - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Added `mealplan calculate` exit-code mapping coverage for application-level exceptions by invoking CLI `main()` with patched `sys.argv` and patched calculation service failures.
+- Added representative tests proving `ValidationError -> 2`, `DomainRuleError -> 3`, and unknown runtime errors -> `4` for the calculate command path, while preserving existing parse-time and invalid-JSON validation checks.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - AGENT.md
+  - tests/cli/test_error_handling.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: To validate CLI top-level exception mapping deterministically, call `main()` directly with patched argv and service behavior rather than only invoking Typer app objects.
+  - Gotchas encountered: `pytest` may not be globally installed in shell; project checks should run through `make quality` (`uv run ...`) for consistent tooling.
+  - Useful context: Parse-time Click/Typer failures still return validation exit code `2` before `main()` mapping, so both parse-path and runtime-path tests are needed for full exit-code contract coverage.
+---
+## [2026-03-03 19:02:11 CET] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Validated the CLI integration matrix coverage across canonical targets: `tests/cli/test_help.py`, `tests/cli/test_error_handling.py`, `tests/cli/test_probe.py`, and dedicated `tests/cli/test_calculate.py` command coverage.
+- Confirmed representative success modes (default JSON, explicit text, explicit table) and failure modes (invalid typed flag, invalid training-zones JSON, propagated validation/domain/runtime errors, debug traceback behavior) are all covered and passing.
+- Ran full project quality gate (`make quality`): Ruff, mypy (strict), and pytest all passed.
+- Files changed:
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: The current CLI matrix is intentionally distributed by concern (`test_calculate` for command-path scenarios, `test_error_handling` for exit-code/debug behavior, `test_help`/`test_probe` for stable top-level entrypoint smoke coverage).
+  - Gotchas encountered: Exit-code mapping for propagated service exceptions is verified via `main()` with patched `sys.argv`, which still exercises the CLI invocation boundary while avoiding brittle subprocess monkeypatching.
+- Useful context: Running `make quality` is sufficient to execute all required static and runtime checks for this repository in one command.
+---
+## [2026-03-03 19:10:33 CET] - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
+- Documented finalized Phase 9 CLI boundary responsibilities in architecture docs, including canonical `mealplan calculate`/`probe` command roles, required/optional flags, JSON-only `--training-zones` parsing, stdout/stderr split, and parse/runtime exit mapping.
+- Updated requirements docs with explicit CLI contract clarifications for `--format`, `--debug`, and strict JSON training-zones behavior plus canonical exit-code mapping.
+- Added concrete README usage examples for `json`, `text`, and `table` output modes and documented debug behavior and exit-code expectations for automation users.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - AGENT.md
+  - README.md
+  - docs/ARCHITECTURE.md
+  - docs/REQUIREMENTS.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: CLI contract updates should always ship with synchronized architecture, requirements, and README updates so contributors and automation consumers read one consistent behavior contract.
+  - Gotchas encountered: Existing architecture prose may still contain future-looking language; for finished phases, lock docs to concrete command names and current runtime behavior to avoid ambiguity.
+  - Useful context: Exit-code semantics are split between Typer/Click parse-time failures and `main()` runtime exception mapping, so documentation should call out both paths explicitly.
 ---

@@ -83,6 +83,14 @@ When in doubt, update those source docs instead of expanding this file.
 54. For application assembly-stage orchestration, delegate response dict construction to `calculate_meal_split_and_response_payload(...)` and parse via `MealPlanResponse.model_validate(...)`; avoid hand-building response payloads in `MealPlanCalculationService`.
 55. Keep Phase 8 application integration coverage in `tests/unit/test_application_orchestration.py` by invoking `MealPlanCalculationService.calculate(...)` directly across representative success and failure propagation scenarios (`ValidationError` and `DomainRuleError` `meal_assembly.reconciliation`) without CLI coupling.
 56. When Phase 8 orchestration API/flow semantics change, update docs in the same iteration across `docs/ARCHITECTURE.md` (service boundary + stage sequence), `docs/REQUIREMENTS.md` (functional flow contract), and `docs/MODEL.md` (application boundary return contract and `training_session=None` interpretation).
+57. In CLI modules using Typer, define `typer.Option(...)` objects as module-level constants and reuse them in command signatures to satisfy Ruff `B008` under repository lint settings.
+58. For CLI options with a fixed value set (for example output format), annotate Typer parameters with `typing.Literal[...]` (or equivalent enums) so invalid values fail at CLI parse time with exit code `2`.
+59. For CLI invalid-JSON coverage (for example `--training-zones`), assert stable stderr prefixes and mapped exit codes rather than full JSON decoder messages, which can vary by runtime version.
+60. For CLI boundary-wiring tests, prefer `typer.testing.CliRunner` with `monkeypatch` on `mealplan.cli.main.MealPlanCalculationService` so tests can assert command-to-service delegation and response-driven output without subprocess indirection.
+61. For CLI multi-format output (`json`, `text`, `table`), render from `MealPlanResponse.model_dump(mode="json")` and iterate meals via `CANONICAL_MEAL_ORDER` so human-readable formats stay contract-aligned and deterministic.
+62. Keep CLI debug behavior centralized in `main()` exception handling: default stderr remains concise (`Error: ...`), and traceback emission is enabled only when command-level debug mode is explicitly set.
+63. For CLI exit-code mapping tests that must exercise `main()` exception handling (not just Typer command functions), monkeypatch `sys.argv` with full command args and monkeypatch `mealplan.cli.main.MealPlanCalculationService` to raise representative exceptions, then assert `SystemExit.code`.
+64. When CLI contract behavior changes (flags, formats, exit semantics, debug behavior), update docs in the same iteration across `docs/ARCHITECTURE.md` (boundary and error strategy), `docs/REQUIREMENTS.md` (user-facing contract), and `README.md` (concrete command examples).
 
 ## Ralph Runner
 
