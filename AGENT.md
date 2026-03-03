@@ -97,6 +97,7 @@ When in doubt, update those source docs instead of expanding this file.
 68. For packaging verification, run `scripts/checks/verify_package_artifacts.py`: it must execute `uv build`, assert exactly one wheel and one sdist in `dist/`, validate package name/version metadata, and confirm the `mealplan` console entry point in wheel `entry_points.txt`.
 69. For installability verification, run `scripts/checks/verify_install_workflow.py` after packaging checks: install `dist/*.whl` into a fresh temp virtualenv, run both `mealplan --help` and `python -m mealplan --help` from outside the repo source tree, and include one `mealplan calculate ... --format json` smoke command.
 70. Keep release-readiness steps in `docs/RELEASE_CHECKLIST.md` aligned with executable local/CI gates (`make quality`, `make package-check`, `make install-smoke-check`) so documentation and automation do not drift.
+71. Keep CI release-readiness gates split into dependent jobs in `.github/workflows/ci.yml` (`quality` -> `package-build` -> `install-smoke`) and pass built artifacts via `actions/upload-artifact`/`actions/download-artifact` so install-smoke validates the exact wheel produced by packaging.
 
 ## Ralph Runner
 

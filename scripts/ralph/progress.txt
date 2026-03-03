@@ -8,6 +8,7 @@ Started: Tue Mar  3 20:39:20 CET 2026
 - For packaging validation, use `scripts/checks/verify_package_artifacts.py` as the single gate: run `uv build`, require exactly one wheel and one sdist in `dist/`, and validate wheel `entry_points.txt` plus sdist/wheel metadata (`Name`, `Version`).
 - For installability validation, use `scripts/checks/verify_install_workflow.py` against a built `dist/*.whl`: install into a fresh temporary virtualenv, run both `mealplan --help` and `python -m mealplan --help`, and execute one JSON `mealplan calculate` smoke command from outside the repo source tree.
 - Keep release-go/no-go steps in `docs/RELEASE_CHECKLIST.md`, and align every listed command with executable gates (`make quality`, `make package-check`, `make install-smoke-check`) so docs and CI-facing checks do not drift.
+- Keep CI release-readiness automation split into dependent jobs (`quality` -> `package-build` -> `install-smoke`) and transfer `dist/*` between jobs via artifact upload/download so install verification runs against the packaged wheel from the build job.
 
 ---
 ## 2026-03-03 20:51:05 CET - US-001
@@ -122,5 +123,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: Keep release checklists executable, with each checklist item mapped to an existing command or CI gate.
   - Gotchas encountered: Running `package-check` and `install-smoke-check` in parallel can produce a false negative when install verification starts before wheel build completion.
-  - Useful context: Packaging verification creates transient `src/mealplan_cli.egg-info`; remove it from the working tree before commit.
+- Useful context: Packaging verification creates transient `src/mealplan_cli.egg-info`; remove it from the working tree before commit.
+---
+## 2026-03-03 21:10:41 CET - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Restructured CI into explicit dependent jobs: `quality`, `package-build`, and `install-smoke`.
+- Added dedicated golden snapshot test step naming in quality checks (`Pytest golden snapshot suites`) and split non-golden suite execution for clearer diagnostics.
+- Added artifact handoff (`actions/upload-artifact` / `actions/download-artifact`) so install-smoke validates the exact built `dist/*` artifacts from packaging.
+- Updated backlog status to mark `US-007` as passing.
+- Files changed:
+  - .github/workflows/ci.yml
+  - AGENT.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Use explicit CI job boundaries and artifact transfer to keep packaging and installability checks reproducible and traceable per workflow run.
+  - Gotchas encountered: Packaging checks regenerate transient `src/mealplan_cli.egg-info`; remove it before commit.
+  - Useful context: Splitting golden and non-golden pytest steps improves failure diagnostics for snapshot drift without changing test coverage.
 ---
