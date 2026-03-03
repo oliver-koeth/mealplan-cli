@@ -85,6 +85,7 @@ When in doubt, update those source docs instead of expanding this file.
 56. When Phase 8 orchestration API/flow semantics change, update docs in the same iteration across `docs/ARCHITECTURE.md` (service boundary + stage sequence), `docs/REQUIREMENTS.md` (functional flow contract), and `docs/MODEL.md` (application boundary return contract and `training_session=None` interpretation).
 57. In CLI modules using Typer, define `typer.Option(...)` objects as module-level constants and reuse them in command signatures to satisfy Ruff `B008` under repository lint settings.
 58. For CLI options with a fixed value set (for example output format), annotate Typer parameters with `typing.Literal[...]` (or equivalent enums) so invalid values fail at CLI parse time with exit code `2`.
+59. For CLI invalid-JSON coverage (for example `--training-zones`), assert stable stderr prefixes and mapped exit codes rather than full JSON decoder messages, which can vary by runtime version.
 
 ## Ralph Runner
 

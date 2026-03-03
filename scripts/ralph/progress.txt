@@ -2,6 +2,7 @@
 - Keep Typer option declarations as module-level constants (for example `FOO_OPTION = typer.Option(...)`) and reuse them in command signatures to satisfy Ruff `B008`.
 - For CLI integration tests of `mealplan calculate`, use service-valid deterministic input combinations; some payloads can intentionally fail with domain reconciliation errors and should be reserved for error-path coverage.
 - For Typer options with bounded allowed values, use `Literal[...]` (or enums) in command signatures so invalid choices fail during CLI parsing with canonical validation exit code `2`.
+- For CLI invalid-JSON tests (for example `--training-zones`), assert a stable stderr prefix (such as `Error: training_zones: invalid JSON`) instead of decoder-specific details that may vary by Python/JSON parser version.
 
 # Ralph Progress Log
 Started: Tue Mar  3 18:42:07 CET 2026
@@ -40,4 +41,19 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: `Literal[...]` annotations integrate cleanly with Typer for strict option-choice enforcement without adding custom parser code.
   - Gotchas encountered: Typer parser errors are emitted by Click before `main()` exception mapping, but they still produce canonical validation-class exit code `2`; tests should assert stable stderr fragments instead of full formatting blocks.
   - Useful context: Application-level training semantics (for example requiring `training_before_meal` when zone minutes are non-zero) should remain in application validation and be verified via CLI integration tests.
+---
+## [2026-03-03 18:50:13 CET] - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Added CLI integration coverage for strict `--training-zones` JSON-string handling in `mealplan calculate`.
+- Added a success-path test proving JSON-string zones payload is accepted and parsed through the CLI boundary.
+- Added a failure-path test proving malformed JSON is rejected deterministically as validation-class failure with exit code `2`.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - tests/cli/test_calculate.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: For CLI invalid-JSON cases, assert stable error prefixes and exit codes rather than full JSON decoder diagnostics.
+  - Gotchas encountered: The `training_before_meal` semantic dependency remains application-owned; for JSON-parsing-only success tests, use all-zero zones to avoid triggering semantic validation failures.
+  - Useful context: `--training-zones` is intentionally treated as raw JSON string input only in Phase 9; non-JSON strings naturally fail through the same validation path.
 ---
