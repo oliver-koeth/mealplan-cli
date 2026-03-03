@@ -11,6 +11,8 @@ from mealplan.domain import calculate_training_carbs_g
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.domain.services import (
+    CARB_RECONCILIATION_TOLERANCE,
+    _validate_carb_reconciliation,
     calculate_macro_targets,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
@@ -18,6 +20,7 @@ from mealplan.domain.services import (
 from mealplan.domain.services import (
     calculate_training_carbs_g as calculate_training_carbs_g_service,
 )
+from mealplan.shared.errors import DomainRuleError
 
 
 def test_calculate_tdee_kcal_returns_energy_from_typed_profile() -> None:
@@ -325,3 +328,23 @@ def test_calculate_periodized_carb_allocation_is_deterministic_for_identical_inp
     )
 
     assert first == second
+
+
+def test_validate_carb_reconciliation_allows_delta_within_tolerance() -> None:
+    allocation = dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0)
+
+    _validate_carb_reconciliation(
+        allocation=allocation,
+        daily_carbs_g=300.0 - CARB_RECONCILIATION_TOLERANCE,
+    )
+
+
+def test_validate_carb_reconciliation_raises_domain_rule_error_above_tolerance() -> None:
+    allocation = dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0)
+    daily_carbs_g = 300.0 - (CARB_RECONCILIATION_TOLERANCE * 1.01)
+
+    with pytest.raises(DomainRuleError, match=r"^carb_reconciliation:"):
+        _validate_carb_reconciliation(
+            allocation=allocation,
+            daily_carbs_g=daily_carbs_g,
+        )

@@ -66,6 +66,7 @@ When in doubt, update those source docs instead of expanding this file.
 37. For periodization tomorrow-load behavior, treat `training_before_meal in {DINNER, EVENING_SNACK}` as an explicit conflict branch that preserves post-training meal selection and skips the next-day `DINNER` high override.
 38. Keep Phase 6 allocation precedence explicit in `calculate_periodized_carb_allocation`: non-periodized bypass first, then post-training high-meal selection, then tomorrow-high override/conflict handling, then reconciliation validation.
 39. Keep Phase 6 non-periodized bypass keyed only to carb mode (`LOW`/`NORMAL`): always return canonical equal split `daily_carbs_g / 6.0` with no rounding, independent of training inputs.
+40. For tolerance-based domain checks, add both boundary-pass (`delta <= tolerance`) and failure (`delta > tolerance`) tests and assert stable error prefixes rather than full diagnostic strings.
 
 ## Ralph Runner
 

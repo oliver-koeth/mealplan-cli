@@ -8,6 +8,7 @@ Started: Tue Mar  3 12:56:03 CET 2026
 - Encode tomorrow-high conflict handling as an explicit branch: if `training_before_meal` is `dinner` or `evening-snack`, preserve post-training highs and skip the `dinner` override.
 - Keep precedence stage order explicit in `calculate_periodized_carb_allocation`: non-periodized bypass -> post-training highs -> tomorrow-high override/conflict branch -> reconciliation check.
 - Keep non-periodized bypass semantics independent of training context: `CarbMode.LOW` and `CarbMode.NORMAL` must always return canonical equal split (`daily_carbs_g / 6.0`) with no rounding in Phase 6.
+- For tolerance-based domain guards, add both boundary-pass (`delta <= tolerance`) and failure (`delta > tolerance`) tests, and assert stable error prefixes (for example `^carb_reconciliation:`) rather than full message snapshots.
 ---
 
 ## 2026-03-03 13:02:25 CET - US-001
@@ -129,4 +130,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Use a non-divisible-by-6 daily-carb test value (for example `301.0`) to catch accidental rounding in equal-split bypass logic.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Existing precedence tests already cover bypass dominance and should be kept alongside numeric no-rounding checks.
+---
+
+## 2026-03-03 13:15:55 CET - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
+- Added reconciliation-focused unit coverage for Phase 6 allocation checks: one boundary pass case (`delta` within `1e-9`) and one deterministic fail case (`delta` above tolerance) with stable `DomainRuleError` prefix assertion.
+- Confirmed quality gates pass via `make quality` (`ruff`, `mypy --strict src`, `pytest`).
+- Files changed:
+  - tests/unit/test_domain_services.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - For tolerance rules, explicitly test both `<= tolerance` and `> tolerance` branches to lock deterministic numeric behavior.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Reconciliation fail paths are hard to trigger through the public allocator API; direct helper-level tests are the most reliable way to pin error-category behavior.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Prefix-only regex checks (for example `^carb_reconciliation:`) keep error tests stable while allowing diagnostic numeric details to vary.
 ---
