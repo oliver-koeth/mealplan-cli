@@ -83,6 +83,7 @@ When in doubt, update those source docs instead of expanding this file.
 54. For application assembly-stage orchestration, delegate response dict construction to `calculate_meal_split_and_response_payload(...)` and parse via `MealPlanResponse.model_validate(...)`; avoid hand-building response payloads in `MealPlanCalculationService`.
 55. Keep Phase 8 application integration coverage in `tests/unit/test_application_orchestration.py` by invoking `MealPlanCalculationService.calculate(...)` directly across representative success and failure propagation scenarios (`ValidationError` and `DomainRuleError` `meal_assembly.reconciliation`) without CLI coupling.
 56. When Phase 8 orchestration API/flow semantics change, update docs in the same iteration across `docs/ARCHITECTURE.md` (service boundary + stage sequence), `docs/REQUIREMENTS.md` (functional flow contract), and `docs/MODEL.md` (application boundary return contract and `training_session=None` interpretation).
+57. In CLI modules using Typer, define `typer.Option(...)` objects as module-level constants and reuse them in command signatures to satisfy Ruff `B008` under repository lint settings.
 
 ## Ralph Runner
 
