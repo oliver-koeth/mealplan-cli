@@ -144,6 +144,89 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
     ]
 
 
+def test_calculate_default_format_is_json() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            *_required_calculate_args(),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    response = json.loads(result.stdout)
+    assert "TDEE" in response
+    assert "meals" in response
+
+
+def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            *_required_calculate_args(),
+            "--format",
+            "text",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    text_output = result.stdout
+    assert "TDEE:" in text_output
+    assert "training_carbs_g:" in text_output
+    assert "protein_g:" in text_output
+    assert "carbs_g:" in text_output
+    assert "fat_g:" in text_output
+
+    meal_lines = [
+        line for line in text_output.splitlines() if line.startswith("- ")
+    ]
+    assert [line.split(":")[0][2:] for line in meal_lines] == list(CANONICAL_MEAL_ORDER)
+
+
+def test_calculate_table_format_outputs_top_level_and_canonical_meals() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            *_required_calculate_args(),
+            "--format",
+            "table",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    table_output = result.stdout
+    assert "| TDEE |" in table_output
+    assert "| training_carbs_g |" in table_output
+    assert "| protein_g |" in table_output
+    assert "| carbs_g |" in table_output
+    assert "| fat_g |" in table_output
+
+    meal_rows = [
+        line
+        for line in table_output.splitlines()
+        if line.startswith("| ")
+        and line.endswith(" |")
+        and line.strip().split(" | ")[0].removeprefix("| ") in CANONICAL_MEAL_ORDER
+    ]
+    assert [
+        row.strip().split(" | ")[0].removeprefix("| ") for row in meal_rows
+    ] == list(CANONICAL_MEAL_ORDER)
+
+
 def test_calculate_missing_required_option_returns_validation_exit_code() -> None:
     result = subprocess.run(
         [

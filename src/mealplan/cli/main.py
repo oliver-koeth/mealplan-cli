@@ -7,11 +7,17 @@ from typing import Literal
 
 import typer
 
-from mealplan.application.contracts import MealPlanRequest, ProbeRequest, SimulatedErrorKind
+from mealplan.application.contracts import (
+    MealPlanRequest,
+    MealPlanResponse,
+    ProbeRequest,
+    SimulatedErrorKind,
+)
 from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
 from mealplan.application.stub import run_probe
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
+from mealplan.domain.model import CANONICAL_MEAL_ORDER
 from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 
@@ -45,7 +51,7 @@ TRAINING_BEFORE_OPTION = typer.Option(
 OUTPUT_FORMAT_OPTION = typer.Option(
     "json",
     "--format",
-    help="Output format placeholder.",
+    help="Output format: json|text|table.",
 )
 DEBUG_OPTION = typer.Option(
     False,
@@ -103,8 +109,8 @@ def calculate_command(
 
     request = parse_contract(MealPlanRequest, request_payload)
     response = MealPlanCalculationService().calculate(request)
-    _ = (output_format, debug)
-    typer.echo(response.model_dump_json())
+    _ = debug
+    typer.echo(_render_output(response=response, output_format=output_format))
 
 
 def _build_training_session_payload(
@@ -129,6 +135,58 @@ def _build_training_session_payload(
     if training_before is not None:
         payload["training_before_meal"] = training_before
     return payload
+
+
+def _render_output(*, response: MealPlanResponse, output_format: OutputFormat) -> str:
+    mealplan_response = response
+    if output_format == "json":
+        return mealplan_response.model_dump_json()
+    if output_format == "text":
+        return _render_text_output(mealplan_response)
+    return _render_table_output(mealplan_response)
+
+
+def _render_text_output(response: MealPlanResponse) -> str:
+    payload = response.model_dump(mode="json")
+    lines = [
+        f"TDEE: {payload['TDEE']}",
+        f"training_carbs_g: {payload['training_carbs_g']}",
+        f"protein_g: {payload['protein_g']}",
+        f"carbs_g: {payload['carbs_g']}",
+        f"fat_g: {payload['fat_g']}",
+        "meals:",
+    ]
+    meal_by_name = {meal["meal"]: meal for meal in payload["meals"]}
+    for meal_name in CANONICAL_MEAL_ORDER:
+        meal = meal_by_name[meal_name]
+        lines.append(
+            f"- {meal_name}: carbs_g={meal['carbs_g']} "
+            f"protein_g={meal['protein_g']} fat_g={meal['fat_g']}"
+        )
+    return "\n".join(lines)
+
+
+def _render_table_output(response: MealPlanResponse) -> str:
+    payload = response.model_dump(mode="json")
+    lines = [
+        "| field | value |",
+        "| --- | --- |",
+        f"| TDEE | {payload['TDEE']} |",
+        f"| training_carbs_g | {payload['training_carbs_g']} |",
+        f"| protein_g | {payload['protein_g']} |",
+        f"| carbs_g | {payload['carbs_g']} |",
+        f"| fat_g | {payload['fat_g']} |",
+        "",
+        "| meal | carbs_g | protein_g | fat_g |",
+        "| --- | --- | --- | --- |",
+    ]
+    meal_by_name = {meal["meal"]: meal for meal in payload["meals"]}
+    for meal_name in CANONICAL_MEAL_ORDER:
+        meal = meal_by_name[meal_name]
+        lines.append(
+            f"| {meal_name} | {meal['carbs_g']} | {meal['protein_g']} | {meal['fat_g']} |"
+        )
+    return "\n".join(lines)
 
 
 def main() -> None:

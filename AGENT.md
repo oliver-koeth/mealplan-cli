@@ -87,6 +87,7 @@ When in doubt, update those source docs instead of expanding this file.
 58. For CLI options with a fixed value set (for example output format), annotate Typer parameters with `typing.Literal[...]` (or equivalent enums) so invalid values fail at CLI parse time with exit code `2`.
 59. For CLI invalid-JSON coverage (for example `--training-zones`), assert stable stderr prefixes and mapped exit codes rather than full JSON decoder messages, which can vary by runtime version.
 60. For CLI boundary-wiring tests, prefer `typer.testing.CliRunner` with `monkeypatch` on `mealplan.cli.main.MealPlanCalculationService` so tests can assert command-to-service delegation and response-driven output without subprocess indirection.
+61. For CLI multi-format output (`json`, `text`, `table`), render from `MealPlanResponse.model_dump(mode="json")` and iterate meals via `CANONICAL_MEAL_ORDER` so human-readable formats stay contract-aligned and deterministic.
 
 ## Ralph Runner
 

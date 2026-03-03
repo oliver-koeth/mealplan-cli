@@ -4,6 +4,7 @@
 - For Typer options with bounded allowed values, use `Literal[...]` (or enums) in command signatures so invalid choices fail during CLI parsing with canonical validation exit code `2`.
 - For CLI invalid-JSON tests (for example `--training-zones`), assert a stable stderr prefix (such as `Error: training_zones: invalid JSON`) instead of decoder-specific details that may vary by Python/JSON parser version.
 - For CLI boundary-wiring checks, use `typer.testing.CliRunner` plus `monkeypatch` of `mealplan.cli.main.MealPlanCalculationService` to verify delegation and response-driven output in-process.
+- For CLI output-format support (`json`, `text`, `table`), derive human-readable renderers from `MealPlanResponse.model_dump(mode="json")` and iterate meals using `CANONICAL_MEAL_ORDER` to keep all formats deterministic and contract-aligned.
 
 # Ralph Progress Log
 Started: Tue Mar  3 18:42:07 CET 2026
@@ -72,4 +73,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: For command-boundary wiring tests, `CliRunner` + service monkeypatching is simpler and more deterministic than subprocess-based assertions.
   - Gotchas encountered: Keep fake service return values schema-valid and in canonical meal order so tests validate CLI wiring, not contract/order invariants.
   - Useful context: Existing subprocess CLI tests remain useful for real exit-code behavior, while in-process `CliRunner` tests cover delegation semantics precisely.
+---
+## [2026-03-03 18:55:28 CET] - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented `--format` rendering behavior for `mealplan calculate` with supported values `json`, `text`, and `table`, keeping `json` as the default output format.
+- Added dedicated CLI render helpers for text/table output that include canonical top-level fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) and all six canonical meals in canonical order.
+- Added integration coverage for default JSON output plus explicit text and table format selection behavior.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/cli/main.py
+  - tests/cli/test_calculate.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: For multi-format CLI output, render from `MealPlanResponse.model_dump(mode="json")` so machine and human formats stay aligned with the response contract.
+  - Gotchas encountered: Keep meal-row assertions keyed to `CANONICAL_MEAL_ORDER` in tests; naive string-split indexing can misread markdown-table rows.
+  - Useful context: `--format json` and omitted `--format` now both produce the same stable JSON payload path for automation consumers.
 ---
