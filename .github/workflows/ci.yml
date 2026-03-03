@@ -33,3 +33,6 @@ jobs:
 
       - name: Verify package artifacts
         run: uv run python scripts/checks/verify_package_artifacts.py
+
+      - name: Verify install workflow
+        run: uv run python scripts/checks/verify_install_workflow.py

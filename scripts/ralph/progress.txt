@@ -6,6 +6,7 @@ Started: Tue Mar  3 20:39:20 CET 2026
 - For application golden regression tests that exercise real `MealPlanCalculationService`, pick request fixtures that produce cent-reconcilable macro totals; strict `meal_assembly.reconciliation` tolerance (`1e-9`) will reject non-reconcilable success fixtures.
 - For hybrid golden assertions, centralize tolerance behavior in `tests/golden/helpers.py`: keep strict structure/key/list/string checks and allow only macro/energy numeric fields to vary within absolute tolerance `0.01`.
 - For packaging validation, use `scripts/checks/verify_package_artifacts.py` as the single gate: run `uv build`, require exactly one wheel and one sdist in `dist/`, and validate wheel `entry_points.txt` plus sdist/wheel metadata (`Name`, `Version`).
+- For installability validation, use `scripts/checks/verify_install_workflow.py` against a built `dist/*.whl`: install into a fresh temporary virtualenv, run both `mealplan --help` and `python -m mealplan --help`, and execute one JSON `mealplan calculate` smoke command from outside the repo source tree.
 
 ---
 ## 2026-03-03 20:51:05 CET - US-001
@@ -86,5 +87,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: Package validation should inspect built wheel/sdist internals, not just file existence, to catch missing metadata and console entry points early.
   - Gotchas encountered: `uv build` generates transient `src/mealplan_cli.egg-info`; keep it out of commits after local verification runs.
-  - Useful context: CI now has an explicit packaging verification step, while local developers can run the same checks via `make package-check`.
+- Useful context: CI now has an explicit packaging verification step, while local developers can run the same checks via `make package-check`.
+---
+## 2026-03-03 21:05:31 CET - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented isolated installability verification in `scripts/checks/verify_install_workflow.py` to install the built wheel into a fresh temporary virtualenv and run required smoke commands.
+- Added a local automation target `make install-smoke-check` and wired CI to execute install-workflow verification after package artifact verification.
+- Documented explicit wheel install-and-run steps in `README.md`, including `mealplan --help`, `python -m mealplan --help`, and one `mealplan calculate ... --format json` post-install smoke command.
+- Files changed:
+  - .github/workflows/ci.yml
+  - AGENT.md
+  - Makefile
+  - README.md
+  - scripts/checks/verify_install_workflow.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Keep install smoke checks truly isolated by running commands from a temporary directory with a fresh venv so source-tree imports cannot hide packaging/install issues.
+  - Gotchas encountered: `uv build` regenerates `src/mealplan_cli.egg-info`; remove it before commit to keep the tree clean.
+  - Useful context: Current CI runs install smoke verification in the same `quality` job; later CI restructuring can split this into a dedicated install-smoke job without changing check scripts.
 ---

@@ -33,10 +33,29 @@ Tests follow the same intent and are grouped by scope:
 
 - Run all local quality gates:
   `make quality`
+- Verify package artifacts (`sdist` + `wheel`):
+  `make package-check`
+- Verify isolated wheel install and smoke commands:
+  `make install-smoke-check`
 - Run checks individually when needed:
   `.venv/bin/uv run ruff check .`
   `.venv/bin/uv run mypy --strict src`
   `.venv/bin/uv run pytest`
+
+## Isolated Wheel Install Workflow
+
+Use this workflow to validate installability outside the source tree:
+
+1. Build artifacts:
+   `uv run python scripts/checks/verify_package_artifacts.py`
+2. Create a fresh virtual environment:
+   `python -m venv /tmp/mealplan-smoke-venv`
+3. Install the built wheel:
+   `/tmp/mealplan-smoke-venv/bin/pip install dist/*.whl`
+4. Run install smoke commands:
+   `/tmp/mealplan-smoke-venv/bin/mealplan --help`
+   `/tmp/mealplan-smoke-venv/bin/python -m mealplan --help`
+   `/tmp/mealplan-smoke-venv/bin/mealplan calculate --age 40 --gender male --height 180 --weight 75 --activity medium --carbs low --training-tomorrow high --format json`
 
 ## CLI Usage
 
@@ -114,6 +133,9 @@ Golden tests use a hybrid policy:
   `uv run ruff check .`
   `uv run mypy --strict src`
   `uv run pytest`
+- CI also verifies:
+  `uv run python scripts/checks/verify_package_artifacts.py`
+  `uv run python scripts/checks/verify_install_workflow.py`
 
 ## Contributing
 
