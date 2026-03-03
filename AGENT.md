@@ -94,6 +94,7 @@ When in doubt, update those source docs instead of expanding this file.
 65. For file-based CLI golden snapshots, store canonical JSON payloads with ordered keys (`exit_code`, `stderr`, `stdout`), normalize newlines, strip ANSI escapes from stderr, and collapse traceback bodies to a placeholder token so snapshots remain deterministic across environments.
 66. For application golden snapshots that execute real domain assembly, choose fixture inputs whose computed macro totals are cent-reconcilable at meal level; otherwise strict `meal_assembly.reconciliation` tolerance (`1e-9`) can raise expected `DomainRuleError` and invalidate success fixtures.
 67. For golden snapshot comparisons, reuse `tests/golden/helpers.py` hybrid assertions: enforce strict key/list ordering and string fields, and apply only `NUMERIC_TOLERANCE_ABS = 0.01` to approved energy/macro numeric fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, and `meals[*].{protein_g,carbs_g,fat_g}`).
+68. For packaging verification, run `scripts/checks/verify_package_artifacts.py`: it must execute `uv build`, assert exactly one wheel and one sdist in `dist/`, validate package name/version metadata, and confirm the `mealplan` console entry point in wheel `entry_points.txt`.
 
 ## Ralph Runner
 

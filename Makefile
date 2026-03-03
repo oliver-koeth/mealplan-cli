@@ -1,6 +1,6 @@
 UV ?= .venv/bin/uv
 
-.PHONY: quality lint typecheck test
+.PHONY: quality lint typecheck test package-check
 
 quality: lint typecheck test
 
@@ -12,3 +12,6 @@ typecheck:
 
 test:
 	$(UV) run pytest
+
+package-check:
+	$(UV) run python scripts/checks/verify_package_artifacts.py

@@ -30,3 +30,6 @@ jobs:
 
       - name: Pytest
         run: uv run pytest
+
+      - name: Verify package artifacts
+        run: uv run python scripts/checks/verify_package_artifacts.py

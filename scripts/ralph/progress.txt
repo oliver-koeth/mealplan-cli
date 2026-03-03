@@ -5,6 +5,7 @@ Started: Tue Mar  3 20:39:20 CET 2026
 - For CLI golden regression tests, snapshot a canonical JSON envelope (`exit_code`, `stderr`, `stdout`) and normalize stderr (ANSI stripping plus traceback placeholder collapsing) to keep fixtures deterministic across local/CI environments.
 - For application golden regression tests that exercise real `MealPlanCalculationService`, pick request fixtures that produce cent-reconcilable macro totals; strict `meal_assembly.reconciliation` tolerance (`1e-9`) will reject non-reconcilable success fixtures.
 - For hybrid golden assertions, centralize tolerance behavior in `tests/golden/helpers.py`: keep strict structure/key/list/string checks and allow only macro/energy numeric fields to vary within absolute tolerance `0.01`.
+- For packaging validation, use `scripts/checks/verify_package_artifacts.py` as the single gate: run `uv build`, require exactly one wheel and one sdist in `dist/`, and validate wheel `entry_points.txt` plus sdist/wheel metadata (`Name`, `Version`).
 
 ---
 ## 2026-03-03 20:51:05 CET - US-001
@@ -68,4 +69,22 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: Compare golden JSON payloads with recursive key-order checks and path-scoped tolerance instead of whole-string float equality to reduce non-semantic drift failures.
   - Gotchas encountered: Importing shared test helpers via `tests.golden...` requires `tests/` and `tests/golden/` to be explicit Python packages.
   - Useful context: Canonicalize application response payloads with sorted keys before strict-order assertion so fixture ordering and runtime dict insertion order stay aligned.
+---
+## 2026-03-03 21:01:53 CET - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented automated package artifact verification in `scripts/checks/verify_package_artifacts.py`.
+- Added CI packaging gate to run artifact verification after quality tests.
+- Added `make package-check` target for local reproducible packaging verification.
+- Updated backlog status to mark `US-004` as passing.
+- Files changed:
+  - .github/workflows/ci.yml
+  - AGENT.md
+  - Makefile
+  - scripts/checks/verify_package_artifacts.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Package validation should inspect built wheel/sdist internals, not just file existence, to catch missing metadata and console entry points early.
+  - Gotchas encountered: `uv build` generates transient `src/mealplan_cli.egg-info`; keep it out of commits after local verification runs.
+  - Useful context: CI now has an explicit packaging verification step, while local developers can run the same checks via `make package-check`.
 ---
