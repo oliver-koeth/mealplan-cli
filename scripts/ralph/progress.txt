@@ -1,8 +1,27 @@
 # Ralph Progress Log
 ## Codebase Patterns
 - For new domain orchestration APIs in `src/mealplan/domain/services.py`, add a stable `inspect.signature(...)` regression test in `tests/unit/test_domain_services.py` to prevent interface drift.
+- For meal-assembly domain outputs, construct `MealAllocation` rows and validate with `validate_meal_allocation_invariants` before converting to response dictionaries.
 
 Started: Tue Mar  3 14:50:04 CET 2026
+---
+## [2026-03-03 14:54:59 CET] - [US-002]
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented canonical meal assembly through `MealAllocation` construction plus `validate_meal_allocation_invariants` in the domain assembler, ensuring six-meal/order/uniqueness invariants are enforced before payload serialization.
+- Strengthened domain service tests to explicitly assert meal order, uniqueness, and canonical coverage in assembler output.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `tests/unit/test_domain_services.py`
+  - `AGENT.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Meal output shape invariants are intended to be guarded via `MealAllocation` + `validate_meal_allocation_invariants`, even when final output is a dict payload.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Local test commands should run through `.venv/bin/uv`/`make quality`; plain `pytest` may not be available on PATH.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Canonical meal order assertions in assembler tests should include sequence equality and uniqueness/coverage checks to prevent subtle contract drift.
 ---
 ## [2026-03-03 14:51:41 CET] - [US-001]
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt

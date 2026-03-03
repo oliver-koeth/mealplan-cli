@@ -68,6 +68,7 @@ When in doubt, update those source docs instead of expanding this file.
 39. Keep Phase 6 non-periodized bypass keyed only to carb mode (`LOW`/`NORMAL`): always return canonical equal split `daily_carbs_g / 6.0` with no rounding, independent of training inputs.
 40. For tolerance-based domain checks, add both boundary-pass (`delta <= tolerance`) and failure (`delta > tolerance`) tests and assert stable error prefixes rather than full diagnostic strings.
 41. For periodization precedence/conflict coverage, build exhaustive matrices from `CANONICAL_MEAL_ORDER x TrainingLoadTomorrow` with stable case IDs and assert both high-meal role selection and reconciliation totals.
+42. For domain meal-assembly payloads, build `MealAllocation` rows first and run `validate_meal_allocation_invariants` before serializing dict payloads so canonical order/uniqueness guarantees are enforced at the domain boundary.
 
 ## Ralph Runner
 

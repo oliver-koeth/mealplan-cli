@@ -223,7 +223,10 @@ def test_calculate_meal_split_and_response_payload_returns_canonical_payload_sha
     meals = payload["meals"]
     assert isinstance(meals, list)
     assert len(meals) == len(CANONICAL_MEAL_ORDER)
-    assert [entry["meal"] for entry in meals] == list(CANONICAL_MEAL_ORDER)
+    meal_sequence = [entry["meal"] for entry in meals]
+    assert meal_sequence == list(CANONICAL_MEAL_ORDER)
+    assert len(set(meal_sequence)) == len(CANONICAL_MEAL_ORDER)
+    assert set(meal_sequence) == set(CANONICAL_MEAL_ORDER)
     assert [entry["carbs_g"] for entry in meals] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
     assert [entry["protein_g"] for entry in meals] == [30.0] * len(CANONICAL_MEAL_ORDER)
     assert [entry["fat_g"] for entry in meals] == [12.0] * len(CANONICAL_MEAL_ORDER)

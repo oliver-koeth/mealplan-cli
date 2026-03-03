@@ -7,7 +7,8 @@ from collections.abc import Mapping
 from mealplan.domain.energy import tdee_kcal_per_day_for
 from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
 from mealplan.domain.macros import carbs_target_g_for, fat_target_g_for, protein_target_g_for
-from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
+from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, MealAllocation, UserProfile
+from mealplan.domain.validation import validate_meal_allocation_invariants
 from mealplan.shared.errors import DomainRuleError
 
 CARB_RECONCILIATION_TOLERANCE = 1e-9
@@ -104,14 +105,25 @@ def calculate_meal_split_and_response_payload(
     per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
     per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
 
+    meal_allocations = [
+        MealAllocation(
+            meal=meal,
+            carbs_g=carb_allocation_g_by_meal[meal],
+            protein_g=per_meal_protein_g,
+            fat_g=per_meal_fat_g,
+        )
+        for meal in CANONICAL_MEAL_ORDER
+    ]
+    validate_meal_allocation_invariants(meal_allocations)
+
     meals: list[dict[str, object]] = [
         {
-            "meal": meal,
-            "carbs_g": carb_allocation_g_by_meal[meal],
-            "protein_g": per_meal_protein_g,
-            "fat_g": per_meal_fat_g,
+            "meal": allocation.meal,
+            "carbs_g": allocation.carbs_g,
+            "protein_g": allocation.protein_g,
+            "fat_g": allocation.fat_g,
         }
-        for meal in CANONICAL_MEAL_ORDER
+        for allocation in meal_allocations
     ]
 
     return {
