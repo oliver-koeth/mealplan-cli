@@ -98,6 +98,14 @@ Error output behavior:
 - With `--debug`: same message plus traceback details on stderr
 - Successful command payloads always stay on stdout
 
+## Golden Snapshot Tolerance Policy
+
+Golden tests use a hybrid policy:
+
+- Strict checks: exact JSON keys, key ordering, list ordering, and all string/enum fields.
+- Tolerant checks: numeric fields only for `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, and per-meal macro grams (`meals[*].protein_g`, `meals[*].carbs_g`, `meals[*].fat_g`) with absolute tolerance `0.01`.
+- Shared helper: tolerance constants and comparisons are centralized in `tests/golden/helpers.py` and reused by CLI and application golden suites.
+
 ## CI Expectations
 
 - GitHub Actions runs on every `push` and `pull_request`.

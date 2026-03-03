@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from copy import deepcopy
 from pathlib import Path
 
@@ -10,6 +9,11 @@ import pytest
 
 from mealplan.application.contracts import MealPlanRequest
 from mealplan.application.orchestration import MealPlanCalculationService
+from tests.golden.helpers import (
+    assert_hybrid_snapshot_match,
+    load_golden_json,
+    to_canonical_json_object,
+)
 
 _GOLDEN_DIR = Path(__file__).parent / "application"
 _BASE_REQUEST_PAYLOAD = {
@@ -25,15 +29,6 @@ _BASE_REQUEST_PAYLOAD = {
         "training_before_meal": "lunch",
     },
 }
-
-
-def _snapshot_payload(response: object) -> str:
-    return json.dumps(response, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-
-
-def _assert_golden_matches(*, fixture_name: str, actual: str) -> None:
-    expected = (_GOLDEN_DIR / fixture_name).read_text(encoding="utf-8")
-    assert actual == expected
 
 
 @pytest.mark.parametrize(
@@ -59,5 +54,6 @@ def test_application_calculate_matches_golden_snapshots(
 
     response = service.calculate(request)
 
-    actual = _snapshot_payload(response.model_dump(mode="json"))
-    _assert_golden_matches(fixture_name=fixture_name, actual=actual)
+    expected = to_canonical_json_object(load_golden_json(_GOLDEN_DIR / fixture_name))
+    actual = to_canonical_json_object(response.model_dump(mode="json"))
+    assert_hybrid_snapshot_match(actual, expected)

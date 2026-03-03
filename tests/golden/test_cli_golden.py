@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.golden.helpers import assert_hybrid_snapshot_match, load_golden_json
+
 _GOLDEN_DIR = Path(__file__).parent / "cli"
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
@@ -77,12 +79,35 @@ def _assert_golden_matches(*, fixture_name: str, actual: str) -> None:
     assert actual == expected
 
 
+def _assert_cli_json_golden_matches(*, fixture_name: str, actual: str) -> None:
+    expected = load_golden_json(_GOLDEN_DIR / fixture_name)
+    actual_payload = json.loads(actual)
+
+    expected_stdout = expected["stdout"]
+    actual_stdout = actual_payload["stdout"]
+    assert isinstance(expected_stdout, str)
+    assert isinstance(actual_stdout, str)
+
+    expected["stdout"] = json.loads(expected_stdout)
+    actual_payload["stdout"] = json.loads(actual_stdout)
+
+    assert_hybrid_snapshot_match(actual_payload, expected)
+
+
 @pytest.mark.parametrize(
-    ("fixture_name", "args"),
+    ("fixture_name", "args", "is_hybrid_json"),
     [
-        ("success_default_json.golden.json", _required_calculate_args()),
-        ("success_text_format.golden.json", [*_required_calculate_args(), "--format", "text"]),
-        ("success_table_format.golden.json", [*_required_calculate_args(), "--format", "table"]),
+        ("success_default_json.golden.json", _required_calculate_args(), True),
+        (
+            "success_text_format.golden.json",
+            [*_required_calculate_args(), "--format", "text"],
+            False,
+        ),
+        (
+            "success_table_format.golden.json",
+            [*_required_calculate_args(), "--format", "table"],
+            False,
+        ),
         (
             "failure_missing_age.golden.json",
             [
@@ -100,6 +125,7 @@ def _assert_golden_matches(*, fixture_name: str, actual: str) -> None:
                 "--training-tomorrow",
                 "high",
             ],
+            False,
         ),
         (
             "failure_invalid_gender_enum.golden.json",
@@ -120,6 +146,7 @@ def _assert_golden_matches(*, fixture_name: str, actual: str) -> None:
                 "--training-tomorrow",
                 "high",
             ],
+            False,
         ),
         (
             "failure_invalid_output_format.golden.json",
@@ -142,14 +169,20 @@ def _assert_golden_matches(*, fixture_name: str, actual: str) -> None:
                 "--format",
                 "xml",
             ],
+            False,
         ),
         (
             "failure_invalid_training_zones_json.golden.json",
             [*_required_calculate_args(), "--training-zones", '{"1":'],
+            False,
         ),
     ],
 )
-def test_cli_output_matches_golden_snapshots(fixture_name: str, args: list[str]) -> None:
+def test_cli_output_matches_golden_snapshots(
+    fixture_name: str,
+    args: list[str],
+    is_hybrid_json: bool,
+) -> None:
     result = subprocess.run(
         [sys.executable, "-m", "mealplan", *args],
         check=False,
@@ -162,7 +195,11 @@ def test_cli_output_matches_golden_snapshots(fixture_name: str, args: list[str])
         stdout=result.stdout,
         stderr=result.stderr,
     )
-    _assert_golden_matches(fixture_name=fixture_name, actual=actual)
+
+    if is_hybrid_json:
+        _assert_cli_json_golden_matches(fixture_name=fixture_name, actual=actual)
+    else:
+        _assert_golden_matches(fixture_name=fixture_name, actual=actual)
 
 
 def test_runtime_error_default_output_matches_golden(

@@ -4,6 +4,7 @@ Started: Tue Mar  3 20:39:20 CET 2026
 ## Codebase Patterns
 - For CLI golden regression tests, snapshot a canonical JSON envelope (`exit_code`, `stderr`, `stdout`) and normalize stderr (ANSI stripping plus traceback placeholder collapsing) to keep fixtures deterministic across local/CI environments.
 - For application golden regression tests that exercise real `MealPlanCalculationService`, pick request fixtures that produce cent-reconcilable macro totals; strict `meal_assembly.reconciliation` tolerance (`1e-9`) will reject non-reconcilable success fixtures.
+- For hybrid golden assertions, centralize tolerance behavior in `tests/golden/helpers.py`: keep strict structure/key/list/string checks and allow only macro/energy numeric fields to vary within absolute tolerance `0.01`.
 
 ---
 ## 2026-03-03 20:51:05 CET - US-001
@@ -46,5 +47,25 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: Application golden snapshots can run fully at service boundary without any CLI subprocess/rendering dependencies by validating `MealPlanRequest` and snapshotting `MealPlanResponse.model_dump(mode=\"json\")`.
   - Gotchas encountered: Some otherwise-valid profiles trigger expected `meal_assembly.reconciliation` domain failures due strict float tolerance; success fixtures must use cent-reconcilable macro totals.
-  - Useful context: Snapshot JSON should remain canonicalized with `json.dumps(..., indent=2, sort_keys=True, ensure_ascii=False)` plus trailing newline for deterministic file comparisons.
+- Useful context: Snapshot JSON should remain canonicalized with `json.dumps(..., indent=2, sort_keys=True, ensure_ascii=False)` plus trailing newline for deterministic file comparisons.
+---
+## 2026-03-03 20:58:27 CET - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Implemented hybrid snapshot tolerance policy with shared golden helper utilities in `tests/golden/helpers.py`.
+- Updated application and CLI golden suites to reuse centralized helper logic and enforce strict-vs-tolerant field behavior (`0.01` absolute tolerance on approved numeric fields only).
+- Documented contributor-facing strict/tolerant policy in `README.md` under a dedicated golden snapshot section.
+- Files changed:
+  - AGENT.md
+  - README.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+  - tests/__init__.py
+  - tests/golden/__init__.py
+  - tests/golden/helpers.py
+  - tests/golden/test_application_golden.py
+  - tests/golden/test_cli_golden.py
+- **Learnings for future iterations:**
+  - Patterns discovered: Compare golden JSON payloads with recursive key-order checks and path-scoped tolerance instead of whole-string float equality to reduce non-semantic drift failures.
+  - Gotchas encountered: Importing shared test helpers via `tests.golden...` requires `tests/` and `tests/golden/` to be explicit Python packages.
+  - Useful context: Canonicalize application response payloads with sorted keys before strict-order assertion so fixture ordering and runtime dict insertion order stay aligned.
 ---
