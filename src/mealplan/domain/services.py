@@ -57,7 +57,7 @@ def calculate_periodized_carb_allocation(
     Phase 6 Story US-001 establishes the typed domain API and output contract.
     Story US-002 adds the post-training two-high-meal selection rule.
     """
-    del carb_mode, training_load_tomorrow
+    del carb_mode
     per_meal_carbs_g = daily_carbs_g / float(len(CANONICAL_MEAL_ORDER))
     allocation = dict.fromkeys(CANONICAL_MEAL_ORDER, per_meal_carbs_g)
 
@@ -71,10 +71,21 @@ def calculate_periodized_carb_allocation(
     second_high_meal = CANONICAL_MEAL_ORDER[second_high_meal_idx]
     high_meals = {first_high_meal, second_high_meal}
 
-    allocation[first_high_meal] = high_meal_carbs_g
-    allocation[second_high_meal] = high_meal_carbs_g
+    conflict_with_tomorrow_high_override = training_before_meal in {
+        MealName.DINNER,
+        MealName.EVENING_SNACK,
+    }
+    if (
+        training_load_tomorrow == TrainingLoadTomorrow.HIGH
+        and not conflict_with_tomorrow_high_override
+    ):
+        high_meals.add(MealName.DINNER)
+        high_meals.discard(MealName.EVENING_SNACK)
 
-    remaining_carbs_g = daily_carbs_g - (2.0 * high_meal_carbs_g)
+    for high_meal in high_meals:
+        allocation[high_meal] = high_meal_carbs_g
+
+    remaining_carbs_g = daily_carbs_g - (float(len(high_meals)) * high_meal_carbs_g)
     low_meal_carbs_g = remaining_carbs_g / float(len(CANONICAL_MEAL_ORDER) - len(high_meals))
     for meal in CANONICAL_MEAL_ORDER:
         if meal in high_meals:

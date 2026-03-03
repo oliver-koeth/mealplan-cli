@@ -5,6 +5,7 @@ Started: Tue Mar  3 12:56:03 CET 2026
 - Add new phase-level domain entrypoints in `src/mealplan/domain/services.py`, re-export from `src/mealplan/domain/__init__.py`, and pin signature stability with `inspect.signature(...)` tests in `tests/unit/test_domain_services.py`.
 - For chronological meal transitions, resolve the next meal via `CANONICAL_MEAL_ORDER.index(current)` and modulo wrap (`(idx + 1) % len(CANONICAL_MEAL_ORDER)`) to keep behavior deterministic at end-of-day boundaries.
 - For two-high-meal periodization, compute low-meal carbs from residual (`daily - sum(highs)`) and divide by dynamic non-high meal count (`len(CANONICAL_MEAL_ORDER) - len(high_meals)`) to avoid hardcoded meal-count assumptions.
+- Encode tomorrow-high conflict handling as an explicit branch: if `training_before_meal` is `dinner` or `evening-snack`, preserve post-training highs and skip the `dinner` override.
 ---
 
 ## 2026-03-03 13:02:25 CET - US-001
@@ -65,4 +66,25 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Existing tests that were validating only high-meal placement can silently encode outdated low-meal assumptions; update exact allocation snapshots when residual logic changes.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `make quality` remains the single local command that mirrors repo quality expectations for Ralph story completion.
+---
+
+## 2026-03-03 13:09:09 CET - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented next-day high-load override behavior in `calculate_periodized_carb_allocation(...)`: when `training_load_tomorrow` is high and there is no conflict, force `dinner` high and `evening-snack` low before residual distribution.
+- Added explicit conflict handling for `training_before_meal in {DINNER, EVENING_SNACK}` to preserve post-training high-meal selection and skip tomorrow-high override deterministically.
+- Added unit tests for both non-conflict override application and conflict-path skip behavior.
+- Ran quality checks via `make quality` (`ruff`, `mypy --strict src`, `pytest`) and all checks passed.
+- Files changed:
+  - src/mealplan/domain/services.py
+  - tests/unit/test_domain_services.py
+  - AGENT.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Model tomorrow-load precedence as an explicit conflict/non-conflict branch before residual split so high-meal set selection stays deterministic and testable.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Overriding meal roles changes `len(high_meals)`, so residual allocation must be derived from dynamic high-meal count instead of assuming exactly two high meals.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - A conflict regression test is stable when it compares `HIGH` vs `MEDIUM` tomorrow-load outputs for the same conflicting `training_before_meal`.
 ---
