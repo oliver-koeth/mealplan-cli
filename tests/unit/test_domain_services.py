@@ -127,3 +127,27 @@ def test_calculate_training_carbs_g_uses_total_minutes_when_any_zone_2_to_5_pres
     expected_training_carbs_g: float,
 ) -> None:
     assert calculate_training_carbs_g(zones_minutes) == expected_training_carbs_g
+
+
+@pytest.mark.parametrize(
+    ("zones_minutes", "expected_training_carbs_g"),
+    [
+        ({1: 45, 2: 0, 3: 0, 4: 0, 5: 0}, 0.0),
+        ({1: 0, 2: 30, 3: 0, 4: 0, 5: 0}, 30.0),
+        ({1: 20, 2: 0, 3: 40, 4: 0, 5: 0}, 60.0),
+        ({1: 0, 2: 15, 3: 25, 4: 10, 5: 0}, 50.0),
+        ({1: 0, 2: 0, 3: 0, 4: 0, 5: 0}, 0.0),
+    ],
+    ids=[
+        "matrix_only_zone_1_active",
+        "matrix_only_zone_2_active",
+        "matrix_mixed_zone_1_plus_zone_3",
+        "matrix_multiple_zone_2_to_5_active",
+        "matrix_all_zones_zero",
+    ],
+)
+def test_calculate_training_carbs_g_medium_depth_permutation_matrix(
+    zones_minutes: Mapping[int, int],
+    expected_training_carbs_g: float,
+) -> None:
+    assert calculate_training_carbs_g(zones_minutes) == expected_training_carbs_g

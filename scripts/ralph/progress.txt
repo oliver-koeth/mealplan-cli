@@ -79,3 +79,17 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Useful context (e.g., "the evaluation panel is in component X")
     - Current fueling behavior is already implemented in `src/mealplan/domain/services.py::calculate_training_carbs_g`; this story was documentation and boundary alignment only.
 ---
+## 2026-03-03 11:09:33 CET - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Added a dedicated medium-depth `pytest.mark.parametrize` permutation matrix for training fueling that covers only zone 1 active, only one zone in 2..5 active, mixed zone 1 plus zone 2..5, multiple zones in 2..5, and all zeros.
+- Kept expected outputs as explicit strict float literals per case (`0.0`, `30.0`, `60.0`, `50.0`, `0.0`) to lock deterministic behavior.
+- Ran `make quality` successfully (ruff, mypy --strict, pytest).
+- Files changed: `tests/unit/test_domain_services.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - For rule-matrix stories, consolidate category coverage into one parameterized test with explicit case IDs so acceptance mapping stays obvious in test output.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Existing targeted tests may already cover parts of a matrix; still add a dedicated acceptance-aligned matrix when the backlog explicitly asks for representative category coverage.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Phase 5 fueling matrix coverage remains centralized in `tests/unit/test_domain_services.py` alongside other `calculate_training_carbs_g` precedence tests.
+---
