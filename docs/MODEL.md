@@ -179,11 +179,14 @@ This document defines the canonical domain model for `mealplan`: object structur
   - `TDEE = BMR * activity_factor`
 
 ### 6.2 Training Fuel Rule Contract
-- Input: `TrainingSession`
+- Input: normalized `zones_minutes: Mapping[int, int]` with canonical keys `1..5`
 - Output: `training_carbs_g: float`
 - Logic:
   - If all non-zero minutes are zone 1 -> `0`
   - If any zone 2-5 has minutes > 0 -> `sum(minutes) * 1.0`
+- Boundary ownership:
+  - Malformed training-zone payload rejection (out-of-range keys, negative minutes, non-integer minute values) is handled before domain fueling rules.
+  - Domain fueling rule execution assumes Phase 3 normalization has already produced canonical zone minutes.
 
 ### 6.3 Macro Rule Contract
 - Input: `UserProfile`, `CarbMode`, `tdee_kcal`

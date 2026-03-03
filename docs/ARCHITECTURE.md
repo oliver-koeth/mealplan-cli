@@ -135,6 +135,8 @@ mealplan/
   - Fat as calorie remainder; reject negative fat.
 - Training fueling:
   - All Z1 => `0g`; any zone >=2 => `60g/hour` over total duration.
+  - Phase 5 domain API boundary is `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float` and assumes canonical normalized zone keys `1..5`.
+  - Malformed `zones_minutes` payload rejection (invalid keys, negative minutes, non-integer minutes) remains a Phase 3 concern in application-layer normalization/semantic validation.
 - Periodization engine:
   - Applies two post-training high meals + remaining low distribution.
 - Redistribution algorithm:
@@ -200,6 +202,9 @@ mealplan/
     - Accept subset keys in `1..5`; fill omitted keys with `0`.
     - Accept numeric-string and integer keys, normalizing to canonical integer-keyed `1..5`.
     - Reject out-of-range keys, negative minutes, and non-integer minute values.
+  - Phase 5 handoff:
+    - Only normalized `dict[int, int]` values are handed to domain fueling services.
+    - Domain fueling services do not repeat malformed-input validation already enforced in Phase 3.
 - Typing discipline:
   - Full type hints; `mypy` strict mode for domain/application packages.
 - Valid request JSON example:

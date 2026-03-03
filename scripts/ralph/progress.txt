@@ -6,6 +6,7 @@ Started: Tue Mar  3 09:26:51 CET 2026
 - Keep Phase 5 fueling behavior centered on `calculate_training_carbs_g` in `src/mealplan/domain/services.py` with companion assertions in `tests/unit/test_domain_services.py`.
 - Cover Phase 5 training-zone rules with `pytest.mark.parametrize` matrices and strict float literals to keep precedence and totals explicit.
 - Encode rule precedence intent directly in `pytest` case IDs/test names so future regressions are obvious from failing test output.
+- When fueling boundary ownership is clarified, update all three docs by topic in the same story: `docs/ARCHITECTURE.md` (layer ownership), `docs/REQUIREMENTS.md` (functional rule), and `docs/MODEL.md` (domain contract/invariants).
 
 ## 2026-03-03 09:28:03 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
@@ -63,4 +64,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Existing zone-override coverage may pass without explicitly asserting precedence intent, so add dedicated precedence cases when required by acceptance criteria.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `tests/unit/test_domain_services.py` is still the single test module for this phase; precedence, rule, and matrix coverage all live there.
+---
+## 2026-03-03 11:06:27 CET - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Documented the Phase 3/Phase 5 boundary so fueling rules explicitly consume normalized zone minutes while malformed payload rejection remains in Phase 3 validation/normalization.
+- Updated architecture, requirements, and model docs with aligned wording for the same boundary ownership.
+- Marked `US-005` as passing in `scripts/ralph/prd.json` after `make quality` succeeded.
+- Files changed: `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `docs/MODEL.md`, `AGENT.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Boundary clarifications should be documented by topic across `ARCHITECTURE`, `REQUIREMENTS`, and `MODEL` in the same iteration to avoid drift.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Phase 5 fueling domain rules should not add duplicate malformed-input validation; malformed `zones_minutes` handling stays in Phase 3 normalization/semantic validation.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Current fueling behavior is already implemented in `src/mealplan/domain/services.py::calculate_training_carbs_g`; this story was documentation and boundary alignment only.
 ---
