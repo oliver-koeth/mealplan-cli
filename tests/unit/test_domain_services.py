@@ -239,6 +239,20 @@ def test_periodized_carb_allocation_applies_tomorrow_high_override_without_confl
     }
 
 
+@pytest.mark.parametrize("carb_mode", [CarbMode.LOW, CarbMode.NORMAL])
+def test_calculate_periodized_carb_allocation_precedence_non_periodized_bypass_wins(
+    carb_mode: CarbMode,
+) -> None:
+    allocation = calculate_periodized_carb_allocation(
+        carb_mode=carb_mode,
+        daily_carbs_g=300.0,
+        training_before_meal=MealName.BREAKFAST,
+        training_load_tomorrow=TrainingLoadTomorrow.HIGH,
+    )
+
+    assert allocation == dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0)
+
+
 @pytest.mark.parametrize(
     "training_before_meal",
     [MealName.DINNER, MealName.EVENING_SNACK],
@@ -260,6 +274,20 @@ def test_calculate_periodized_carb_allocation_skips_tomorrow_high_override_on_co
     )
 
     assert allocation == allocation_without_override
+
+
+def test_calculate_periodized_carb_allocation_precedence_keeps_post_training_highs() -> None:
+    allocation = calculate_periodized_carb_allocation(
+        carb_mode=CarbMode.PERIODIZED,
+        daily_carbs_g=240.0,
+        training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.HIGH,
+    )
+
+    assert allocation[MealName.LUNCH] == 72.0
+    assert allocation[MealName.AFTERNOON_SNACK] == 72.0
+    assert allocation[MealName.DINNER] == 72.0
+    assert allocation[MealName.EVENING_SNACK] == 8.0
 
 
 @pytest.mark.parametrize("carb_mode", [CarbMode.LOW, CarbMode.NORMAL, CarbMode.PERIODIZED])

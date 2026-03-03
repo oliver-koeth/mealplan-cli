@@ -64,6 +64,7 @@ When in doubt, update those source docs instead of expanding this file.
 35. For canonical meal-keyed mappings that assign one shared scalar value, prefer `dict.fromkeys(CANONICAL_MEAL_ORDER, value)` to satisfy Ruff `C420` and keep deterministic key order.
 36. For periodized allocations with selected high meals, compute low-meal residuals from `daily_carbs_g - sum(high allocations)` and divide by `len(CANONICAL_MEAL_ORDER) - len(high_meals)` rather than hardcoding meal counts.
 37. For periodization tomorrow-load behavior, treat `training_before_meal in {DINNER, EVENING_SNACK}` as an explicit conflict branch that preserves post-training meal selection and skips the next-day `DINNER` high override.
+38. Keep Phase 6 allocation precedence explicit in `calculate_periodized_carb_allocation`: non-periodized bypass first, then post-training high-meal selection, then tomorrow-high override/conflict handling, then reconciliation validation.
 
 ## Ralph Runner
 

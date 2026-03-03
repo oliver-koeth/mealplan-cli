@@ -8,6 +8,9 @@ from mealplan.domain.energy import tdee_kcal_per_day_for
 from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
 from mealplan.domain.macros import carbs_target_g_for, fat_target_g_for, protein_target_g_for
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
+from mealplan.shared.errors import DomainRuleError
+
+CARB_RECONCILIATION_TOLERANCE = 1e-9
 
 
 def calculate_tdee_kcal(profile: UserProfile) -> float:
@@ -52,25 +55,53 @@ def calculate_periodized_carb_allocation(
     training_before_meal: MealName | None,
     training_load_tomorrow: TrainingLoadTomorrow,
 ) -> dict[MealName, float]:
-    """Return deterministic canonical six-meal carb allocation for Phase 6 entrypoint.
-
-    Phase 6 Story US-001 establishes the typed domain API and output contract.
-    Story US-002 adds the post-training two-high-meal selection rule.
-    """
-    del carb_mode
-    per_meal_carbs_g = daily_carbs_g / float(len(CANONICAL_MEAL_ORDER))
-    allocation = dict.fromkeys(CANONICAL_MEAL_ORDER, per_meal_carbs_g)
-
-    if training_before_meal is None:
+    """Return deterministic canonical six-meal carb allocation for Phase 6 entrypoint."""
+    # 1) Non-periodized bypass: return deterministic equal split.
+    if carb_mode is not CarbMode.PERIODIZED or training_before_meal is None:
+        allocation = _equal_split_allocation(daily_carbs_g=daily_carbs_g)
+        _validate_carb_reconciliation(allocation=allocation, daily_carbs_g=daily_carbs_g)
         return allocation
 
-    high_meal_carbs_g = 0.30 * daily_carbs_g
+    # 2) Post-training high-meal rule.
+    high_meals = _post_training_high_meals(training_before_meal=training_before_meal)
+
+    # 3) Next-day high-load override, unless explicit conflict.
+    high_meals = _apply_tomorrow_high_override(
+        high_meals=high_meals,
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=training_load_tomorrow,
+    )
+
+    allocation = _allocation_for_high_meals(
+        daily_carbs_g=daily_carbs_g,
+        high_meals=high_meals,
+    )
+
+    # 4) Reconciliation check.
+    _validate_carb_reconciliation(allocation=allocation, daily_carbs_g=daily_carbs_g)
+    return allocation
+
+
+def _equal_split_allocation(*, daily_carbs_g: float) -> dict[MealName, float]:
+    per_meal_carbs_g = daily_carbs_g / float(len(CANONICAL_MEAL_ORDER))
+    return dict.fromkeys(CANONICAL_MEAL_ORDER, per_meal_carbs_g)
+
+
+def _post_training_high_meals(*, training_before_meal: MealName) -> set[MealName]:
     first_high_meal_idx = CANONICAL_MEAL_ORDER.index(training_before_meal)
     second_high_meal_idx = (first_high_meal_idx + 1) % len(CANONICAL_MEAL_ORDER)
-    first_high_meal = CANONICAL_MEAL_ORDER[first_high_meal_idx]
-    second_high_meal = CANONICAL_MEAL_ORDER[second_high_meal_idx]
-    high_meals = {first_high_meal, second_high_meal}
+    return {
+        CANONICAL_MEAL_ORDER[first_high_meal_idx],
+        CANONICAL_MEAL_ORDER[second_high_meal_idx],
+    }
 
+
+def _apply_tomorrow_high_override(
+    *,
+    high_meals: set[MealName],
+    training_before_meal: MealName,
+    training_load_tomorrow: TrainingLoadTomorrow,
+) -> set[MealName]:
     conflict_with_tomorrow_high_override = training_before_meal in {
         MealName.DINNER,
         MealName.EVENING_SNACK,
@@ -79,8 +110,17 @@ def calculate_periodized_carb_allocation(
         training_load_tomorrow == TrainingLoadTomorrow.HIGH
         and not conflict_with_tomorrow_high_override
     ):
-        high_meals.add(MealName.DINNER)
-        high_meals.discard(MealName.EVENING_SNACK)
+        return (high_meals | {MealName.DINNER}) - {MealName.EVENING_SNACK}
+    return high_meals
+
+
+def _allocation_for_high_meals(
+    *,
+    daily_carbs_g: float,
+    high_meals: set[MealName],
+) -> dict[MealName, float]:
+    allocation = _equal_split_allocation(daily_carbs_g=daily_carbs_g)
+    high_meal_carbs_g = 0.30 * daily_carbs_g
 
     for high_meal in high_meals:
         allocation[high_meal] = high_meal_carbs_g
@@ -88,7 +128,22 @@ def calculate_periodized_carb_allocation(
     remaining_carbs_g = daily_carbs_g - (float(len(high_meals)) * high_meal_carbs_g)
     low_meal_carbs_g = remaining_carbs_g / float(len(CANONICAL_MEAL_ORDER) - len(high_meals))
     for meal in CANONICAL_MEAL_ORDER:
-        if meal in high_meals:
-            continue
-        allocation[meal] = low_meal_carbs_g
+        if meal not in high_meals:
+            allocation[meal] = low_meal_carbs_g
     return allocation
+
+
+def _validate_carb_reconciliation(
+    *,
+    allocation: dict[MealName, float],
+    daily_carbs_g: float,
+) -> None:
+    total_allocated_carbs = sum(allocation.values())
+    delta = abs(total_allocated_carbs - daily_carbs_g)
+    if delta > CARB_RECONCILIATION_TOLERANCE:
+        raise DomainRuleError(
+            "carb_reconciliation: "
+            f"sum(allocated_carbs)={total_allocated_carbs} "
+            f"differs from daily_carbs_g={daily_carbs_g} "
+            f"(delta={delta}, tolerance={CARB_RECONCILIATION_TOLERANCE})"
+        )
