@@ -219,6 +219,24 @@ JSON structure:
 -   Residual macro correction order is deterministic and fixed:
     `carbs_g`, then `protein_g`, then `fat_g`.
 
+### 9.2 Phase 8 Application Orchestration Flow
+
+-   Canonical application orchestration API is:
+    `MealPlanCalculationService.calculate(request: MealPlanRequest) -> MealPlanResponse`.
+-   The orchestration flow is validation-first and deterministic:
+    1. `validate_meal_plan_flow` (schema + semantic + invariant gate)
+    2. training-session normalization
+    3. energy calculation
+    4. macro target calculation
+    5. training fueling calculation
+    6. carb periodization allocation
+    7. meal assembly and `MealPlanResponse` model validation
+-   `training_session` is optional at the request boundary.
+-   If `training_session` is omitted (`null`/`None`), orchestration must treat it as zero training with canonical defaults:
+    - `zones_minutes = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}`
+    - `training_before_meal = null`
+-   For omitted training sessions, calculation proceeds normally and `training_carbs_g` must be `0.0`.
+
 ------------------------------------------------------------------------
 
 ## 10. Validation

@@ -9,6 +9,7 @@ Started: Tue Mar  3 15:44:48 CET 2026
 - In periodization-stage orchestration, call `calculate_periodized_carb_allocation(...)` with canonical request/macro/training inputs and pass through its returned allocation map without re-implementing domain precedence rules.
 - In application assembly-stage orchestration, call `calculate_meal_split_and_response_payload(...)` and parse the result with `MealPlanResponse.model_validate(...)` instead of mutating response dicts in the service layer.
 - For application orchestration integration matrices, include both happy paths and failure propagation (`ValidationError`, `DomainRuleError` with `meal_assembly.reconciliation` prefix) via direct `MealPlanCalculationService.calculate(...)` calls instead of CLI tests.
+- When Phase 8 application orchestration contracts change, keep `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, and `docs/MODEL.md` synchronized in the same iteration to avoid boundary-contract drift.
 ---
 ## 2026-03-03 15:46:29 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
@@ -93,4 +94,15 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: integration matrix tests are most stable when they assert canonical meal ordering and top-level/per-meal macro reconciliation invariants rather than exact per-meal numeric snapshots.
   - Gotchas encountered: default fixture payloads can trigger reconciliation-domain failures in full-stack calculate flows; use that intentionally for propagation tests and isolate happy-path fixtures for success scenarios.
   - Useful context: `tests/unit/test_application_orchestration.py` is now the canonical Phase 8 integration target for direct application-boundary coverage without CLI coupling.
+---
+## 2026-03-03 18:26:36 CET - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Documented explicit Phase 8 application orchestration boundary and deterministic stage sequence in architecture docs, including validation-first behavior and canonical stage composition order.
+- Added requirements-level functional flow notes for `MealPlanCalculationService.calculate(...)`, including omitted `training_session` semantics and expected zero-training output behavior (`training_carbs_g = 0.0`).
+- Added model-level application boundary contract notes clarifying the return type (`MealPlanResponse`) and the canonical zero-training defaults when `training_session` is omitted.
+- Files changed: `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `docs/MODEL.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`, `AGENT.md`.
+- **Learnings for future iterations:**
+  - Patterns discovered: keep Phase 8 orchestration contract details synchronized across architecture, requirements, and model docs whenever boundary behavior changes.
+  - Gotchas encountered: documenting `training_session=None` behavior in only one doc causes contract ambiguity across layers; update all three docs together.
+  - Useful context: docs now state canonical service API and stage order matching `MealPlanCalculationService.calculate(...)` implementation.
 ---

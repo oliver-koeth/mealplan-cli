@@ -238,6 +238,22 @@ This document defines the canonical domain model for `mealplan`: object structur
   - Apply deterministic residual adjustment only to `evening-snack` and in fixed macro order: `carbs_g`, `protein_g`, `fat_g`.
   - If post-adjustment meal totals still mismatch top-level targets, raise `DomainRuleError` prefixed `meal_assembly.reconciliation`.
 
+### 6.6 Phase 8 Application Boundary Contract
+- Canonical API:
+  - `MealPlanCalculationService.calculate(request: MealPlanRequest) -> MealPlanResponse`
+- Boundary ownership:
+  - Application layer composes validated request -> domain stages -> validated response DTO.
+  - Response at the application boundary is always a `MealPlanResponse` instance (not a raw dict).
+- Deterministic orchestration sequence:
+  - Validation flow first (`validate_meal_plan_flow`).
+  - Training-session normalization.
+  - Domain stage composition in fixed order: energy -> macros -> fueling -> periodization -> assembly.
+- Omitted training-session interpretation:
+  - If `request.training_session is None`, canonical normalized training context is:
+    - `zones_minutes = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}`
+    - `training_before_meal = None`
+  - This case is valid and must produce deterministic zero-training fueling (`training_carbs_g = 0.0`).
+
 ## 7. Verification Matrix
 
 ### 7.1 Input Verification
