@@ -9,6 +9,7 @@ Started: Tue Mar  3 12:56:03 CET 2026
 - Keep precedence stage order explicit in `calculate_periodized_carb_allocation`: non-periodized bypass -> post-training highs -> tomorrow-high override/conflict branch -> reconciliation check.
 - Keep non-periodized bypass semantics independent of training context: `CarbMode.LOW` and `CarbMode.NORMAL` must always return canonical equal split (`daily_carbs_g / 6.0`) with no rounding in Phase 6.
 - For tolerance-based domain guards, add both boundary-pass (`delta <= tolerance`) and failure (`delta > tolerance`) tests, and assert stable error prefixes (for example `^carb_reconciliation:`) rather than full message snapshots.
+- For periodization precedence/conflict regressions, use an exhaustive matrix across `CANONICAL_MEAL_ORDER` and all `TrainingLoadTomorrow` states with stable case IDs, and assert both selected high-meal roles and reconciliation totals.
 ---
 
 ## 2026-03-03 13:02:25 CET - US-001
@@ -147,4 +148,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Reconciliation fail paths are hard to trigger through the public allocator API; direct helper-level tests are the most reliable way to pin error-category behavior.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Prefix-only regex checks (for example `^carb_reconciliation:`) keep error tests stable while allowing diagnostic numeric details to vary.
+---
+
+## 2026-03-03 13:18:31 CET - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Added an exhaustive combinatorial precedence/conflict matrix test for `calculate_periodized_carb_allocation(...)` covering all canonical `training_before_meal` values x all `TrainingLoadTomorrow` states.
+- Matrix assertions validate both role selection (exact high-meal set per precedence/conflict branch) and numeric allocation behavior (per-meal expectations plus reconciliation total within tolerance).
+- Ran quality checks via `make quality` (`ruff`, `mypy --strict src`, `pytest`), all passing.
+- Files changed:
+  - tests/unit/test_domain_services.py
+  - AGENT.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Exhaustive matrix tests are best expressed as `CANONICAL_MEAL_ORDER x TrainingLoadTomorrow` parameterization with deterministic case IDs to lock precedence/conflict behavior.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Even with exact floating values in many cases, keep a reconciliation assertion using `CARB_RECONCILIATION_TOLERANCE` to avoid brittle failures if numeric internals evolve.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing focused precedence tests can remain as targeted guardrails; the exhaustive matrix supplements them for full branch coverage.
 ---

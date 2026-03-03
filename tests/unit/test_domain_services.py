@@ -330,6 +330,76 @@ def test_calculate_periodized_carb_allocation_is_deterministic_for_identical_inp
     assert first == second
 
 
+@pytest.mark.parametrize(
+    ("training_before_meal", "training_load_tomorrow"),
+    [
+        (training_before_meal, training_load_tomorrow)
+        for training_before_meal in CANONICAL_MEAL_ORDER
+        for training_load_tomorrow in TrainingLoadTomorrow
+    ],
+    ids=[
+        (
+            f"matrix_training_before_{training_before_meal.value}_"
+            f"load_{training_load_tomorrow.value}"
+        )
+        for training_before_meal in CANONICAL_MEAL_ORDER
+        for training_load_tomorrow in TrainingLoadTomorrow
+    ],
+)
+def test_calculate_periodized_carb_allocation_exhaustive_precedence_conflict_matrix(
+    training_before_meal: MealName,
+    training_load_tomorrow: TrainingLoadTomorrow,
+) -> None:
+    daily_carbs_g = 300.0
+    high_meal_carbs_g = 0.30 * daily_carbs_g
+
+    allocation = calculate_periodized_carb_allocation(
+        carb_mode=CarbMode.PERIODIZED,
+        daily_carbs_g=daily_carbs_g,
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=training_load_tomorrow,
+    )
+
+    post_training_start_idx = CANONICAL_MEAL_ORDER.index(training_before_meal)
+    post_training_high_meals = {
+        CANONICAL_MEAL_ORDER[post_training_start_idx],
+        CANONICAL_MEAL_ORDER[(post_training_start_idx + 1) % len(CANONICAL_MEAL_ORDER)],
+    }
+    conflict_with_tomorrow_override = training_before_meal in {
+        MealName.DINNER,
+        MealName.EVENING_SNACK,
+    }
+
+    if (
+        training_load_tomorrow is TrainingLoadTomorrow.HIGH
+        and not conflict_with_tomorrow_override
+    ):
+        expected_high_meals = (post_training_high_meals | {MealName.DINNER}) - {
+            MealName.EVENING_SNACK
+        }
+    else:
+        expected_high_meals = post_training_high_meals
+
+    actual_high_meals = {
+        meal for meal, carbs_g in allocation.items() if carbs_g == high_meal_carbs_g
+    }
+    assert actual_high_meals == expected_high_meals
+
+    expected_low_meal_carbs_g = (
+        daily_carbs_g - (float(len(expected_high_meals)) * high_meal_carbs_g)
+    ) / float(len(CANONICAL_MEAL_ORDER) - len(expected_high_meals))
+    for meal in CANONICAL_MEAL_ORDER:
+        expected_carbs_g = (
+            high_meal_carbs_g if meal in expected_high_meals else expected_low_meal_carbs_g
+        )
+        assert allocation[meal] == pytest.approx(expected_carbs_g)
+
+    assert sum(allocation.values()) == pytest.approx(
+        daily_carbs_g,
+        abs=CARB_RECONCILIATION_TOLERANCE,
+    )
+
+
 def test_validate_carb_reconciliation_allows_delta_within_tolerance() -> None:
     allocation = dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0)
 
