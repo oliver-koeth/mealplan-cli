@@ -80,6 +80,42 @@ def test_calculate_training_carbs_g_returns_zero_for_zero_total_minutes() -> Non
 @pytest.mark.parametrize(
     ("zones_minutes", "expected_training_carbs_g"),
     [
+        ({1: 40, 2: 5, 3: 0, 4: 0, 5: 0}, 45.0),
+        ({1: 30, 2: 0, 3: 0, 4: 20, 5: 0}, 50.0),
+    ],
+    ids=[
+        "precedence_any_zone_2_minutes_overrides_all_zone_1_zero_path",
+        "precedence_any_zone_4_minutes_overrides_all_zone_1_zero_path",
+    ],
+)
+def test_calculate_training_carbs_g_precedence_mixed_zone_1_with_zone_2_to_5_uses_override_total(
+    zones_minutes: Mapping[int, int],
+    expected_training_carbs_g: float,
+) -> None:
+    assert calculate_training_carbs_g(zones_minutes) == expected_training_carbs_g
+
+
+@pytest.mark.parametrize(
+    ("zones_minutes", "expected_training_carbs_g"),
+    [
+        ({1: 1, 2: 0, 3: 0, 4: 0, 5: 0}, 0.0),
+        ({1: 120, 2: 0, 3: 0, 4: 0, 5: 0}, 0.0),
+    ],
+    ids=[
+        "precedence_only_zone_1_short_session_keeps_zero_path",
+        "precedence_only_zone_1_long_session_keeps_zero_path",
+    ],
+)
+def test_calculate_training_carbs_g_precedence_boundary_only_zone_1_keeps_zero_path(
+    zones_minutes: Mapping[int, int],
+    expected_training_carbs_g: float,
+) -> None:
+    assert calculate_training_carbs_g(zones_minutes) == expected_training_carbs_g
+
+
+@pytest.mark.parametrize(
+    ("zones_minutes", "expected_training_carbs_g"),
+    [
         ({1: 10, 2: 20, 3: 0, 4: 0, 5: 0}, 30.0),
         ({1: 15, 2: 0, 3: 45, 4: 0, 5: 0}, 60.0),
         ({1: 0, 2: 0, 3: 0, 4: 30, 5: 0}, 30.0),

@@ -5,6 +5,7 @@ Started: Tue Mar  3 09:26:51 CET 2026
 - Run `make quality` as the authoritative local gate before marking a story complete.
 - Keep Phase 5 fueling behavior centered on `calculate_training_carbs_g` in `src/mealplan/domain/services.py` with companion assertions in `tests/unit/test_domain_services.py`.
 - Cover Phase 5 training-zone rules with `pytest.mark.parametrize` matrices and strict float literals to keep precedence and totals explicit.
+- Encode rule precedence intent directly in `pytest` case IDs/test names so future regressions are obvious from failing test output.
 
 ## 2026-03-03 09:28:03 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
@@ -47,4 +48,19 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Zone-2-plus override expectations include zone 1 minutes in the total once any zone 2..5 minute value is non-zero.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `tests/unit/test_domain_services.py` already hosts all Phase 5 fueling assertions, so new rule stories should extend this same module.
+---
+## 2026-03-03 10:56:37 CET - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Added explicit precedence-focused parameterized tests proving mixed `zone 1 + zone 2..5` sessions use the override total-minute path.
+- Added boundary parameterized tests proving `zone 1`-only sessions stay on the zero-fueling path.
+- Added precedence-specific pytest case IDs to document intent directly in test names and failure output.
+- Marked `US-004` as passing in `scripts/ralph/prd.json` after `make quality` succeeded.
+- Files changed: `tests/unit/test_domain_services.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Phase 5 precedence expectations should be captured with intent-revealing test IDs, not only generic test function names.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Existing zone-override coverage may pass without explicitly asserting precedence intent, so add dedicated precedence cases when required by acceptance criteria.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_domain_services.py` is still the single test module for this phase; precedence, rule, and matrix coverage all live there.
 ---
