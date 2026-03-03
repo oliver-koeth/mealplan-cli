@@ -9,7 +9,8 @@ from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
 from mealplan.application.parsing import parse_contract
 from mealplan.application.validation import normalize_training_zones, validate_semantic_input
 from mealplan.domain.enums import MealName
-from mealplan.domain.model import MacroTargets, MealAllocation
+from mealplan.domain.model import MacroTargets, MealAllocation, UserProfile
+from mealplan.domain.services import calculate_macro_targets, calculate_tdee_kcal
 from mealplan.domain.validation import (
     validate_carb_reconciliation_invariants,
     validate_macro_targets_invariants,
@@ -41,19 +42,29 @@ class MealPlanCalculationService:
         )
         training_session = _validated_training_session(validated_request)
 
-        self._run_energy_stage(validated_request)
-        self._run_macro_stage(validated_request)
+        tdee_kcal = self._run_energy_stage(validated_request)
+        macro_targets = self._run_macro_stage(validated_request, tdee_kcal)
         self._run_fueling_stage(training_session)
-        self._run_periodization_stage(validated_request, training_session)
-        return self._run_assembly_stage()
+        self._run_periodization_stage(validated_request, training_session, macro_targets)
+        return self._run_assembly_stage(tdee_kcal=tdee_kcal, macro_targets=macro_targets)
 
-    def _run_energy_stage(self, request: MealPlanRequest) -> None:
-        """Placeholder energy-stage hook; wired in subsequent Phase 8 stories."""
-        _ = request
+    def _run_energy_stage(self, request: MealPlanRequest) -> float:
+        """Return canonical TDEE using typed user-profile input."""
+        profile = _user_profile_from_request(request)
+        return calculate_tdee_kcal(profile)
 
-    def _run_macro_stage(self, request: MealPlanRequest) -> None:
-        """Placeholder macro-stage hook; wired in subsequent Phase 8 stories."""
-        _ = request
+    def _run_macro_stage(
+        self,
+        request: MealPlanRequest,
+        tdee_kcal: float,
+    ) -> MacroTargets:
+        """Return canonical macro targets derived from request carb mode and TDEE."""
+        profile = _user_profile_from_request(request)
+        return calculate_macro_targets(
+            profile=profile,
+            carb_mode=request.carb_mode,
+            tdee_kcal=tdee_kcal,
+        )
 
     def _run_fueling_stage(self, training_session: ValidatedTrainingSession) -> None:
         """Placeholder fueling-stage hook using normalized training context."""
@@ -63,12 +74,19 @@ class MealPlanCalculationService:
         self,
         request: MealPlanRequest,
         training_session: ValidatedTrainingSession,
+        macro_targets: MacroTargets,
     ) -> None:
         """Placeholder periodization-stage hook using normalized training context."""
-        _ = request, training_session
+        _ = request, training_session, macro_targets
 
-    def _run_assembly_stage(self) -> MealPlanResponse:
+    def _run_assembly_stage(
+        self,
+        *,
+        tdee_kcal: float,
+        macro_targets: MacroTargets,
+    ) -> MealPlanResponse:
         """Placeholder assembly-stage hook; wired in subsequent Phase 8 stories."""
+        _ = tdee_kcal, macro_targets
         return MealPlanResponse.placeholder()
 
 
@@ -83,6 +101,16 @@ def _validated_training_session(request: MealPlanRequest) -> ValidatedTrainingSe
             cast(dict[int | str, object], request.training_session.zones_minutes)
         ),
         training_before_meal=request.training_session.training_before_meal,
+    )
+
+
+def _user_profile_from_request(request: MealPlanRequest) -> UserProfile:
+    return UserProfile(
+        age=request.age,
+        gender=request.gender,
+        height_cm=request.height_cm,
+        weight_kg=request.weight_kg,
+        activity_level=request.activity_level,
     )
 
 

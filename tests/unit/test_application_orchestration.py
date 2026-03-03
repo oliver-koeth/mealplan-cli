@@ -13,6 +13,8 @@ from mealplan.application.orchestration import (
     ValidatedTrainingSession,
     validate_meal_plan_flow,
 )
+from mealplan.domain.enums import CarbMode
+from mealplan.domain.model import MacroTargets, UserProfile
 from mealplan.shared.errors import DomainRuleError, ValidationError
 from mealplan.shared.exit_codes import ExitCode, map_exception_to_exit_code
 
@@ -59,20 +61,28 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
         steps.append("validate")
         return request
 
-    def track_energy(_: MealPlanRequest) -> None:
+    def track_energy(_: MealPlanRequest) -> float:
         steps.append("energy")
+        return 1.0
 
-    def track_macro(_: MealPlanRequest) -> None:
+    def track_macro(_: MealPlanRequest, __: float) -> MacroTargets:
         steps.append("macro")
+        return MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0)
 
     def track_fueling(_: ValidatedTrainingSession) -> None:
         steps.append("fueling")
 
-    def track_periodization(_: MealPlanRequest, __: ValidatedTrainingSession) -> None:
+    def track_periodization(
+        _: MealPlanRequest,
+        __: ValidatedTrainingSession,
+        ___: MacroTargets,
+    ) -> None:
         steps.append("periodization")
 
-    def track_assembly() -> MealPlanResponse:
+    def track_assembly(*, tdee_kcal: float, macro_targets: MacroTargets) -> MealPlanResponse:
         steps.append("assembly")
+        assert tdee_kcal == 1.0
+        assert macro_targets == MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0)
         return MealPlanResponse.placeholder()
 
     monkeypatch.setattr(
@@ -102,20 +112,27 @@ def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
     request = MealPlanRequest.model_validate(payload)
     service = MealPlanCalculationService()
 
-    def track_energy(_: MealPlanRequest) -> None:
+    def track_energy(_: MealPlanRequest) -> float:
         steps.append("energy")
+        return 1.0
 
-    def track_macro(_: MealPlanRequest) -> None:
+    def track_macro(_: MealPlanRequest, __: float) -> MacroTargets:
         steps.append("macro")
+        return MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0)
 
     def track_fueling(_: ValidatedTrainingSession) -> None:
         steps.append("fueling")
 
-    def track_periodization(_: MealPlanRequest, __: ValidatedTrainingSession) -> None:
+    def track_periodization(
+        _: MealPlanRequest,
+        __: ValidatedTrainingSession,
+        ___: MacroTargets,
+    ) -> None:
         steps.append("periodization")
 
-    def track_assembly() -> MealPlanResponse:
+    def track_assembly(*, tdee_kcal: float, macro_targets: MacroTargets) -> MealPlanResponse:
         steps.append("assembly")
+        _ = tdee_kcal, macro_targets
         return MealPlanResponse.placeholder()
 
     monkeypatch.setattr(service, "_run_energy_stage", track_energy)
@@ -143,8 +160,12 @@ def test_meal_plan_calculation_service_uses_normalized_training_for_fueling_and_
     service = MealPlanCalculationService()
     normalized_sessions: list[ValidatedTrainingSession] = []
 
-    monkeypatch.setattr(service, "_run_energy_stage", lambda _: None)
-    monkeypatch.setattr(service, "_run_macro_stage", lambda _: None)
+    monkeypatch.setattr(service, "_run_energy_stage", lambda _: 1.0)
+    monkeypatch.setattr(
+        service,
+        "_run_macro_stage",
+        lambda _, __: MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0),
+    )
     monkeypatch.setattr(
         service,
         "_run_fueling_stage",
@@ -153,15 +174,115 @@ def test_meal_plan_calculation_service_uses_normalized_training_for_fueling_and_
     monkeypatch.setattr(
         service,
         "_run_periodization_stage",
-        lambda _, training_session: normalized_sessions.append(training_session),
+        lambda _, training_session, __: normalized_sessions.append(training_session),
     )
-    monkeypatch.setattr(service, "_run_assembly_stage", MealPlanResponse.placeholder)
+    monkeypatch.setattr(
+        service,
+        "_run_assembly_stage",
+        lambda *, tdee_kcal, macro_targets: MealPlanResponse.placeholder(),
+    )
 
     service.calculate(request)
 
     assert len(normalized_sessions) == 2
     for session in normalized_sessions:
         assert session.zones_minutes == {1: 0, 2: 40, 3: 0, 4: 0, 5: 0}
+
+
+def test_meal_plan_calculation_service_builds_user_profile_and_calls_energy_macro_services(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Energy/macro orchestration should call canonical domain services with typed inputs."""
+    request = MealPlanRequest.model_validate(meal_plan_request_payload)
+    service = MealPlanCalculationService()
+    captured: dict[str, object] = {}
+
+    def fake_calculate_tdee_kcal(profile: UserProfile) -> float:
+        captured["tdee_profile"] = profile
+        return 2451.123456
+
+    def fake_calculate_macro_targets(
+        *,
+        profile: UserProfile,
+        carb_mode: CarbMode,
+        tdee_kcal: float,
+    ) -> MacroTargets:
+        captured["macro_profile"] = profile
+        captured["macro_mode"] = carb_mode
+        captured["macro_tdee"] = tdee_kcal
+        return MacroTargets(protein_g=123.456789, carbs_g=234.567891, fat_g=56.789123)
+
+    monkeypatch.setattr(
+        "mealplan.application.orchestration.calculate_tdee_kcal",
+        fake_calculate_tdee_kcal,
+    )
+    monkeypatch.setattr(
+        "mealplan.application.orchestration.calculate_macro_targets",
+        fake_calculate_macro_targets,
+    )
+    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: None)
+    monkeypatch.setattr(service, "_run_periodization_stage", lambda _, __, ___: None)
+    monkeypatch.setattr(
+        service,
+        "_run_assembly_stage",
+        lambda *, tdee_kcal, macro_targets: MealPlanResponse.placeholder(),
+    )
+
+    service.calculate(request)
+
+    expected_profile = UserProfile(
+        age=request.age,
+        gender=request.gender,
+        height_cm=request.height_cm,
+        weight_kg=request.weight_kg,
+        activity_level=request.activity_level,
+    )
+    assert captured["tdee_profile"] == expected_profile
+    assert captured["macro_profile"] == expected_profile
+    assert captured["macro_mode"] is request.carb_mode
+    assert captured["macro_tdee"] == 2451.123456
+
+
+def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_downstream(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Energy/macro stage outputs should be forwarded downstream without application rounding."""
+    request = MealPlanRequest.model_validate(meal_plan_request_payload)
+    service = MealPlanCalculationService()
+    captured: dict[str, object] = {}
+    tdee_value = 2543.987654321
+    macro_value = MacroTargets(
+        protein_g=143.123456789,
+        carbs_g=287.987654321,
+        fat_g=61.555555555,
+    )
+
+    monkeypatch.setattr(service, "_run_energy_stage", lambda _: tdee_value)
+    monkeypatch.setattr(service, "_run_macro_stage", lambda _, __: macro_value)
+    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: None)
+
+    def capture_periodization(
+        _: MealPlanRequest,
+        __: ValidatedTrainingSession,
+        macro_targets: MacroTargets,
+    ) -> None:
+        captured["periodization_macro"] = macro_targets
+
+    def capture_assembly(*, tdee_kcal: float, macro_targets: MacroTargets) -> MealPlanResponse:
+        captured["assembly_tdee"] = tdee_kcal
+        captured["assembly_macro"] = macro_targets
+        return MealPlanResponse.placeholder()
+
+    monkeypatch.setattr(service, "_run_periodization_stage", capture_periodization)
+    monkeypatch.setattr(service, "_run_assembly_stage", capture_assembly)
+
+    service.calculate(request)
+
+    assert captured["periodization_macro"] == macro_value
+    assert captured["assembly_tdee"] == tdee_value
+    assert captured["assembly_macro"] == macro_value
 
 
 def test_validate_meal_plan_flow_runs_schema_semantic_then_domain_checks(
