@@ -1,0 +1,45 @@
+{
+  "TDEE": 1809.0,
+  "carbs_g": 216.0,
+  "fat_g": 57.0,
+  "meals": [
+    {
+      "carbs_g": 36.0,
+      "fat_g": 9.5,
+      "meal": "breakfast",
+      "protein_g": 18.0
+    },
+    {
+      "carbs_g": 36.0,
+      "fat_g": 9.5,
+      "meal": "morning-snack",
+      "protein_g": 18.0
+    },
+    {
+      "carbs_g": 36.0,
+      "fat_g": 9.5,
+      "meal": "lunch",
+      "protein_g": 18.0
+    },
+    {
+      "carbs_g": 36.0,
+      "fat_g": 9.5,
+      "meal": "afternoon-snack",
+      "protein_g": 18.0
+    },
+    {
+      "carbs_g": 36.0,
+      "fat_g": 9.5,
+      "meal": "dinner",
+      "protein_g": 18.0
+    },
+    {
+      "carbs_g": 36.0,
+      "fat_g": 9.5,
+      "meal": "evening-snack",
+      "protein_g": 18.0
+    }
+  ],
+  "protein_g": 108.0,
+  "training_carbs_g": 0.0
+}

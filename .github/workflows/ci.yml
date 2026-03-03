@@ -28,5 +28,63 @@ jobs:
       - name: MyPy
         run: uv run mypy --strict src
 
-      - name: Pytest
-        run: uv run pytest
+      - name: Pytest golden snapshot suites
+        run: uv run pytest tests/golden
+
+      - name: Pytest non-golden suites
+        run: uv run pytest --ignore=tests/golden
+
+  package-build:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Sync dependencies
+        run: uv sync --dev
+
+      - name: Verify package artifacts
+        run: uv run python scripts/checks/verify_package_artifacts.py
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mealplan-dist
+          path: dist/*
+          if-no-files-found: error
+
+  install-smoke:
+    needs: package-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Sync dependencies
+        run: uv sync --dev
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mealplan-dist
+          path: dist
+
+      - name: Verify install workflow
+        run: uv run python scripts/checks/verify_install_workflow.py

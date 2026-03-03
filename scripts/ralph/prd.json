@@ -1,17 +1,18 @@
 {
   "project": "mealplan",
-  "branchName": "ralph/phase-9-cli-implementation",
-  "description": "Phase 9 CLI implementation for mealplan: add production calculation command, format handling, debug behavior, and canonical exit-code mapping.",
+  "branchName": "ralph/phase-10-golden-tests-packaging-release-readiness",
+  "description": "Phase 10 for mealplan: add CLI and application golden regression tests, packaging/installability verification, and release-readiness checklist plus CI gates.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add production mealplan calculation command",
-      "description": "As a CLI user, I want a single typed calculation command so I can run meal plan computation end-to-end from terminal inputs.",
+      "title": "Add CLI golden snapshot regression suite",
+      "description": "As a maintainer, I want golden snapshots for critical CLI outputs so user-facing behavior regressions are caught immediately.",
       "acceptanceCriteria": [
-        "Add or extend root `mealplan` CLI command path in `src/mealplan/cli/main.py` to run production calculation flow.",
-        "Canonical flags are explicitly supported: `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`, `--training-zones`, `--training-before`, `--format`, `--debug`.",
-        "CLI maps parsed args to MealPlanRequest payload or DTO expected by application layer.",
-        "Existing probe command remains available and unchanged in behavior.",
+        "Use `pytest` with file-based golden fixtures stored under `tests/golden/cli/` (no additional snapshot plugin required).",
+        "Add golden tests for explicit CLI scenarios: successful default JSON output, successful `--format text`, successful `--format table`.",
+        "Include golden failure-mode scenarios: missing required option (`--age`), invalid enum value (`--gender invalid`), invalid format value (`--format xml`), invalid training-zones JSON, concise default runtime error output, and debug runtime traceback output.",
+        "Snapshots assert canonical structure and ordering for stable CLI behavior.",
+        "Snapshot tests are deterministic across repeated local and CI runs.",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -21,13 +22,13 @@
     },
     {
       "id": "US-002",
-      "title": "Implement strict typed flag and option parsing",
-      "description": "As a maintainer, I want CLI options strongly typed so invalid values fail early with deterministic errors.",
+      "title": "Add application golden snapshot regression suite",
+      "description": "As a maintainer, I want golden snapshots of application responses so orchestration and domain regressions are detected independently from CLI formatting.",
       "acceptanceCriteria": [
-        "Typer option types and enum choices are explicitly enforced.",
-        "Required options fail with deterministic CLI validation messaging and validation-class error mapping.",
-        "Optional training fields are parsed without business-rule duplication in CLI.",
-        "Tests verify typed parsing failures for representative invalid inputs.",
+        "Use file-based golden fixtures under `tests/golden/application/` for `MealPlanCalculationService` outputs.",
+        "Cover explicit service scenarios: periodized day with training session, non-periodized day with training session, and omitted training session (`training_session=None`).",
+        "Snapshots validate canonical meal ordering and response shape consistency.",
+        "Application snapshot suite runs without CLI rendering dependencies.",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -37,14 +38,13 @@
     },
     {
       "id": "US-003",
-      "title": "Parse training-zones as JSON string only",
-      "description": "As a CLI user, I want predictable training-zones input behavior so orchestration receives canonical structured data.",
+      "title": "Implement hybrid snapshot tolerance policy",
+      "description": "As a test author, I want strict structural snapshots and explicit numeric tolerance handling so tests remain stable without masking real regressions.",
       "acceptanceCriteria": [
-        "training-zones accepts JSON string input only via `--training-zones`.",
-        "Invalid JSON is rejected deterministically and mapped as validation-class failure to ExitCode.VALIDATION 2.",
-        "CLI does not support file-path or shorthand parsing forms in Phase 9.",
-        "Parsed zones structure is passed as request payload field without CLI business logic.",
-        "Tests verify valid JSON parsing and invalid-JSON rejection.",
+        "Define and document strict-vs-tolerant fields in a contributor-facing section in `README.md` or `docs/REQUIREMENTS.md`.",
+        "Enforce strict checks for payload keys, canonical ordering, and string or enum values.",
+        "Apply tolerance only to numeric macro and energy fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, and meal macro grams) using absolute tolerance `0.01`.",
+        "Centralize tolerance constants in one test helper module (for example `tests/golden/helpers.py`) and reuse it across CLI and application golden tests.",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -54,13 +54,13 @@
     },
     {
       "id": "US-004",
-      "title": "Wire CLI to MealPlanCalculationService",
-      "description": "As an implementation owner, I want CLI handlers to call the application service directly so CLI remains a thin boundary adapter.",
+      "title": "Verify package artifact builds",
+      "description": "As a release owner, I want reproducible package build artifacts so the project can be distributed safely.",
       "acceptanceCriteria": [
-        "CLI instantiates or calls MealPlanCalculationService.calculate(...)",
-        "CLI does not directly invoke domain calculators or services.",
-        "Returned MealPlanResponse is used as the single source for output formatting.",
-        "Tests verify command path calls application service and returns deterministic output.",
+        "Add automated build verification for both source distribution (`sdist`) and wheel artifacts.",
+        "Build outputs are generated via `uv build` and placed in `dist/`.",
+        "Generated artifacts include expected package metadata and CLI entry points.",
+        "Packaging build checks are included in CI.",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -70,15 +70,13 @@
     },
     {
       "id": "US-005",
-      "title": "Implement format json text table",
-      "description": "As a CLI user, I want multiple output formats so I can use machine-readable output by default and human-readable output when needed.",
+      "title": "Verify pip-installable and runnable workflow",
+      "description": "As a user, I want a clean install-and-run path so I can use the tool outside the source tree.",
       "acceptanceCriteria": [
-        "Add format option with allowed values json, text, table.",
-        "Default output format is json.",
-        "JSON output stays stable and deterministic for automation use.",
-        "Text and table outputs are derived from MealPlanResponse without modifying core response values.",
-        "Text and table outputs include top-level fields TDEE, training_carbs_g, protein_g, carbs_g, fat_g and all six canonical meals in canonical order.",
-        "Tests verify format selection behavior and default JSON output.",
+        "Document and test isolated install workflow: create fresh venv, install `dist/*.whl` via pip, then execute smoke commands.",
+        "Verify installed command invocation for both `mealplan --help` and `python -m mealplan --help`.",
+        "Include at least one post-install smoke command validation.",
+        "Installability checks are automated in CI.",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -88,14 +86,13 @@
     },
     {
       "id": "US-006",
-      "title": "Implement debug error behavior",
-      "description": "As a CLI user, I want concise errors by default and deeper diagnostics when requested so troubleshooting is possible without noisy normal output.",
+      "title": "Add release checklist documentation",
+      "description": "As a maintainer, I want a concrete release checklist so each release candidate is validated consistently.",
       "acceptanceCriteria": [
-        "Default error output is concise and user-facing in a single-line style on stderr.",
-        "With debug enabled, include traceback and details on stderr for the same error.",
-        "Successful command output remains on stdout.",
-        "Debug mode does not change successful command output semantics.",
-        "Tests verify default versus debug error-output differences.",
+        "Add a release-readiness checklist document with pre-release gates.",
+        "Checklist includes quality gates, snapshot pass criteria, packaging checks, and install smoke checks.",
+        "Checklist includes versioning and release-note expectations for first usable release.",
+        "Checklist references exact commands and expected outcomes.",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -105,15 +102,14 @@
     },
     {
       "id": "US-007",
-      "title": "Map exceptions to canonical exit codes",
-      "description": "As an integration user, I want stable process exit codes so automation can handle failures deterministically.",
+      "title": "Add CI automation for release-readiness gates",
+      "description": "As a maintainer, I want CI automation for snapshot, packaging, and install smoke checks so regressions are blocked before merge.",
       "acceptanceCriteria": [
-        "CLI maps invalid typed flag parsing and invalid training-zones JSON to validation-class failures with ExitCode.VALIDATION 2.",
-        "CLI maps ValidationError to ExitCode.VALIDATION 2.",
-        "CLI maps DomainRuleError to ExitCode.DOMAIN 3.",
-        "CLI maps unknown runtime errors to ExitCode.RUNTIME 4.",
-        "Success path exits with ExitCode.OK 0.",
-        "Tests verify each mapped code via representative failure scenarios.",
+        "CI runs CLI and application golden snapshot suites.",
+        "CI builds both `sdist` and wheel artifacts.",
+        "CI runs install-and-smoke checks in an isolated environment.",
+        "CI is structured into separate jobs: quality/tests, packaging build, and install-smoke (with explicit dependencies between jobs).",
+        "CI failure diagnostics clearly identify snapshot drift, packaging failures, and install failures.",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -123,34 +119,17 @@
     },
     {
       "id": "US-008",
-      "title": "Add CLI integration test matrix for valid and failure modes",
-      "description": "As a maintainer, I want CLI-level end-to-end coverage so regressions in command wiring, formatting, and exit behavior are caught quickly.",
+      "title": "Update docs and examples for release-ready usage",
+      "description": "As a user, I want up-to-date usage and packaging docs so installation and command execution are unambiguous.",
       "acceptanceCriteria": [
-        "Add representative success tests for default JSON output, explicit text format, and explicit table format.",
-        "Add representative failure tests for invalid typed flag value, invalid training-zones JSON, and propagated validation, domain, and runtime errors with exit code checks.",
-        "Add tests for debug traceback behavior on errors.",
-        "Canonical CLI test targets are `tests/cli/test_help.py`, `tests/cli/test_error_handling.py`, `tests/cli/test_probe.py`, plus dedicated calculation-command coverage in `tests/cli/test_calculate.py`.",
-        "Tests run through CLI command invocation path using Typer runner or subprocess, not direct service call.",
+        "Update README and docs with packaged installation and execution paths.",
+        "Document deterministic-output and golden-testing expectations for contributors.",
+        "Add or refresh representative release-context CLI usage examples.",
+        "Ensure docs align with CI gates and release checklist workflow.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-009",
-      "title": "Document Phase 9 CLI contract and usage",
-      "description": "As a contributor, I want clear CLI docs for flags, formats, debug behavior, and exit codes so users and future phases rely on stable command behavior.",
-      "acceptanceCriteria": [
-        "Update docs/ARCHITECTURE.md with finalized CLI boundary responsibilities and error and format handling notes.",
-        "Update docs/REQUIREMENTS.md with CLI usage clarifications for format, debug, and strict JSON training-zones input.",
-        "Update README or usage docs with concrete command examples for json, text, and table outputs.",
-        "Document exit-code mapping and debug behavior expectations.",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 9,
       "passes": true,
       "notes": ""
     }
