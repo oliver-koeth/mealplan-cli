@@ -5,6 +5,30 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import pytest
+
+from mealplan.shared.errors import DomainRuleError, ValidationError
+
+
+def _required_calculate_args() -> list[str]:
+    return [
+        "calculate",
+        "--age",
+        "40",
+        "--gender",
+        "male",
+        "--height",
+        "180",
+        "--weight",
+        "75",
+        "--activity",
+        "medium",
+        "--carbs",
+        "low",
+        "--training-tomorrow",
+        "high",
+    ]
+
 
 def test_probe_validation_error_returns_validation_exit_code() -> None:
     result = subprocess.run(
@@ -42,24 +66,70 @@ def test_probe_runtime_error_returns_runtime_exit_code() -> None:
     assert "Error: simulated runtime failure" in result.stderr
 
 
-def _required_calculate_args() -> list[str]:
-    return [
-        "calculate",
-        "--age",
-        "40",
-        "--gender",
-        "male",
-        "--height",
-        "180",
-        "--weight",
-        "75",
-        "--activity",
-        "medium",
-        "--carbs",
-        "low",
-        "--training-tomorrow",
-        "high",
-    ]
+def test_calculate_validation_error_maps_to_validation_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from mealplan.cli.main import main
+
+    class FakeCalculationService:
+        def calculate(self, request: object) -> object:
+            _ = request
+            raise ValidationError("simulated validation failure")
+
+    monkeypatch.setattr("mealplan.cli.main.MealPlanCalculationService", FakeCalculationService)
+    monkeypatch.setattr(sys, "argv", ["mealplan", *_required_calculate_args()])
+
+    with pytest.raises(SystemExit) as error_info:
+        main()
+
+    assert error_info.value.code == 2
+    stderr = capsys.readouterr().err
+    assert "Error: simulated validation failure" in stderr
+
+
+def test_calculate_domain_error_maps_to_domain_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from mealplan.cli.main import main
+
+    class FakeCalculationService:
+        def calculate(self, request: object) -> object:
+            _ = request
+            raise DomainRuleError("simulated domain rule failure")
+
+    monkeypatch.setattr("mealplan.cli.main.MealPlanCalculationService", FakeCalculationService)
+    monkeypatch.setattr(sys, "argv", ["mealplan", *_required_calculate_args()])
+
+    with pytest.raises(SystemExit) as error_info:
+        main()
+
+    assert error_info.value.code == 3
+    stderr = capsys.readouterr().err
+    assert "Error: simulated domain rule failure" in stderr
+
+
+def test_calculate_runtime_error_maps_to_runtime_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from mealplan.cli.main import main
+
+    class FakeCalculationService:
+        def calculate(self, request: object) -> object:
+            _ = request
+            raise RuntimeError("simulated runtime failure")
+
+    monkeypatch.setattr("mealplan.cli.main.MealPlanCalculationService", FakeCalculationService)
+    monkeypatch.setattr(sys, "argv", ["mealplan", *_required_calculate_args()])
+
+    with pytest.raises(SystemExit) as error_info:
+        main()
+
+    assert error_info.value.code == 4
+    stderr = capsys.readouterr().err
+    assert "Error: simulated runtime failure" in stderr
 
 
 def test_calculate_error_output_is_concise_by_default() -> None:

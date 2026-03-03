@@ -89,6 +89,7 @@ When in doubt, update those source docs instead of expanding this file.
 60. For CLI boundary-wiring tests, prefer `typer.testing.CliRunner` with `monkeypatch` on `mealplan.cli.main.MealPlanCalculationService` so tests can assert command-to-service delegation and response-driven output without subprocess indirection.
 61. For CLI multi-format output (`json`, `text`, `table`), render from `MealPlanResponse.model_dump(mode="json")` and iterate meals via `CANONICAL_MEAL_ORDER` so human-readable formats stay contract-aligned and deterministic.
 62. Keep CLI debug behavior centralized in `main()` exception handling: default stderr remains concise (`Error: ...`), and traceback emission is enabled only when command-level debug mode is explicitly set.
+63. For CLI exit-code mapping tests that must exercise `main()` exception handling (not just Typer command functions), monkeypatch `sys.argv` with full command args and monkeypatch `mealplan.cli.main.MealPlanCalculationService` to raise representative exceptions, then assert `SystemExit.code`.
 
 ## Ralph Runner
 

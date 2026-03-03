@@ -6,6 +6,7 @@
 - For CLI boundary-wiring checks, use `typer.testing.CliRunner` plus `monkeypatch` of `mealplan.cli.main.MealPlanCalculationService` to verify delegation and response-driven output in-process.
 - For CLI output-format support (`json`, `text`, `table`), derive human-readable renderers from `MealPlanResponse.model_dump(mode="json")` and iterate meals using `CANONICAL_MEAL_ORDER` to keep all formats deterministic and contract-aligned.
 - For CLI debug-mode behavior, keep concise single-line stderr errors as the default path and print full tracebacks only when command-level debug mode is explicitly enabled, preserving stdout success output semantics.
+- For CLI exit-code mapping tests that must exercise `main()` handler logic, monkeypatch `sys.argv` and `mealplan.cli.main.MealPlanCalculationService`, call `main()`, and assert `SystemExit.code` plus stable stderr fragments.
 
 # Ralph Progress Log
 Started: Tue Mar  3 18:42:07 CET 2026
@@ -106,5 +107,20 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: Preserve concise error UX in the shared `main()` exception path and gate traceback emission behind explicit debug state to avoid noisy default stderr output.
   - Gotchas encountered: Debug toggles implemented as module state must be set per command invocation so in-process test runs do not accidentally inherit prior debug behavior.
-  - Useful context: Invalid CLI parse-time errors (Click/Typer) still bypass custom exception mapping and remain validation exit code `2`; debug traceback handling applies to runtime exceptions raised within command execution.
+- Useful context: Invalid CLI parse-time errors (Click/Typer) still bypass custom exception mapping and remain validation exit code `2`; debug traceback handling applies to runtime exceptions raised within command execution.
+---
+## [2026-03-03 19:00:01 CET] - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Added `mealplan calculate` exit-code mapping coverage for application-level exceptions by invoking CLI `main()` with patched `sys.argv` and patched calculation service failures.
+- Added representative tests proving `ValidationError -> 2`, `DomainRuleError -> 3`, and unknown runtime errors -> `4` for the calculate command path, while preserving existing parse-time and invalid-JSON validation checks.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - AGENT.md
+  - tests/cli/test_error_handling.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: To validate CLI top-level exception mapping deterministically, call `main()` directly with patched argv and service behavior rather than only invoking Typer app objects.
+  - Gotchas encountered: `pytest` may not be globally installed in shell; project checks should run through `make quality` (`uv run ...`) for consistent tooling.
+  - Useful context: Parse-time Click/Typer failures still return validation exit code `2` before `main()` mapping, so both parse-path and runtime-path tests are needed for full exit-code contract coverage.
 ---
