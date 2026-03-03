@@ -1,0 +1,5 @@
+{
+  "exit_code": 2,
+  "stderr": "Error: training_zones: invalid JSON: Expecting value\n",
+  "stdout": ""
+}

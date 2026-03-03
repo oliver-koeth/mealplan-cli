@@ -1,158 +1,31 @@
-## Codebase Patterns
-- Keep Typer option declarations as module-level constants (for example `FOO_OPTION = typer.Option(...)`) and reuse them in command signatures to satisfy Ruff `B008`.
-- For CLI integration tests of `mealplan calculate`, use service-valid deterministic input combinations; some payloads can intentionally fail with domain reconciliation errors and should be reserved for error-path coverage.
-- For Typer options with bounded allowed values, use `Literal[...]` (or enums) in command signatures so invalid choices fail during CLI parsing with canonical validation exit code `2`.
-- For CLI invalid-JSON tests (for example `--training-zones`), assert a stable stderr prefix (such as `Error: training_zones: invalid JSON`) instead of decoder-specific details that may vary by Python/JSON parser version.
-- For CLI boundary-wiring checks, use `typer.testing.CliRunner` plus `monkeypatch` of `mealplan.cli.main.MealPlanCalculationService` to verify delegation and response-driven output in-process.
-- For CLI output-format support (`json`, `text`, `table`), derive human-readable renderers from `MealPlanResponse.model_dump(mode="json")` and iterate meals using `CANONICAL_MEAL_ORDER` to keep all formats deterministic and contract-aligned.
-- For CLI debug-mode behavior, keep concise single-line stderr errors as the default path and print full tracebacks only when command-level debug mode is explicitly enabled, preserving stdout success output semantics.
-- For CLI exit-code mapping tests that must exercise `main()` handler logic, monkeypatch `sys.argv` and `mealplan.cli.main.MealPlanCalculationService`, call `main()`, and assert `SystemExit.code` plus stable stderr fragments.
-- When CLI behavior contracts change, keep documentation synchronized in the same iteration across `docs/ARCHITECTURE.md` (boundary and error strategy), `docs/REQUIREMENTS.md` (contract wording), and `README.md` (usage examples).
-
 # Ralph Progress Log
-Started: Tue Mar  3 18:42:07 CET 2026
+Started: Tue Mar  3 20:39:20 CET 2026
+
+## Codebase Patterns
+- For CLI golden regression tests, snapshot a canonical JSON envelope (`exit_code`, `stderr`, `stdout`) and normalize stderr (ANSI stripping plus traceback placeholder collapsing) to keep fixtures deterministic across local/CI environments.
+
 ---
-## [2026-03-03 18:45:50 CET] - US-001
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
-- Implemented a new `mealplan calculate` CLI command with canonical flags: `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`, `--training-zones`, `--training-before`, `--format`, `--debug`.
-- Added CLI-to-application request mapping (`activity` -> `activity_level`, `carbs` -> `carb_mode`, training inputs -> `training_session`) and wired command execution to `MealPlanCalculationService.calculate(...)`.
-- Added JSON-string parsing for `--training-zones` into request payload and mapped invalid JSON to `ValidationError`, while keeping `probe` command behavior unchanged.
-- Added CLI integration coverage for the calculation command’s canonical flag path and JSON response shape.
-- Files changed:
-  - src/mealplan/cli/main.py
-  - tests/cli/test_calculate.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: Typer option factories should be declared once at module scope to avoid Ruff `B008` in strict lint mode.
-  - Gotchas encountered: Some seemingly valid calculation inputs produce expected domain reconciliation failures (`ExitCode.DOMAIN`), so happy-path CLI tests must use known service-valid input sets.
-- Useful context: Current `calculate` command always emits JSON while accepting `--format`/`--debug` flags; later stories can evolve behavior without changing flag contract.
----
-## [2026-03-03 18:48:39 CET] - US-002
+## 2026-03-03 20:51:05 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
-- Enforced strict typed parsing for `--format` by annotating the CLI parameter as `Literal["json", "text", "table"]`, ensuring invalid values fail at the parser boundary.
-- Added CLI integration tests for representative strict parsing failures and deterministic validation behavior:
-  - missing required option (`--age`)
-  - invalid enum option (`--gender`)
-  - invalid bounded option (`--format`)
-  - optional training field passthrough to application semantic validation (no duplicated CLI business rule checks)
+- Implemented file-based CLI golden snapshot regression suite under `tests/golden/cli/` with required success and failure scenarios, including runtime default and debug-traceback behavior.
+- Added deterministic snapshot normalization in tests (newline normalization, ANSI stripping, canonical traceback collapsing) to keep outputs stable across runs.
+- Updated backlog status to mark `US-001` as passing.
 - Files changed:
   - AGENT.md
-  - src/mealplan/cli/main.py
-  - tests/cli/test_calculate.py
   - scripts/ralph/prd.json
   - scripts/ralph/progress.txt
+  - tests/golden/test_cli_golden.py
+  - tests/golden/cli/success_default_json.golden.json
+  - tests/golden/cli/success_text_format.golden.json
+  - tests/golden/cli/success_table_format.golden.json
+  - tests/golden/cli/failure_missing_age.golden.json
+  - tests/golden/cli/failure_invalid_gender_enum.golden.json
+  - tests/golden/cli/failure_invalid_output_format.golden.json
+  - tests/golden/cli/failure_invalid_training_zones_json.golden.json
+  - tests/golden/cli/failure_runtime_default.golden.json
+  - tests/golden/cli/failure_runtime_debug.golden.json
 - **Learnings for future iterations:**
-  - Patterns discovered: `Literal[...]` annotations integrate cleanly with Typer for strict option-choice enforcement without adding custom parser code.
-  - Gotchas encountered: Typer parser errors are emitted by Click before `main()` exception mapping, but they still produce canonical validation-class exit code `2`; tests should assert stable stderr fragments instead of full formatting blocks.
-  - Useful context: Application-level training semantics (for example requiring `training_before_meal` when zone minutes are non-zero) should remain in application validation and be verified via CLI integration tests.
----
-## [2026-03-03 18:50:13 CET] - US-003
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
-- Added CLI integration coverage for strict `--training-zones` JSON-string handling in `mealplan calculate`.
-- Added a success-path test proving JSON-string zones payload is accepted and parsed through the CLI boundary.
-- Added a failure-path test proving malformed JSON is rejected deterministically as validation-class failure with exit code `2`.
-- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
-- Files changed:
-  - tests/cli/test_calculate.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: For CLI invalid-JSON cases, assert stable error prefixes and exit codes rather than full JSON decoder diagnostics.
-  - Gotchas encountered: The `training_before_meal` semantic dependency remains application-owned; for JSON-parsing-only success tests, use all-zero zones to avoid triggering semantic validation failures.
-- Useful context: `--training-zones` is intentionally treated as raw JSON string input only in Phase 9; non-JSON strings naturally fail through the same validation path.
----
-## [2026-03-03 18:52:26 CET] - US-004
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
-- Added CLI in-process boundary tests proving `mealplan calculate` delegates to `MealPlanCalculationService.calculate(...)` through Typer command invocation.
-- Added deterministic output-path coverage asserting CLI stdout is serialized directly from the `MealPlanResponse` returned by the application service.
-- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
-- Files changed:
-  - AGENT.md
-  - tests/cli/test_calculate.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: For command-boundary wiring tests, `CliRunner` + service monkeypatching is simpler and more deterministic than subprocess-based assertions.
-  - Gotchas encountered: Keep fake service return values schema-valid and in canonical meal order so tests validate CLI wiring, not contract/order invariants.
-  - Useful context: Existing subprocess CLI tests remain useful for real exit-code behavior, while in-process `CliRunner` tests cover delegation semantics precisely.
----
-## [2026-03-03 18:55:28 CET] - US-005
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
-- Implemented `--format` rendering behavior for `mealplan calculate` with supported values `json`, `text`, and `table`, keeping `json` as the default output format.
-- Added dedicated CLI render helpers for text/table output that include canonical top-level fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) and all six canonical meals in canonical order.
-- Added integration coverage for default JSON output plus explicit text and table format selection behavior.
-- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
-- Files changed:
-  - AGENT.md
-  - src/mealplan/cli/main.py
-  - tests/cli/test_calculate.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: For multi-format CLI output, render from `MealPlanResponse.model_dump(mode="json")` so machine and human formats stay aligned with the response contract.
-  - Gotchas encountered: Keep meal-row assertions keyed to `CANONICAL_MEAL_ORDER` in tests; naive string-split indexing can misread markdown-table rows.
-- Useful context: `--format json` and omitted `--format` now both produce the same stable JSON payload path for automation consumers.
----
-## [2026-03-03 18:57:29 CET] - US-006
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
-- Implemented `--debug` error behavior for `mealplan calculate` by threading command debug state to the CLI top-level exception handler.
-- Default failures now remain concise single-line stderr messages, while debug-enabled failures additionally print full Python traceback details to stderr for the same underlying error.
-- Added CLI subprocess tests validating stderr differences between default and debug error modes using deterministic invalid `--training-zones` JSON input.
-- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
-- Files changed:
-  - src/mealplan/cli/main.py
-  - tests/cli/test_error_handling.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: Preserve concise error UX in the shared `main()` exception path and gate traceback emission behind explicit debug state to avoid noisy default stderr output.
-  - Gotchas encountered: Debug toggles implemented as module state must be set per command invocation so in-process test runs do not accidentally inherit prior debug behavior.
-- Useful context: Invalid CLI parse-time errors (Click/Typer) still bypass custom exception mapping and remain validation exit code `2`; debug traceback handling applies to runtime exceptions raised within command execution.
----
-## [2026-03-03 19:00:01 CET] - US-007
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
-- Added `mealplan calculate` exit-code mapping coverage for application-level exceptions by invoking CLI `main()` with patched `sys.argv` and patched calculation service failures.
-- Added representative tests proving `ValidationError -> 2`, `DomainRuleError -> 3`, and unknown runtime errors -> `4` for the calculate command path, while preserving existing parse-time and invalid-JSON validation checks.
-- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
-- Files changed:
-  - AGENT.md
-  - tests/cli/test_error_handling.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: To validate CLI top-level exception mapping deterministically, call `main()` directly with patched argv and service behavior rather than only invoking Typer app objects.
-  - Gotchas encountered: `pytest` may not be globally installed in shell; project checks should run through `make quality` (`uv run ...`) for consistent tooling.
-  - Useful context: Parse-time Click/Typer failures still return validation exit code `2` before `main()` mapping, so both parse-path and runtime-path tests are needed for full exit-code contract coverage.
----
-## [2026-03-03 19:02:11 CET] - US-008
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
-- Validated the CLI integration matrix coverage across canonical targets: `tests/cli/test_help.py`, `tests/cli/test_error_handling.py`, `tests/cli/test_probe.py`, and dedicated `tests/cli/test_calculate.py` command coverage.
-- Confirmed representative success modes (default JSON, explicit text, explicit table) and failure modes (invalid typed flag, invalid training-zones JSON, propagated validation/domain/runtime errors, debug traceback behavior) are all covered and passing.
-- Ran full project quality gate (`make quality`): Ruff, mypy (strict), and pytest all passed.
-- Files changed:
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: The current CLI matrix is intentionally distributed by concern (`test_calculate` for command-path scenarios, `test_error_handling` for exit-code/debug behavior, `test_help`/`test_probe` for stable top-level entrypoint smoke coverage).
-  - Gotchas encountered: Exit-code mapping for propagated service exceptions is verified via `main()` with patched `sys.argv`, which still exercises the CLI invocation boundary while avoiding brittle subprocess monkeypatching.
-- Useful context: Running `make quality` is sufficient to execute all required static and runtime checks for this repository in one command.
----
-## [2026-03-03 19:10:33 CET] - US-009
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
-- Documented finalized Phase 9 CLI boundary responsibilities in architecture docs, including canonical `mealplan calculate`/`probe` command roles, required/optional flags, JSON-only `--training-zones` parsing, stdout/stderr split, and parse/runtime exit mapping.
-- Updated requirements docs with explicit CLI contract clarifications for `--format`, `--debug`, and strict JSON training-zones behavior plus canonical exit-code mapping.
-- Added concrete README usage examples for `json`, `text`, and `table` output modes and documented debug behavior and exit-code expectations for automation users.
-- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
-- Files changed:
-  - AGENT.md
-  - README.md
-  - docs/ARCHITECTURE.md
-  - docs/REQUIREMENTS.md
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: CLI contract updates should always ship with synchronized architecture, requirements, and README updates so contributors and automation consumers read one consistent behavior contract.
-  - Gotchas encountered: Existing architecture prose may still contain future-looking language; for finished phases, lock docs to concrete command names and current runtime behavior to avoid ambiguity.
-  - Useful context: Exit-code semantics are split between Typer/Click parse-time failures and `main()` runtime exception mapping, so documentation should call out both paths explicitly.
+  - Patterns discovered: Typer parse-time usage errors include Unicode box-drawing frames; keep fixture comparison deterministic by serializing snapshots with `json.dumps(..., ensure_ascii=False)`.
+  - Gotchas encountered: Runtime debug tracebacks are too brittle as full snapshots; canonicalize traceback bodies to a placeholder while still asserting traceback presence and terminal exception line.
+  - Useful context: Existing CLI test coverage in `tests/cli/` can coexist with golden snapshots in `tests/golden/` without replacing behavioral unit/integration checks.
 ---

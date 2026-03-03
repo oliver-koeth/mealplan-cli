@@ -1,0 +1,158 @@
+{
+  "project": "mealplan",
+  "branchName": "ralph/phase-9-cli-implementation",
+  "description": "Phase 9 CLI implementation for mealplan: add production calculation command, format handling, debug behavior, and canonical exit-code mapping.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add production mealplan calculation command",
+      "description": "As a CLI user, I want a single typed calculation command so I can run meal plan computation end-to-end from terminal inputs.",
+      "acceptanceCriteria": [
+        "Add or extend root `mealplan` CLI command path in `src/mealplan/cli/main.py` to run production calculation flow.",
+        "Canonical flags are explicitly supported: `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`, `--training-zones`, `--training-before`, `--format`, `--debug`.",
+        "CLI maps parsed args to MealPlanRequest payload or DTO expected by application layer.",
+        "Existing probe command remains available and unchanged in behavior.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Implement strict typed flag and option parsing",
+      "description": "As a maintainer, I want CLI options strongly typed so invalid values fail early with deterministic errors.",
+      "acceptanceCriteria": [
+        "Typer option types and enum choices are explicitly enforced.",
+        "Required options fail with deterministic CLI validation messaging and validation-class error mapping.",
+        "Optional training fields are parsed without business-rule duplication in CLI.",
+        "Tests verify typed parsing failures for representative invalid inputs.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Parse training-zones as JSON string only",
+      "description": "As a CLI user, I want predictable training-zones input behavior so orchestration receives canonical structured data.",
+      "acceptanceCriteria": [
+        "training-zones accepts JSON string input only via `--training-zones`.",
+        "Invalid JSON is rejected deterministically and mapped as validation-class failure to ExitCode.VALIDATION 2.",
+        "CLI does not support file-path or shorthand parsing forms in Phase 9.",
+        "Parsed zones structure is passed as request payload field without CLI business logic.",
+        "Tests verify valid JSON parsing and invalid-JSON rejection.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Wire CLI to MealPlanCalculationService",
+      "description": "As an implementation owner, I want CLI handlers to call the application service directly so CLI remains a thin boundary adapter.",
+      "acceptanceCriteria": [
+        "CLI instantiates or calls MealPlanCalculationService.calculate(...)",
+        "CLI does not directly invoke domain calculators or services.",
+        "Returned MealPlanResponse is used as the single source for output formatting.",
+        "Tests verify command path calls application service and returns deterministic output.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Implement format json text table",
+      "description": "As a CLI user, I want multiple output formats so I can use machine-readable output by default and human-readable output when needed.",
+      "acceptanceCriteria": [
+        "Add format option with allowed values json, text, table.",
+        "Default output format is json.",
+        "JSON output stays stable and deterministic for automation use.",
+        "Text and table outputs are derived from MealPlanResponse without modifying core response values.",
+        "Text and table outputs include top-level fields TDEE, training_carbs_g, protein_g, carbs_g, fat_g and all six canonical meals in canonical order.",
+        "Tests verify format selection behavior and default JSON output.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Implement debug error behavior",
+      "description": "As a CLI user, I want concise errors by default and deeper diagnostics when requested so troubleshooting is possible without noisy normal output.",
+      "acceptanceCriteria": [
+        "Default error output is concise and user-facing in a single-line style on stderr.",
+        "With debug enabled, include traceback and details on stderr for the same error.",
+        "Successful command output remains on stdout.",
+        "Debug mode does not change successful command output semantics.",
+        "Tests verify default versus debug error-output differences.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Map exceptions to canonical exit codes",
+      "description": "As an integration user, I want stable process exit codes so automation can handle failures deterministically.",
+      "acceptanceCriteria": [
+        "CLI maps invalid typed flag parsing and invalid training-zones JSON to validation-class failures with ExitCode.VALIDATION 2.",
+        "CLI maps ValidationError to ExitCode.VALIDATION 2.",
+        "CLI maps DomainRuleError to ExitCode.DOMAIN 3.",
+        "CLI maps unknown runtime errors to ExitCode.RUNTIME 4.",
+        "Success path exits with ExitCode.OK 0.",
+        "Tests verify each mapped code via representative failure scenarios.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add CLI integration test matrix for valid and failure modes",
+      "description": "As a maintainer, I want CLI-level end-to-end coverage so regressions in command wiring, formatting, and exit behavior are caught quickly.",
+      "acceptanceCriteria": [
+        "Add representative success tests for default JSON output, explicit text format, and explicit table format.",
+        "Add representative failure tests for invalid typed flag value, invalid training-zones JSON, and propagated validation, domain, and runtime errors with exit code checks.",
+        "Add tests for debug traceback behavior on errors.",
+        "Canonical CLI test targets are `tests/cli/test_help.py`, `tests/cli/test_error_handling.py`, `tests/cli/test_probe.py`, plus dedicated calculation-command coverage in `tests/cli/test_calculate.py`.",
+        "Tests run through CLI command invocation path using Typer runner or subprocess, not direct service call.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Document Phase 9 CLI contract and usage",
+      "description": "As a contributor, I want clear CLI docs for flags, formats, debug behavior, and exit codes so users and future phases rely on stable command behavior.",
+      "acceptanceCriteria": [
+        "Update docs/ARCHITECTURE.md with finalized CLI boundary responsibilities and error and format handling notes.",
+        "Update docs/REQUIREMENTS.md with CLI usage clarifications for format, debug, and strict JSON training-zones input.",
+        "Update README or usage docs with concrete command examples for json, text, and table outputs.",
+        "Document exit-code mapping and debug behavior expectations.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}
