@@ -90,6 +90,8 @@ training_carbs_g = duration_minutes × (60 / 60)
 
 Fueling carbs are separate from meal carb allocations.
 
+Phase 5 boundary note: fueling rules consume normalized zone minutes only (canonical zones `1..5` with integer minute values). Malformed input rejection is handled earlier in Phase 3 validation/normalization.
+
 ------------------------------------------------------------------------
 
 ## 6. Macronutrient Rules (Absolute Targets)

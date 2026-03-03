@@ -1,0 +1,144 @@
+{
+  "project": "mealplan",
+  "branchName": "ralph/phase-4-core-energy-macro-engines",
+  "description": "Phase 4 core energy and macro engines for mealplan: implement deterministic BMR/TDEE and macro target formulas with strict height input and negative-fat rejection.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Implement activity multiplier mapping",
+      "description": "As a domain calculator, I want one canonical activity-factor mapping so TDEE results are consistent across all callers.",
+      "acceptanceCriteria": [
+        "Add canonical mapping: low -> 1.2, medium -> 1.375, high -> 1.55.",
+        "Mapping uses existing ActivityLevel enum values only.",
+        "Mapping is colocated with energy calculation logic with no duplication across modules.",
+        "Unit tests verify each enum maps to the expected numeric factor.",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Implement BMR calculation with gender-specific formulas",
+      "description": "As a domain calculator, I want BMR calculated by Mifflin-St Jeor so energy output follows requirements and model specifications.",
+      "acceptanceCriteria": [
+        "Implement formulas: male BMR = 10*weight_kg + 6.25*height_cm - 5*age + 5, female BMR = 10*weight_kg + 6.25*height_cm - 5*age - 161.",
+        "Formula selection is based only on canonical Gender enum.",
+        "Function is deterministic and pure with no hidden state.",
+        "Unit tests verify male and female outputs with fixed fixture inputs.",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Implement TDEE calculation from BMR and activity level",
+      "description": "As an application service, I want TDEE derived from BMR and activity factor so downstream macro calculations have a stable calorie input.",
+      "acceptanceCriteria": [
+        "Implement TDEE = BMR * activity_factor.",
+        "TDEE output is float and remains unrounded internally.",
+        "Function accepts typed profile input and returns deterministic value.",
+        "Unit tests verify TDEE for all three activity levels from the same BMR baseline.",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Use required height input in energy calculation contracts",
+      "description": "As a maintainer, I want energy formulas to consume explicit height_cm input so BMR/TDEE no longer depend on fallback behavior.",
+      "acceptanceCriteria": [
+        "Energy service signature requires height_cm from typed profile/request contracts.",
+        "No fallback or default-height code path exists in Phase 4 domain services.",
+        "Validation contract for height_cm is strict integer > 0 with no upper bound.",
+        "No numeric-string coercion is accepted for height_cm.",
+        "Unit tests verify BMR/TDEE with explicit height inputs for both genders.",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Implement macro target calculator for protein and carbs by mode",
+      "description": "As a domain calculator, I want macro targets derived from bodyweight and carb mode so output contracts can be filled consistently.",
+      "acceptanceCriteria": [
+        "Implement protein formula: protein_g = 2 * weight_kg.",
+        "Implement carb-mode formulas: low 3*weight_kg, normal 5*weight_kg, periodized 4*weight_kg baseline.",
+        "Calculator consumes canonical CarbMode enum only.",
+        "Unit tests verify expected outputs for each carb mode with fixed weight fixtures.",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Implement fat-as-residual calculation with negative-fat rejection",
+      "description": "As a domain calculator, I want fat computed from remaining calories and rejected when negative so impossible macro states cannot propagate.",
+      "acceptanceCriteria": [
+        "Implement residual formulas: fat_kcal = tdee_kcal - (protein_g * 4) - (carbs_g * 4), fat_g = fat_kcal / 9.",
+        "Reject when fat_g < 0 with deterministic DomainRuleError.",
+        "Error category remains stable for CLI exit-code mapping compatibility.",
+        "Unit tests cover positive fat and negative-fat rejection cases.",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Provide composed domain API for Phase 4 calculations",
+      "description": "As an application orchestrator, I want a simple typed entrypoint for energy and macro calculations so Phase 8 orchestration can integrate without formula duplication.",
+      "acceptanceCriteria": [
+        "Expose typed domain service functions for energy calculation (tdee_kcal) and macro target calculation (MacroTargets).",
+        "Service boundaries keep formulas in domain and out of CLI/application parsing modules.",
+        "Service signatures align with existing Phase 2 contracts and Phase 3 validation outputs.",
+        "Unit tests verify composed usage and return types.",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add formula and edge-case test matrix",
+      "description": "As a maintainer, I want a focused matrix of formula and boundary tests so regressions in numeric logic are caught immediately.",
+      "acceptanceCriteria": [
+        "Add parameterized tests for BMR and TDEE scenarios across genders and activity levels.",
+        "Add parameterized tests for carb mode outputs (low, normal, periodized).",
+        "Add tests for fat residual exactness and negative-fat rejection.",
+        "Tests assert deterministic error type/category instead of brittle full-message snapshots.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Align tests and docs with required height input",
+      "description": "As a contributor, I want Phase 4 tests and documentation to use required height so formula behavior is unambiguous.",
+      "acceptanceCriteria": [
+        "Unit fixtures for energy formulas include explicit height_cm values.",
+        "Test names and assertions no longer reference default-height behavior.",
+        "Phase 4 docs reference required height_cm input and strict integer > 0 validation.",
+        "References to temporary height ADR assumptions are removed from this phase backlog.",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

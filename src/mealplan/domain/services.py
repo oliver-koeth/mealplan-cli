@@ -1,6 +1,8 @@
-"""Composed Phase 4 domain service entrypoints for energy and macros."""
+"""Composed domain service entrypoints."""
 
 from __future__ import annotations
+
+from collections.abc import Mapping
 
 from mealplan.domain.energy import tdee_kcal_per_day_for
 from mealplan.domain.enums import CarbMode
@@ -24,3 +26,21 @@ def calculate_macro_targets(
     carbs_g = carbs_target_g_for(weight_kg=profile.weight_kg, carb_mode=carb_mode)
     fat_g = fat_target_g_for(tdee_kcal=tdee_kcal, protein_g=protein_g, carbs_g=carbs_g)
     return MacroTargets(protein_g=protein_g, carbs_g=carbs_g, fat_g=fat_g)
+
+
+def calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float:
+    """Return deterministic training fueling carbs as float from normalized zone minutes.
+
+    Contract:
+    - Accepts normalized canonical zone keys ``1..5`` with integer minute values.
+    - Returns a ``float`` for every valid input.
+    - Is pure/deterministic: identical inputs always produce identical outputs.
+    """
+    total_minutes = sum(zones_minutes.values())
+    if total_minutes == 0:
+        return 0.0
+
+    if all(minutes == 0 for zone, minutes in zones_minutes.items() if zone != 1):
+        return 0.0
+
+    return float(total_minutes)
