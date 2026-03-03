@@ -121,9 +121,9 @@ def calculate_meal_split_and_response_payload(
     meals: list[dict[str, object]] = [
         {
             "meal": allocation.meal,
-            "carbs_g": allocation.carbs_g,
-            "protein_g": allocation.protein_g,
-            "fat_g": allocation.fat_g,
+            "carbs_g": round(allocation.carbs_g, 2),
+            "protein_g": round(allocation.protein_g, 2),
+            "fat_g": round(allocation.fat_g, 2),
         }
         for allocation in meal_allocations
     ]

@@ -236,8 +236,8 @@ def test_calculate_meal_split_and_response_payload_returns_canonical_payload_sha
 def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equally() -> None:
     protein_g = 145.0
     fat_g = 73.0
-    expected_per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
-    expected_per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
+    expected_per_meal_protein_g = round(protein_g / float(len(CANONICAL_MEAL_ORDER)), 2)
+    expected_per_meal_fat_g = round(fat_g / float(len(CANONICAL_MEAL_ORDER)), 2)
 
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2400.0,
@@ -258,11 +258,18 @@ def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equall
     )
 
 
-def test_meal_split_keeps_fractional_macro_split_before_rounding() -> None:
+def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> None:
     protein_g = 100.0
     fat_g = 50.0
     expected_per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
     expected_per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
+    carb_allocation_g_by_meal = dict(
+        zip(
+            CANONICAL_MEAL_ORDER,
+            [20.001, 30.004, 40.005, 50.006, 60.444, 39.54],
+            strict=True,
+        )
+    )
 
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2100.0,
@@ -270,15 +277,21 @@ def test_meal_split_keeps_fractional_macro_split_before_rounding() -> None:
         protein_g=protein_g,
         carbs_g=240.0,
         fat_g=fat_g,
-        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 40.0),
+        carb_allocation_g_by_meal=carb_allocation_g_by_meal,
     )
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert meals[0]["protein_g"] == expected_per_meal_protein_g
-    assert meals[0]["fat_g"] == expected_per_meal_fat_g
-    assert meals[0]["protein_g"] != round(expected_per_meal_protein_g, 2)
-    assert meals[0]["fat_g"] != round(expected_per_meal_fat_g, 2)
+    assert [entry["protein_g"] for entry in meals] == [
+        round(expected_per_meal_protein_g, 2)
+    ] * len(CANONICAL_MEAL_ORDER)
+    assert [entry["fat_g"] for entry in meals] == [round(expected_per_meal_fat_g, 2)] * len(
+        CANONICAL_MEAL_ORDER
+    )
+    assert [entry["carbs_g"] for entry in meals] == [20.0, 30.0, 40.01, 50.01, 60.44, 39.54]
+    assert payload["protein_g"] == protein_g
+    assert payload["carbs_g"] == 240.0
+    assert payload["fat_g"] == fat_g
 
 
 def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:

@@ -71,6 +71,7 @@ When in doubt, update those source docs instead of expanding this file.
 42. For domain meal-assembly payloads, build `MealAllocation` rows first and run `validate_meal_allocation_invariants` before serializing dict payloads so canonical order/uniqueness guarantees are enforced at the domain boundary.
 43. For Phase 7 meal split regressions, include fractional protein/fat fixtures and assert per-meal values equal exact `total / 6.0` (not boundary-rounded values) to catch early rounding drift.
 44. For Phase 7 meal assembly, validate carb allocation keys upfront against exact `CANONICAL_MEAL_ORDER` coverage (no missing/extra keys) and raise `DomainRuleError` with `meal_assembly.carb_allocation` prefix before meal row construction.
+45. For Phase 7 response payload serialization, apply `round(..., 2)` only at the meals boundary (`carbs_g`, `protein_g`, `fat_g`) and keep top-level macro fields as canonical unrounded inputs.
 
 ## Ralph Runner
 

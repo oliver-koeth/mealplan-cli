@@ -2,7 +2,7 @@
 ## Codebase Patterns
 - For new domain orchestration APIs in `src/mealplan/domain/services.py`, add a stable `inspect.signature(...)` regression test in `tests/unit/test_domain_services.py` to prevent interface drift.
 - For meal-assembly domain outputs, construct `MealAllocation` rows and validate with `validate_meal_allocation_invariants` before converting to response dictionaries.
-- For Phase 7 meal-split precision rules, use fractional protein/fat fixtures and assert per-meal values are exact `total / 6.0` (not pre-rounded boundary values).
+- For Phase 7 meal-split precision rules, assert per-meal macros are rounded with `round(..., 2)` only when serializing meal payload fields, while top-level macro fields remain canonical inputs.
 - For Phase 7 assembler carb inputs, validate allocation map keys against exact `CANONICAL_MEAL_ORDER` coverage (no missing/extra keys) and raise `DomainRuleError` prefixed `meal_assembly.carb_allocation`.
 
 Started: Tue Mar  3 14:50:04 CET 2026
@@ -78,4 +78,22 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - New Phase 7 error tests should assert stable error-prefix regex (`^meal_assembly\\.carb_allocation:`) instead of full message text snapshots.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Because typed mappings can still carry runtime-invalid keys, tests use `typing.cast` to inject extra-key scenarios and verify domain guards.
+---
+## [2026-03-03 15:01:24 CET] - [US-005]
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented two-decimal boundary rounding for per-meal macro fields (`carbs_g`, `protein_g`, `fat_g`) in Phase 7 response payload assembly.
+- Updated domain-service tests to verify deterministic two-decimal outputs for fractional scenarios and preserved canonical top-level macro inputs.
+- Files changed
+  - `src/mealplan/domain/services.py`
+  - `tests/unit/test_domain_services.py`
+  - `AGENT.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Meal macro rounding policy is a serialization-boundary concern in `calculate_meal_split_and_response_payload`, not a split-calculation concern.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Existing pre-rounding split assertions must be adjusted once Phase 7 boundary rounding is introduced; otherwise they fail on expected rounded payload values.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Representative fractional carb fixtures should include thousandths to exercise deterministic two-decimal boundary behavior.
 ---
