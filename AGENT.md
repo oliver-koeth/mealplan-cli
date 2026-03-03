@@ -90,6 +90,7 @@ When in doubt, update those source docs instead of expanding this file.
 61. For CLI multi-format output (`json`, `text`, `table`), render from `MealPlanResponse.model_dump(mode="json")` and iterate meals via `CANONICAL_MEAL_ORDER` so human-readable formats stay contract-aligned and deterministic.
 62. Keep CLI debug behavior centralized in `main()` exception handling: default stderr remains concise (`Error: ...`), and traceback emission is enabled only when command-level debug mode is explicitly set.
 63. For CLI exit-code mapping tests that must exercise `main()` exception handling (not just Typer command functions), monkeypatch `sys.argv` with full command args and monkeypatch `mealplan.cli.main.MealPlanCalculationService` to raise representative exceptions, then assert `SystemExit.code`.
+64. When CLI contract behavior changes (flags, formats, exit semantics, debug behavior), update docs in the same iteration across `docs/ARCHITECTURE.md` (boundary and error strategy), `docs/REQUIREMENTS.md` (user-facing contract), and `README.md` (concrete command examples).
 
 ## Ralph Runner
 

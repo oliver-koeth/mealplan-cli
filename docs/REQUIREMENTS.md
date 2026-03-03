@@ -56,6 +56,13 @@ The tool must be fully machine-executable without ambiguity.
                                               dinner / evening-snack
   ------------------------------------------------------------------------
 
+### Runtime and Output Controls
+
+  Parameter      Type    Description
+  -------------- ------- -----------------------------------------------
+  `--format`     enum    json / text / table (default: json)
+  `--debug`      flag    Enables traceback output on errors (stderr only)
+
 ------------------------------------------------------------------------
 
 ## 4. Energy Calculation
@@ -237,6 +244,16 @@ JSON structure:
     - `training_before_meal = null`
 -   For omitted training sessions, calculation proceeds normally and `training_carbs_g` must be `0.0`.
 
+### 9.3 Phase 9 CLI Contract Clarifications
+
+-   Canonical production invocation path is `mealplan calculate`.
+-   `--training-zones` accepts a JSON string only (for example `--training-zones '{"2": 45}'`).
+-   Invalid `--training-zones` JSON is a validation-class failure and must map to exit code `2`.
+-   `--format` supports only `json`, `text`, and `table`; default is `json`.
+-   `--debug` does not alter successful output format or payload on stdout.
+-   Without `--debug`, errors are concise single-line stderr messages.
+-   With `--debug`, the same error additionally includes traceback details on stderr.
+
 ------------------------------------------------------------------------
 
 ## 10. Validation
@@ -246,9 +263,17 @@ JSON structure:
 -   Height is integer and \> 0
 -   Height does not have an upper bound
 -   Numeric strings are not accepted for `--height` (strict integer input only)
+-   `--training-zones` must be valid JSON object text when provided
 -   Carb totals exact
 -   Fat not negative
 -   training-before required if training-zones provided
+
+### 10.1 Canonical Exit Codes
+
+-   `0`: success
+-   `2`: validation/input failures (including typed flag parse errors and invalid training-zones JSON)
+-   `3`: domain rule violations
+-   `4`: runtime/infrastructure failures
 
 ------------------------------------------------------------------------
 
