@@ -174,7 +174,7 @@ def test_calculate_periodized_carb_allocation_has_stable_orchestration_signature
     )
 
 
-def test_calculate_periodized_carb_allocation_returns_canonical_six_meal_mapping() -> None:
+def test_calculate_periodized_carb_allocation_marks_two_post_training_meals_high() -> None:
     allocation = calculate_periodized_carb_allocation(
         carb_mode=CarbMode.PERIODIZED,
         daily_carbs_g=360.0,
@@ -186,11 +186,23 @@ def test_calculate_periodized_carb_allocation_returns_canonical_six_meal_mapping
     assert allocation == {
         MealName.BREAKFAST: 60.0,
         MealName.MORNING_SNACK: 60.0,
-        MealName.LUNCH: 60.0,
-        MealName.AFTERNOON_SNACK: 60.0,
+        MealName.LUNCH: 108.0,
+        MealName.AFTERNOON_SNACK: 108.0,
         MealName.DINNER: 60.0,
         MealName.EVENING_SNACK: 60.0,
     }
+
+
+def test_calculate_periodized_carb_allocation_wraps_second_high_meal_to_breakfast() -> None:
+    allocation = calculate_periodized_carb_allocation(
+        carb_mode=CarbMode.PERIODIZED,
+        daily_carbs_g=300.0,
+        training_before_meal=MealName.EVENING_SNACK,
+        training_load_tomorrow=TrainingLoadTomorrow.LOW,
+    )
+
+    assert allocation[MealName.EVENING_SNACK] == 90.0
+    assert allocation[MealName.BREAKFAST] == 90.0
 
 
 @pytest.mark.parametrize("carb_mode", [CarbMode.LOW, CarbMode.NORMAL, CarbMode.PERIODIZED])

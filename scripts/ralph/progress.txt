@@ -3,6 +3,7 @@ Started: Tue Mar  3 12:56:03 CET 2026
 
 ## Codebase Patterns
 - Add new phase-level domain entrypoints in `src/mealplan/domain/services.py`, re-export from `src/mealplan/domain/__init__.py`, and pin signature stability with `inspect.signature(...)` tests in `tests/unit/test_domain_services.py`.
+- For chronological meal transitions, resolve the next meal via `CANONICAL_MEAL_ORDER.index(current)` and modulo wrap (`(idx + 1) % len(CANONICAL_MEAL_ORDER)`) to keep behavior deterministic at end-of-day boundaries.
 ---
 
 ## 2026-03-03 13:02:25 CET - US-001
@@ -24,4 +25,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Ruff enforces `C420`; for uniform-value canonical meal mappings, prefer `dict.fromkeys(CANONICAL_MEAL_ORDER, value)` over a dict comprehension.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `make quality` (`ruff` + `mypy --strict src` + `pytest`) is the required local gate before story completion and commit.
+---
+
+## 2026-03-03 13:04:33 CET - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Implemented the post-training two-high-meal rule in `calculate_periodized_carb_allocation(...)`: the `training_before_meal` and immediate next canonical meal are set to `0.30 * daily_carbs_g`.
+- Added deterministic wrap handling so `evening-snack` correctly rolls to `breakfast` for the second high meal.
+- Added and updated unit tests to validate exact high-meal assignments and wrap behavior while preserving canonical six-meal output ordering.
+- Files changed:
+  - src/mealplan/domain/services.py
+  - tests/unit/test_domain_services.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Implement meal-sequence adjacency rules strictly from `CANONICAL_MEAL_ORDER` instead of enum declaration assumptions, and test both a middle-of-day and wrap-around case.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Current Phase 6 stories are intentionally incremental; at US-002 stage totals can exceed `daily_carbs_g` until residual distribution and reconciliation stories are implemented later.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing deterministic-allocation tests remain valid and do not require carb-mode branching changes yet.
 ---

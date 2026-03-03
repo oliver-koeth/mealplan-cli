@@ -54,9 +54,19 @@ def calculate_periodized_carb_allocation(
 ) -> dict[MealName, float]:
     """Return deterministic canonical six-meal carb allocation for Phase 6 entrypoint.
 
-    Phase 6 Story US-001 establishes the typed domain API and output contract only.
-    Redistribution rule sequencing is implemented in subsequent stories.
+    Phase 6 Story US-001 establishes the typed domain API and output contract.
+    Story US-002 adds the post-training two-high-meal selection rule.
     """
-    del carb_mode, training_before_meal, training_load_tomorrow
+    del carb_mode, training_load_tomorrow
     per_meal_carbs_g = daily_carbs_g / float(len(CANONICAL_MEAL_ORDER))
-    return dict.fromkeys(CANONICAL_MEAL_ORDER, per_meal_carbs_g)
+    allocation = dict.fromkeys(CANONICAL_MEAL_ORDER, per_meal_carbs_g)
+
+    if training_before_meal is None:
+        return allocation
+
+    high_meal_carbs_g = 0.30 * daily_carbs_g
+    first_high_meal_idx = CANONICAL_MEAL_ORDER.index(training_before_meal)
+    second_high_meal_idx = (first_high_meal_idx + 1) % len(CANONICAL_MEAL_ORDER)
+    allocation[CANONICAL_MEAL_ORDER[first_high_meal_idx]] = high_meal_carbs_g
+    allocation[CANONICAL_MEAL_ORDER[second_high_meal_idx]] = high_meal_carbs_g
+    return allocation
