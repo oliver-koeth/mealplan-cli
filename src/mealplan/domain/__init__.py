@@ -25,7 +25,11 @@ from mealplan.domain.model import (
     MealAllocation,
     UserProfile,
 )
-from mealplan.domain.services import calculate_macro_targets, calculate_tdee_kcal
+from mealplan.domain.services import (
+    calculate_macro_targets,
+    calculate_tdee_kcal,
+    calculate_training_carbs_g,
+)
 from mealplan.domain.validation import (
     validate_carb_reconciliation_invariants,
     validate_macro_targets_invariants,
@@ -48,6 +52,7 @@ __all__ = [
     "bmr_kcal_per_day_for",
     "calculate_macro_targets",
     "calculate_tdee_kcal",
+    "calculate_training_carbs_g",
     "carbs_target_g_for",
     "fat_target_g_for",
     "protein_target_g_for",

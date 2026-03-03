@@ -1,0 +1,197 @@
+# Ralph Progress Log
+Started: Mon Mar  2 14:01:35 CET 2026
+
+## Codebase Patterns
+- New domain service helpers should be implemented in dedicated modules (for example `domain/energy.py`) and re-exported from `mealplan.domain.__init__` to keep import paths stable across layers.
+- Energy formula functions should live in `src/mealplan/domain/energy.py` and follow explicit unit-bearing names (for example `*_kcal_per_day_for`) to keep calculation intent clear across phases.
+- Macro formula helpers should live in `src/mealplan/domain/macros.py` with enum-keyed factor mappings and package-level re-exports in `mealplan.domain.__init__`.
+- Residual macro impossibilities (for example negative computed fat) should raise `DomainRuleError` with a stable `macro_targets.<field>` prefix so exit-code mapping and tests remain deterministic.
+- Typed calculation inputs should use frozen dataclasses in `src/mealplan/domain/model.py` (for example `UserProfile`) and be consumed by domain services instead of passing unstructured dicts.
+- Request boundary contracts use strict pydantic primitives (`StrictInt`/`StrictFloat`) for parse-time no-coercion guarantees, while numeric positivity rules belong in `application.validation.validate_semantic_input`.
+- Phase-level composed domain APIs should live in `src/mealplan/domain/services.py`, delegate to formula helpers in `energy.py`/`macros.py`, and return typed dataclasses (`MacroTargets`) for application-layer orchestration.
+- Floating-point formula regression tests should use `pytest.approx` for multiplicative outputs, and domain error assertions should target stable category prefixes/types rather than full-message snapshots.
+- When a phase assumption changes (for example required-vs-default inputs), update both `docs/PLAN.md` and `docs/ARCHITECTURE.md` in the same iteration so backlog and architecture narratives stay consistent.
+
+## [2026-03-02 16:11:22 CET] - US-001
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented canonical activity multiplier mapping in `src/mealplan/domain/energy.py` with typed `activity_factor_for(ActivityLevel)` accessor.
+- Added unit tests covering all activity levels and enum-key coverage in `tests/unit/test_domain_energy.py`.
+- Updated domain exports and marked US-001 as passed in the Ralph PRD.
+- Files changed:
+  - src/mealplan/domain/energy.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_energy.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Domain constants/services are exposed via `mealplan.domain` package exports, not imported from deep module paths in higher layers.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Ruff import-order checks will fail when adding new domain exports unless import blocks stay sorted.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - The repository quality gate is `make quality` which runs `ruff`, strict `mypy`, and `pytest`.
+---
+## [2026-03-02 16:20:58 CET] - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented canonical macro-target helpers in `src/mealplan/domain/macros.py`: `protein_target_g_for(weight_kg)` and `carbs_target_g_for(weight_kg, carb_mode)` with enum-keyed `CARBS_FACTOR_BY_MODE`.
+- Added unit tests validating protein formula output, all carb-mode formulas (low/normal/periodized), and enum-key coverage for the factor map.
+- Re-exported macro helpers/constants from `mealplan.domain.__init__` and marked US-005 as passed in the Ralph PRD.
+- Files changed:
+  - src/mealplan/domain/macros.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_macros.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+  - AGENT.md
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Macro formulas are now split into dedicated pure helpers (`protein_target_g_for`, `carbs_target_g_for`) with a canonical enum-keyed mapping to keep mode math centralized.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - New domain helper modules should be re-exported in `mealplan.domain.__init__` immediately to avoid deep-module imports drifting across layers.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` remains the release gate and currently passes with 126 tests.
+---
+## [2026-03-02 16:13:30 CET] - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented deterministic Mifflin-St Jeor BMR helper `bmr_kcal_per_day_for(...)` in the domain energy module with canonical `Gender`-based branch logic.
+- Added unit tests for male and female fixtures to verify exact formula outputs.
+- Re-exported the new domain helper via `mealplan.domain.__init__` to keep top-level import paths stable.
+- Files changed:
+  - src/mealplan/domain/energy.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_energy.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Energy formula helpers live in `src/mealplan/domain/energy.py` and should be exposed through `mealplan.domain` package exports for cross-layer imports.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - `make quality` will catch fixture arithmetic mistakes quickly; keep formula test expected values derived directly from the equation to avoid off-by-constant errors.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Current quality gate remains `make quality` (`ruff` + strict `mypy` + full `pytest`).
+---
+## [2026-03-02 16:16:27 CET] - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented composed TDEE helper `tdee_kcal_per_day_for(profile)` in the domain energy module using canonical BMR and activity-factor helpers.
+- Added a typed `UserProfile` frozen dataclass in `src/mealplan/domain/model.py` and exported it from `mealplan.domain` to keep service signatures typed and stable.
+- Added parameterized unit tests to verify TDEE outputs for low/medium/high activity from the same BMR baseline with unrounded float results.
+- Files changed:
+  - src/mealplan/domain/energy.py
+  - src/mealplan/domain/model.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_energy.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Keep composed domain formula APIs typed via domain dataclasses (`UserProfile`) and delegate to smaller single-purpose helpers for reuse and deterministic behavior.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - When adding new domain models/services, update `mealplan.domain.__init__` exports immediately or downstream imports/tests will drift.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` remains the authoritative gate (`ruff`, strict `mypy`, full `pytest`) before marking a story as passed.
+---
+## [2026-03-02 16:19:20 CET] - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented required `height_cm` in `MealPlanRequest` as a strict integer contract field and added `"height_cm": "cm"` to shared contract units metadata.
+- Enforced semantic validation rule `height_cm > 0` in application validation with deterministic error messaging.
+- Updated canonical request fixtures and expanded unit/matrix tests to cover required height presence, strict no-coercion (`"178"` rejected), non-positive rejection, and acceptance of large positive heights (no upper bound).
+- Files changed:
+  - src/mealplan/application/contracts.py
+  - src/mealplan/application/validation.py
+  - tests/unit/conftest.py
+  - tests/unit/test_application_contracts.py
+  - tests/unit/test_application_validation.py
+  - tests/unit/test_validation_matrices.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Boundary strict typing and semantic positivity are intentionally split: coercion checks in contracts, value-range checks in semantic validation.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Adding a required request field requires updating both shared fixtures (`tests/unit/conftest.py`) and units-policy expectations in `test_application_contracts.py`.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` continues to run the full gate (`ruff`, strict `mypy`, `pytest`) and should be used before flipping PRD `passes` flags.
+---
+## [2026-03-02 16:22:56 CET] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Implemented residual fat macro helper `fat_target_g_for(tdee_kcal, protein_g, carbs_g)` in `src/mealplan/domain/macros.py` using canonical calorie math: `fat_kcal = tdee_kcal - 4*protein_g - 4*carbs_g`, `fat_g = fat_kcal / 9`.
+- Added deterministic negative-fat rejection that raises `DomainRuleError` with stable category prefix (`macro_targets.fat_g`) for compatibility with existing domain/exit-code handling.
+- Added unit coverage for both positive residual-fat output and negative-fat rejection behavior.
+- Re-exported the new helper via `mealplan.domain.__init__` and marked US-006 as passed in the Ralph PRD.
+- Files changed:
+  - src/mealplan/domain/macros.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_macros.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Macro formula helpers should encode impossible computed states as `DomainRuleError` instead of silently returning negative targets.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Adding a new domain helper requires a matching `mealplan.domain.__init__` export to keep higher layers off deep module imports.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Quality gate remains `make quality`, currently passing with 128 tests.
+---
+## [2026-03-02 16:25:36 CET] - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Implemented composed Phase 4 domain API in `src/mealplan/domain/services.py` with typed entrypoints:
+  - `calculate_tdee_kcal(profile: UserProfile) -> float`
+  - `calculate_macro_targets(profile, carb_mode, tdee_kcal) -> MacroTargets`
+- Kept formula ownership in domain formula helpers by delegating to `tdee_kcal_per_day_for`, `protein_target_g_for`, `carbs_target_g_for`, and `fat_target_g_for`.
+- Re-exported composed services from `mealplan.domain.__init__` and added focused unit tests for composed usage plus typed return assertions.
+- Ran full quality gate successfully (`make quality`): ruff + mypy --strict + pytest (130 passed).
+- Files changed:
+  - src/mealplan/domain/services.py
+  - src/mealplan/domain/__init__.py
+  - tests/unit/test_domain_services.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Keep composed domain orchestration in `domain/services.py` while leaving atomic formulas in `energy.py` and `macros.py`.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Always re-export new domain services in `mealplan.domain.__init__` immediately, or downstream imports drift to deep module paths.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` is still the canonical local gate and now reports 130 passing tests.
+---
+## [2026-03-02 16:27:50 CET] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Expanded Phase 4 formula matrix coverage:
+  - Parameterized BMR scenarios across both genders and multiple fixed fixtures.
+  - Parameterized TDEE scenarios across both genders and all three activity levels.
+  - Parameterized fat residual exactness scenarios.
+- Updated negative-fat rejection assertions to verify deterministic error type/category (`DomainRuleError` + domain exit-code mapping) instead of full-message snapshot equality.
+- Ran full quality gate successfully (`make quality`): `ruff`, strict `mypy`, and `pytest` (136 passed).
+- Files changed:
+  - tests/unit/test_domain_energy.py
+  - tests/unit/test_domain_macros.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+  - AGENT.md
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Formula-matrix tests are expected to cover combinatorial enum scenarios (for example gender x activity level) with parameterization.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Direct float equality can be brittle for multiplicative formulas; use `pytest.approx` when binary precision can surface tiny tails.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` is the required pre-commit gate and now reports 136 passing tests.
+---
+## [2026-03-02 16:30:20 CET] - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
+- Aligned Phase 4 planning and architecture docs with required `height_cm` input semantics (`StrictInt`, `> 0`) and removed stale default-height/temporary-ADR backlog wording.
+- Updated `docs/ARCHITECTURE.md` energy section to describe required-height behavior and removed completed height-extension item from future evolution.
+- Ran full quality gate successfully (`make quality`): `ruff`, strict `mypy`, and `pytest` (136 passed).
+- Files changed:
+  - docs/PLAN.md
+  - docs/ARCHITECTURE.md
+  - AGENT.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - When phase assumptions graduate from temporary to canonical behavior, update both backlog-phase docs (`PLAN`) and architecture narrative (`ARCHITECTURE`) together.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Leaving stale "future height extension" or "default behavior" lines in either doc can contradict already-implemented contract/test behavior.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `make quality` remains the required completion gate and currently passes with 136 tests.
+---
