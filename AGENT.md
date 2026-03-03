@@ -86,6 +86,7 @@ When in doubt, update those source docs instead of expanding this file.
 57. In CLI modules using Typer, define `typer.Option(...)` objects as module-level constants and reuse them in command signatures to satisfy Ruff `B008` under repository lint settings.
 58. For CLI options with a fixed value set (for example output format), annotate Typer parameters with `typing.Literal[...]` (or equivalent enums) so invalid values fail at CLI parse time with exit code `2`.
 59. For CLI invalid-JSON coverage (for example `--training-zones`), assert stable stderr prefixes and mapped exit codes rather than full JSON decoder messages, which can vary by runtime version.
+60. For CLI boundary-wiring tests, prefer `typer.testing.CliRunner` with `monkeypatch` on `mealplan.cli.main.MealPlanCalculationService` so tests can assert command-to-service delegation and response-driven output without subprocess indirection.
 
 ## Ralph Runner
 

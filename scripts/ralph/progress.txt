@@ -3,6 +3,7 @@
 - For CLI integration tests of `mealplan calculate`, use service-valid deterministic input combinations; some payloads can intentionally fail with domain reconciliation errors and should be reserved for error-path coverage.
 - For Typer options with bounded allowed values, use `Literal[...]` (or enums) in command signatures so invalid choices fail during CLI parsing with canonical validation exit code `2`.
 - For CLI invalid-JSON tests (for example `--training-zones`), assert a stable stderr prefix (such as `Error: training_zones: invalid JSON`) instead of decoder-specific details that may vary by Python/JSON parser version.
+- For CLI boundary-wiring checks, use `typer.testing.CliRunner` plus `monkeypatch` of `mealplan.cli.main.MealPlanCalculationService` to verify delegation and response-driven output in-process.
 
 # Ralph Progress Log
 Started: Tue Mar  3 18:42:07 CET 2026
@@ -55,5 +56,20 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: For CLI invalid-JSON cases, assert stable error prefixes and exit codes rather than full JSON decoder diagnostics.
   - Gotchas encountered: The `training_before_meal` semantic dependency remains application-owned; for JSON-parsing-only success tests, use all-zero zones to avoid triggering semantic validation failures.
-  - Useful context: `--training-zones` is intentionally treated as raw JSON string input only in Phase 9; non-JSON strings naturally fail through the same validation path.
+- Useful context: `--training-zones` is intentionally treated as raw JSON string input only in Phase 9; non-JSON strings naturally fail through the same validation path.
+---
+## [2026-03-03 18:52:26 CET] - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Added CLI in-process boundary tests proving `mealplan calculate` delegates to `MealPlanCalculationService.calculate(...)` through Typer command invocation.
+- Added deterministic output-path coverage asserting CLI stdout is serialized directly from the `MealPlanResponse` returned by the application service.
+- Ran full quality gate (`make quality`): Ruff, mypy, and pytest all passing.
+- Files changed:
+  - AGENT.md
+  - tests/cli/test_calculate.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: For command-boundary wiring tests, `CliRunner` + service monkeypatching is simpler and more deterministic than subprocess-based assertions.
+  - Gotchas encountered: Keep fake service return values schema-valid and in canonical meal order so tests validate CLI wiring, not contract/order invariants.
+  - Useful context: Existing subprocess CLI tests remain useful for real exit-code behavior, while in-process `CliRunner` tests cover delegation semantics precisely.
 ---
