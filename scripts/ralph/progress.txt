@@ -4,6 +4,7 @@ Started: Tue Mar  3 09:26:51 CET 2026
 ## Codebase Patterns
 - Run `make quality` as the authoritative local gate before marking a story complete.
 - Keep Phase 5 fueling behavior centered on `calculate_training_carbs_g` in `src/mealplan/domain/services.py` with companion assertions in `tests/unit/test_domain_services.py`.
+- Cover Phase 5 training-zone rules with `pytest.mark.parametrize` matrices and strict float literals to keep precedence and totals explicit.
 
 ## 2026-03-03 09:28:03 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
@@ -32,4 +33,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - Keep strict float equality in fueling tests (`0.0`, `60.0`, etc.) to match PRD acceptance criteria exactly.
   - Useful context (e.g., "the evaluation panel is in component X")
     - `tests/unit/test_domain_services.py` is the canonical location for Phase 5 fueling rule coverage.
+---
+## 2026-03-03 09:32:15 CET - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented zone-2-plus override verification by adding representative zone 2, 3, 4, and 5 presence scenarios that all fuel from total session minutes.
+- Added strict float expected outputs (`30.0`, `60.0`, `95.0`) in a parameterized unit-test matrix to pin deterministic rule behavior.
+- Marked `US-003` as passing in `scripts/ralph/prd.json` after `make quality` succeeded.
+- Files changed: `tests/unit/test_domain_services.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Phase 5 rule expansions should prefer parameterized zone matrices over one-off tests to keep coverage readable and complete.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Zone-2-plus override expectations include zone 1 minutes in the total once any zone 2..5 minute value is non-zero.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_domain_services.py` already hosts all Phase 5 fueling assertions, so new rule stories should extend this same module.
 ---

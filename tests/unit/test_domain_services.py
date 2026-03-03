@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+import pytest
+
 from mealplan.domain import calculate_training_carbs_g
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender
 from mealplan.domain.model import MacroTargets, UserProfile
@@ -73,3 +75,19 @@ def test_calculate_training_carbs_g_returns_zero_for_zero_total_minutes() -> Non
     zones_minutes: Mapping[int, int] = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
 
     assert calculate_training_carbs_g(zones_minutes) == 0.0
+
+
+@pytest.mark.parametrize(
+    ("zones_minutes", "expected_training_carbs_g"),
+    [
+        ({1: 10, 2: 20, 3: 0, 4: 0, 5: 0}, 30.0),
+        ({1: 15, 2: 0, 3: 45, 4: 0, 5: 0}, 60.0),
+        ({1: 0, 2: 0, 3: 0, 4: 30, 5: 0}, 30.0),
+        ({1: 25, 2: 0, 3: 0, 4: 0, 5: 70}, 95.0),
+    ],
+)
+def test_calculate_training_carbs_g_uses_total_minutes_when_any_zone_2_to_5_present(
+    zones_minutes: Mapping[int, int],
+    expected_training_carbs_g: float,
+) -> None:
+    assert calculate_training_carbs_g(zones_minutes) == expected_training_carbs_g
