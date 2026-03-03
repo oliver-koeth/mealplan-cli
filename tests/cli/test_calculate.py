@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 
@@ -13,6 +14,11 @@ from mealplan.cli.main import app
 from mealplan.domain.model import CANONICAL_MEAL_ORDER
 
 runner = CliRunner()
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _normalized_stderr(stderr: str) -> str:
+    return _ANSI_ESCAPE_RE.sub("", stderr)
 
 
 def _required_calculate_args() -> list[str]:
@@ -253,7 +259,9 @@ def test_calculate_missing_required_option_returns_validation_exit_code() -> Non
     )
 
     assert result.returncode == 2
-    assert "Missing option '--age'" in result.stderr
+    stderr = _normalized_stderr(result.stderr)
+    assert "Missing option" in stderr
+    assert "--age" in stderr
 
 
 def test_calculate_invalid_enum_option_returns_validation_exit_code() -> None:
@@ -284,7 +292,9 @@ def test_calculate_invalid_enum_option_returns_validation_exit_code() -> None:
     )
 
     assert result.returncode == 2
-    assert "Invalid value for '--gender'" in result.stderr
+    stderr = _normalized_stderr(result.stderr)
+    assert "Invalid value" in stderr
+    assert "--gender" in stderr
 
 
 def test_calculate_invalid_format_choice_returns_validation_exit_code() -> None:
@@ -317,7 +327,9 @@ def test_calculate_invalid_format_choice_returns_validation_exit_code() -> None:
     )
 
     assert result.returncode == 2
-    assert "Invalid value for '--format'" in result.stderr
+    stderr = _normalized_stderr(result.stderr)
+    assert "Invalid value" in stderr
+    assert "--format" in stderr
 
 
 def test_calculate_training_fields_are_parsed_then_validated_by_application() -> None:
