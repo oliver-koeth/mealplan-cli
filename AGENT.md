@@ -61,6 +61,13 @@ When in doubt, update those source docs instead of expanding this file.
 32. When a phase-level assumption changes (for example required-vs-default inputs), update both `docs/PLAN.md` (phase scope/risks) and `docs/ARCHITECTURE.md` (calculation engine/future evolution) in the same iteration to keep backlog and architecture narratives consistent.
 33. When training-fueling boundary ownership changes or is clarified, keep docs synchronized by topic: put architecture-layer ownership in `docs/ARCHITECTURE.md`, functional rule wording in `docs/REQUIREMENTS.md`, and domain contract details in `docs/MODEL.md`.
 34. For stable cross-layer domain service interfaces, add a unit test that pins `inspect.signature(...)` so parameter and return-type contract drift is caught early.
+35. For canonical meal-keyed mappings that assign one shared scalar value, prefer `dict.fromkeys(CANONICAL_MEAL_ORDER, value)` to satisfy Ruff `C420` and keep deterministic key order.
+36. For periodized allocations with selected high meals, compute low-meal residuals from `daily_carbs_g - sum(high allocations)` and divide by `len(CANONICAL_MEAL_ORDER) - len(high_meals)` rather than hardcoding meal counts.
+37. For periodization tomorrow-load behavior, treat `training_before_meal in {DINNER, EVENING_SNACK}` as an explicit conflict branch that preserves post-training meal selection and skips the next-day `DINNER` high override.
+38. Keep Phase 6 allocation precedence explicit in `calculate_periodized_carb_allocation`: non-periodized bypass first, then post-training high-meal selection, then tomorrow-high override/conflict handling, then reconciliation validation.
+39. Keep Phase 6 non-periodized bypass keyed only to carb mode (`LOW`/`NORMAL`): always return canonical equal split `daily_carbs_g / 6.0` with no rounding, independent of training inputs.
+40. For tolerance-based domain checks, add both boundary-pass (`delta <= tolerance`) and failure (`delta > tolerance`) tests and assert stable error prefixes rather than full diagnostic strings.
+41. For periodization precedence/conflict coverage, build exhaustive matrices from `CANONICAL_MEAL_ORDER x TrainingLoadTomorrow` with stable case IDs and assert both high-meal role selection and reconciliation totals.
 
 ## Ralph Runner
 

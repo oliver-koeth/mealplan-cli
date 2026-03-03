@@ -186,10 +186,16 @@ rule overrides.
 
 ### 8.5 Precedence Order
 
-1.  If not periodized → ignore redistribution
+1.  If not periodized → deterministic equal split across all 6 canonical meals (`daily_carbs_g / 6.0`)
 2.  Apply post-training high rule
 3.  Apply next-day override unless conflict
-4.  Ensure carb totals remain exact
+4.  Ensure carb totals reconcile to target using tolerance check (`abs(sum_allocated - daily_carbs_g) <= 1e-9`)
+
+Phase 6 contract clarification:
+
+-   Canonical domain API is `calculate_periodized_carb_allocation(carb_mode, daily_carbs_g, training_before_meal, training_load_tomorrow) -> dict[MealName, float]`.
+-   Output is always keyed by all six canonical meals in canonical order.
+-   If `training_before_meal` is `dinner` or `evening-snack`, keep post-training high-meal selection and skip next-day dinner override.
 
 ------------------------------------------------------------------------
 

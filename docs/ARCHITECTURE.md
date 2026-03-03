@@ -138,16 +138,20 @@ mealplan/
   - Phase 5 domain API boundary is `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float` and assumes canonical normalized zone keys `1..5`.
   - Malformed `zones_minutes` payload rejection (invalid keys, negative minutes, non-integer minutes) remains a Phase 3 concern in application-layer normalization/semantic validation.
 - Periodization engine:
-  - Applies two post-training high meals + remaining low distribution.
+  - Canonical Phase 6 API is `calculate_periodized_carb_allocation(carb_mode: CarbMode, daily_carbs_g: float, training_before_meal: MealName | None, training_load_tomorrow: TrainingLoadTomorrow) -> dict[MealName, float]` in `src/mealplan/domain/services.py`.
+  - API is domain-only in Phase 6 (no application wrapper or CLI wiring).
+  - Returns canonical six-meal allocation keyed by `MealName` in canonical order.
 - Redistribution algorithm:
   - High meals fixed at 30% each of total carbs.
   - Remaining carbs split evenly over non-high meals.
 - Precedence and deterministic ordering:
   - Meal order fixed: breakfast -> morning-snack -> lunch -> afternoon-snack -> dinner -> evening-snack.
-  - Apply precedence from PRD section 8.5 exactly.
+  - Apply precedence from PRD section 8.5 exactly: non-periodized bypass -> post-training highs -> next-day high override unless conflict -> reconciliation check.
+  - Non-periodized bypass (`CarbMode.LOW`/`CarbMode.NORMAL`) returns deterministic equal split (`daily_carbs_g / 6.0`) independent of training context.
+  - Reconciliation guard is `abs(sum_allocated_carbs - daily_carbs_g) <= 1e-9`; failure raises `DomainRuleError`.
 
 ## 9. Periodization Strategy Design
-- Approach: strategy pattern (`PeriodizationStrategy` interface, concrete `StandardPeriodizedStrategy`).
+- Approach: Phase 6 uses a single pure domain service (`calculate_periodized_carb_allocation`) rather than an application-facing strategy wrapper.
 - Precedence hierarchy:
   - Non-periodized bypass.
   - Post-training rule.
