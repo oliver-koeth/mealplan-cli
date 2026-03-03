@@ -377,6 +377,39 @@ def test_meal_split_applies_residual_adjustment_to_evening_snack_only() -> None:
     assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(payload["fat_g"])
 
 
+def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_targets() -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2200.0,
+        training_carbs_g=50.0,
+        protein_g=120.0,
+        carbs_g=60.0,
+        fat_g=30.0,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 10.0),
+    )
+
+    meals = payload["meals"]
+    assert isinstance(meals, list)
+    assert meals[-1]["meal"] == MealName.EVENING_SNACK
+    assert meals[-1]["carbs_g"] == 10.0
+    assert meals[-1]["protein_g"] == 20.0
+    assert meals[-1]["fat_g"] == 5.0
+    assert sum(float(entry["carbs_g"]) for entry in meals) == pytest.approx(payload["carbs_g"])
+    assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(payload["protein_g"])
+    assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(payload["fat_g"])
+
+
+def test_meal_split_raises_reconciliation_error_for_unreconcilable_subcent_target() -> None:
+    with pytest.raises(DomainRuleError, match=r"^meal_assembly\.reconciliation:"):
+        calculate_meal_split_and_response_payload(
+            tdee_kcal=2200.0,
+            training_carbs_g=50.0,
+            protein_g=100.0,
+            carbs_g=60.035,
+            fat_g=10.0,
+            carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 10.005),
+        )
+
+
 def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:
     incomplete_carb_allocation = dict(
         zip(

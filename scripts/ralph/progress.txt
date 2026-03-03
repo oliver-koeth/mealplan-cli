@@ -6,6 +6,7 @@
 - For Phase 7 assembler carb inputs, validate allocation map keys against exact `CANONICAL_MEAL_ORDER` coverage (no missing/extra keys) and raise `DomainRuleError` prefixed `meal_assembly.carb_allocation`.
 - For Phase 7 reconciliation, adjust rounding residuals only on the canonical last meal (`evening-snack`) in fixed macro order (`carbs_g`, `protein_g`, `fat_g`), and fail with `meal_assembly.reconciliation` if totals still drift.
 - For Phase 7 response-shape changes, validate domain payload compatibility by parsing assembler output with `MealPlanResponse.model_validate(...)` in domain service tests.
+- For Phase 7 reconciliation failure-path coverage, use sub-cent macro targets (more than two decimals) so drift remains unreconcilable after cent-based adjustment, then assert the stable `meal_assembly.reconciliation` prefix.
 
 Started: Tue Mar  3 14:50:04 CET 2026
 ---
@@ -134,4 +135,22 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - `MealPlanResponse` uses strict floats and canonical meal-order validation, so helper tests should feed float literals and canonical `CANONICAL_MEAL_ORDER` rows.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Current payload assembly helper remains domain-local (`_assemble_meal_split_response_payload`) while the public contract stays `calculate_meal_split_and_response_payload(...)`.
+---
+## [2026-03-03 15:10:34 CET] - [US-008]
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Added reconciliation policy tests for both no-adjustment and drift-failure paths in Phase 7 meal assembly.
+- Added a deterministic no-adjustment test that verifies evening-snack remains unchanged when rounded meal totals already match top-level targets.
+- Added an unreconcilable sub-cent target test that asserts `DomainRuleError` with stable `meal_assembly.reconciliation` prefix when cent-based residual adjustment cannot match top-level totals.
+- Files changed
+  - `tests/unit/test_domain_services.py`
+  - `AGENT.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Reconciliation failure-path tests are easiest to trigger with sub-cent macro targets because cent-rounded residual steps cannot perfectly satisfy those totals.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Assert only the stable error prefix (`^meal_assembly\\.reconciliation:`) for reconciliation failures instead of brittle full-message snapshots.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - Existing drift-correction test already covers the successful residual path; this story needed explicit no-adjustment and unreconcilable-path tests.
 ---
