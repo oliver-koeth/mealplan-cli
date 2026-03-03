@@ -1,6 +1,10 @@
 # Ralph Progress Log
 Started: Tue Mar  3 09:26:51 CET 2026
 ---
+## Codebase Patterns
+- Run `make quality` as the authoritative local gate before marking a story complete.
+- Keep Phase 5 fueling behavior centered on `calculate_training_carbs_g` in `src/mealplan/domain/services.py` with companion assertions in `tests/unit/test_domain_services.py`.
+
 ## 2026-03-03 09:28:03 CET - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
 - Implemented `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float` in domain services as a pure deterministic function over normalized inputs.
@@ -14,4 +18,18 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
     - `make quality` is the authoritative local gate and must pass before marking a story complete.
   - Useful context (e.g., "the evaluation panel is in component X")
     - Existing Phase 5 stories build on the same `calculate_training_carbs_g` entrypoint, so later rule changes should extend tests in `tests/unit/test_domain_services.py`.
+---
+## 2026-03-03 09:29:41 CET - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Implemented the all-zone-1 and zero-total overrides in `calculate_training_carbs_g`, returning strict `0.0` for both cases.
+- Added focused unit tests for all-zone-1 and all-zero sessions with strict float equality assertions.
+- Marked `US-002` as passing in `scripts/ralph/prd.json` after `make quality` succeeded.
+- Files changed: `src/mealplan/domain/services.py`, `tests/unit/test_domain_services.py`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+    - Phase 5 story increments should evolve `calculate_training_carbs_g` behavior in small rule-specific steps while preserving a single domain entrypoint.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+    - Keep strict float equality in fueling tests (`0.0`, `60.0`, etc.) to match PRD acceptance criteria exactly.
+  - Useful context (e.g., "the evaluation panel is in component X")
+    - `tests/unit/test_domain_services.py` is the canonical location for Phase 5 fueling rule coverage.
 ---

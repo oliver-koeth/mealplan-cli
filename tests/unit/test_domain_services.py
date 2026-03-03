@@ -61,3 +61,15 @@ def test_calculate_training_carbs_g_is_deterministic_for_same_input() -> None:
     zones_minutes: Mapping[int, int] = {1: 10, 2: 0, 3: 15, 4: 5, 5: 0}
 
     assert calculate_training_carbs_g(zones_minutes) == calculate_training_carbs_g(zones_minutes)
+
+
+def test_calculate_training_carbs_g_returns_zero_for_all_zone_1_minutes() -> None:
+    zones_minutes: Mapping[int, int] = {1: 45, 2: 0, 3: 0, 4: 0, 5: 0}
+
+    assert calculate_training_carbs_g(zones_minutes) == 0.0
+
+
+def test_calculate_training_carbs_g_returns_zero_for_zero_total_minutes() -> None:
+    zones_minutes: Mapping[int, int] = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+
+    assert calculate_training_carbs_g(zones_minutes) == 0.0

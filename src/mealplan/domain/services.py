@@ -30,4 +30,11 @@ def calculate_macro_targets(
 
 def calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float:
     """Return deterministic training fueling carbs from normalized zone minutes."""
-    return float(sum(zones_minutes.values()))
+    total_minutes = sum(zones_minutes.values())
+    if total_minutes == 0:
+        return 0.0
+
+    if all(minutes == 0 for zone, minutes in zones_minutes.items() if zone != 1):
+        return 0.0
+
+    return float(total_minutes)
