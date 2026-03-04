@@ -11,6 +11,7 @@ It defines execution workflow and where to find authoritative project rules with
 - Architecture and layer boundaries: `docs/ARCHITECTURE.md`
 - Domain model and invariants: `docs/MODEL.md`
 - Build sequencing: `docs/PLAN.md`
+- Enhancement lifecycle and artifact flow: `docs/ENHANCEMENTS.md`
 - Human contributor workflow: `CONTRIBUTING.md`
 
 When in doubt, update those source docs instead of expanding this file.
@@ -99,6 +100,7 @@ When in doubt, update those source docs instead of expanding this file.
 70. Keep release-readiness steps in `docs/RELEASE_CHECKLIST.md` aligned with executable local/CI gates (`make quality`, `make package-check`, `make install-smoke-check`) so documentation and automation do not drift.
 71. Keep CI release-readiness gates split into dependent jobs in `.github/workflows/ci.yml` (`quality` -> `package-build` -> `install-smoke`) and pass built artifacts via `actions/upload-artifact`/`actions/download-artifact` so install-smoke validates the exact wheel produced by packaging.
 72. When CI gate commands or job boundaries change, update `README.md` and `CONTRIBUTING.md` in the same iteration so contributor-facing quality/package/install guidance stays synchronized with `.github/workflows/ci.yml` and `docs/RELEASE_CHECKLIST.md`.
+73. For net-new incremental features, follow `docs/ENHANCEMENTS.md`: author one `docs/enhancements/enhance-*` brief, generate PRD in `tasks/`, execute from `scripts/ralph/prd.json`, and archive outputs under `scripts/ralph/archive/`.
 
 ## Ralph Runner
 
