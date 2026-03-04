@@ -5,6 +5,7 @@ Started: Wed Mar  4 15:29:43 CET 2026
 - Insert `training` deterministically before `training_before_meal`; validate response meal order by filtering out `training` then matching canonical meal order.
 - Typer option annotations cannot be unions with multiple non-`None` members; accept `str | None` in CLI and enforce richer value semantics in contract + semantic validation.
 - For meal energy display, recompute each meal `kcal` from displayed grams first, then apply a display-only evening-snack `kcal` correction so `sum(meals[*].kcal)` exactly matches top-level `TDEE`.
+- For display-only kcal reconciliation regressions, assert evening-snack macro grams stay unchanged and include a training-meal-present case to prove only displayed `kcal` is adjusted.
 ---
 ## [2026-03-04 15:35:44 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -120,4 +121,17 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: displayed meal `kcal` is now a two-step boundary field (`4/4/9` derivation, then evening-snack residual correction to `TDEE`).
   - Gotchas encountered: existing tests that pin specific meal `kcal` values may need `TDEE` fixtures aligned to intended behavior; otherwise evening-snack `kcal` will shift by design.
   - Useful context: application golden fixtures with optional training meal may change only at `evening-snack.kcal` when reconciling top-level `TDEE`, while meal order/macros remain unchanged.
+---
+## [2026-03-04 15:57:21 CET] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Added explicit regression assertions that displayed-kcal reconciliation keeps `evening-snack` macro grams unchanged while adjusting only `evening-snack.kcal` to close the residual to top-level `TDEE`.
+- Added a training-meal-present reconciliation test to prove display-only behavior still holds when optional `training` is inserted (training meal macros/kcal remain macro-derived and unmodified).
+- Files changed:
+  - tests/unit/test_domain_services.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: reconciliation assertions should verify macro invariance explicitly (`carbs_g`, `protein_g`, `fat_g`) rather than inferring from kcal totals alone.
+  - Gotchas encountered: top-level `carbs_g` excludes optional `training_carbs_g`, so training-row checks should validate row-local invariants instead of summing training carbs into canonical meal carb targets.
+  - Useful context: a deterministic residual fixture (`TDEE` off by `0.03`) is enough to exercise display-only evening-snack `kcal` correction without perturbing macro reconciliation logic.
 ---

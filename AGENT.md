@@ -105,6 +105,7 @@ When in doubt, update those source docs instead of expanding this file.
 75. For `training` meal ordering, insert at most one `training` row immediately before `training_before_meal`; in response-contract validation, enforce canonical order only after filtering out `training`.
 76. In Typer command signatures, avoid union option annotations with multiple non-`None` types (for example `MealName | Literal["training"] | None`), because Typer parameter conversion asserts on such unions; accept `str | None` at CLI and enforce allowed values in contract/semantic validation layers.
 77. For meal-level energy display, first recompute each row `kcal` from displayed macros (`4/4/9`), then apply a final display-only `TDEE` reconciliation by adjusting `evening-snack.kcal` so `sum(meals[*].kcal) == TDEE` without mutating meal macros.
+78. For display-only kcal reconciliation tests, include assertions that `evening-snack` macro grams remain unchanged and add at least one case with optional `training` meal present to prove only displayed `kcal` is reconciled.
 
 ## Ralph Runner
 
