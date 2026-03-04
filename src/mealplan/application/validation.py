@@ -24,6 +24,10 @@ def validate_semantic_input(request: MealPlanRequest) -> None:
         cast(Mapping[int | str, object], request.training_session.zones_minutes)
     )
     total_zones_minutes = sum(normalized_zones.values())
+    if request.training_session.training_before_meal == "training":
+        raise ValidationError(
+            "training_session.training_before_meal: must not be 'training'"
+        )
     if total_zones_minutes > 0 and request.training_session.training_before_meal is None:
         raise ValidationError(
             "training_session.training_before_meal: required when total zones_minutes > 0"

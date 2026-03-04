@@ -3,6 +3,7 @@ Started: Wed Mar  4 15:29:43 CET 2026
 ## Codebase Patterns
 - Response payloads may include at most one optional `training` meal; keep core canonical-order and macro reconciliation invariants scoped to the six canonical meals only.
 - Insert `training` deterministically before `training_before_meal`; validate response meal order by filtering out `training` then matching canonical meal order.
+- Typer option annotations cannot be unions with multiple non-`None` members; accept `str | None` in CLI and enforce richer value semantics in contract + semantic validation.
 ---
 ## [2026-03-04 15:35:44 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -50,5 +51,25 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - **Learnings for future iterations:**
   - Patterns discovered: training-meal ordering is enforced at assembly time by index insertion against canonical meals and should remain deterministic for every `MealName`.
   - Gotchas encountered: integration and golden tests often encode explicit meal order lists; when insertion semantics change, update both expected ordering logic and fixture payloads together.
-  - Useful context: response DTO validation should ignore the optional `training` row when checking canonical order to keep domain invariants and response flexibility compatible.
+- Useful context: response DTO validation should ignore the optional `training` row when checking canonical order to keep domain invariants and response flexibility compatible.
+---
+## [2026-03-04 15:45:17 CET] - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented semantic runtime rejection for `--training-before=training` while keeping the value parseable through CLI and request contract parsing.
+- Expanded request contract typing so `training_before_meal` accepts `"training"` syntactically, then enforced deterministic semantic validation error `training_session.training_before_meal: must not be 'training'`.
+- Added regression coverage in semantic validation matrix and CLI integration to ensure parseable input is rejected at runtime with validation exit code.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/application/contracts.py
+  - src/mealplan/application/orchestration.py
+  - src/mealplan/application/validation.py
+  - src/mealplan/cli/main.py
+  - tests/cli/test_calculate.py
+  - tests/unit/test_validation_matrices.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: to make a CLI value syntactically parseable but semantically invalid, accept broad CLI typing (`str`) and push strict interpretation into contract + semantic validation.
+  - Gotchas encountered: Typer asserts on option unions containing multiple non-`None` types, which can break all commands at startup if used in function annotations.
+  - Useful context: keep semantic validation errors field-prefixed (`training_session.training_before_meal: ...`) so exit-code mapping and existing CLI/error tests stay stable.
 ---

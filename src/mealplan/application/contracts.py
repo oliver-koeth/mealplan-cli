@@ -12,6 +12,7 @@ from mealplan.domain.model import CANONICAL_MEAL_ORDER
 
 SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtime"]
 TrainingZoneKey = Literal["1", "2", "3", "4", "5"]
+TrainingBeforeMeal = MealName | Literal["training"]
 CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "age": "years",
     "height_cm": "cm",
@@ -37,7 +38,7 @@ class TrainingSession(BoundaryModel):
     zones_minutes: dict[TrainingZoneKey, StrictInt] = Field(
         description="Training minutes per zone key ('1'..'5').",
     )
-    training_before_meal: MealName | None = None
+    training_before_meal: TrainingBeforeMeal | None = None
 
 
 class MealPlanRequest(BoundaryModel):

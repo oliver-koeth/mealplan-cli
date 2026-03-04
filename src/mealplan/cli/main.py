@@ -18,7 +18,7 @@ from mealplan.application.contracts import (
 from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
 from mealplan.application.stub import run_probe
-from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
+from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, TrainingLoadTomorrow
 from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 
@@ -88,7 +88,7 @@ def calculate_command(
     carbs: CarbMode = CARBS_OPTION,
     training_tomorrow: TrainingLoadTomorrow = TRAINING_TOMORROW_OPTION,
     training_zones: str | None = TRAINING_ZONES_OPTION,
-    training_before: MealName | None = TRAINING_BEFORE_OPTION,
+    training_before: str | None = TRAINING_BEFORE_OPTION,
     output_format: OutputFormat = OUTPUT_FORMAT_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
@@ -119,7 +119,7 @@ def calculate_command(
 def _build_training_session_payload(
     *,
     training_zones: str | None,
-    training_before: MealName | None,
+    training_before: str | None,
 ) -> dict[str, object] | None:
     if training_zones is None and training_before is None:
         return None

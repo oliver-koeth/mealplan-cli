@@ -369,6 +369,39 @@ def test_calculate_training_fields_are_parsed_then_validated_by_application() ->
     )
 
 
+def test_calculate_training_before_training_is_semantic_validation_error() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "calculate",
+            "--age",
+            "40",
+            "--gender",
+            "male",
+            "--height",
+            "180",
+            "--weight",
+            "75",
+            "--activity",
+            "medium",
+            "--carbs",
+            "low",
+            "--training-tomorrow",
+            "high",
+            "--training-before",
+            "training",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "Error: training_session.training_before_meal: must not be 'training'" in result.stderr
+
+
 def test_calculate_training_zones_accepts_json_string_input() -> None:
     result = subprocess.run(
         [

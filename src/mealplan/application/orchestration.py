@@ -129,11 +129,12 @@ def _validated_training_session(request: MealPlanRequest) -> ValidatedTrainingSe
             zones_minutes=dict.fromkeys(range(1, 6), 0),
             training_before_meal=None,
         )
+    training_before_meal = cast(MealName | None, request.training_session.training_before_meal)
     return ValidatedTrainingSession(
         zones_minutes=normalize_training_zones(
             cast(dict[int | str, object], request.training_session.zones_minutes)
         ),
-        training_before_meal=request.training_session.training_before_meal,
+        training_before_meal=training_before_meal,
     )
 
 

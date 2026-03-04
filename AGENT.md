@@ -103,6 +103,7 @@ When in doubt, update those source docs instead of expanding this file.
 73. For net-new incremental features, follow `docs/ENHANCEMENTS.md`: author one `docs/enhancements/enhance-*` brief, generate PRD in `tasks/`, execute from `scripts/ralph/prd.json`, and archive outputs under `scripts/ralph/archive/`.
 74. For response-level optional `training` meal support, keep canonical six-meal domain invariants scoped to non-training meals, allow at most one `training` entry, and keep training-row macros carbs-only (`protein_g=0`, `fat_g=0`).
 75. For `training` meal ordering, insert at most one `training` row immediately before `training_before_meal`; in response-contract validation, enforce canonical order only after filtering out `training`.
+76. In Typer command signatures, avoid union option annotations with multiple non-`None` types (for example `MealName | Literal["training"] | None`), because Typer parameter conversion asserts on such unions; accept `str | None` at CLI and enforce allowed values in contract/semantic validation layers.
 
 ## Ralph Runner
 
