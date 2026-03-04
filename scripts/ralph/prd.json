@@ -1,18 +1,17 @@
 {
   "project": "mealplan",
-  "branchName": "ralph/phase-10-golden-tests-packaging-release-readiness",
-  "description": "Phase 10 for mealplan: add CLI and application golden regression tests, packaging/installability verification, and release-readiness checklist plus CI gates.",
+  "branchName": "ralph/enhance-001-training-carb-meal-and-kcal-breakdown",
+  "description": "Enhance meal-plan output by conditionally inserting one training meal (before any meal target), adding per-meal kcal, and reconciling displayed meal kcal to top-level TDEE via deterministic evening-snack display-only correction.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add CLI golden snapshot regression suite",
-      "description": "As a maintainer, I want golden snapshots for critical CLI outputs so user-facing behavior regressions are caught immediately.",
+      "title": "Insert one conditional training meal",
+      "description": "As a user following training-day guidance, I want exactly one training meal to appear when training carbs are prescribed so the plan maps directly to workout fueling.",
       "acceptanceCriteria": [
-        "Use `pytest` with file-based golden fixtures stored under `tests/golden/cli/` (no additional snapshot plugin required).",
-        "Add golden tests for explicit CLI scenarios: successful default JSON output, successful `--format text`, successful `--format table`.",
-        "Include golden failure-mode scenarios: missing required option (`--age`), invalid enum value (`--gender invalid`), invalid format value (`--format xml`), invalid training-zones JSON, concise default runtime error output, and debug runtime traceback output.",
-        "Snapshots assert canonical structure and ordering for stable CLI behavior.",
-        "Snapshot tests are deterministic across repeated local and CI runs.",
+        "When training_carbs_g > 0, output includes exactly one training meal.",
+        "When training_carbs_g = 0, output includes no training meal.",
+        "Training meal carbs equal training_carbs_g.",
+        "Training meal macros are carbs-only: protein_g=0 and fat_g=0.",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -22,115 +21,109 @@
     },
     {
       "id": "US-002",
-      "title": "Add application golden snapshot regression suite",
-      "description": "As a maintainer, I want golden snapshots of application responses so orchestration and domain regressions are detected independently from CLI formatting.",
+      "title": "Place training meal before any meal target",
+      "description": "As a user, I want training meal placement to follow --training-before before any meal target so ordering is predictable.",
       "acceptanceCriteria": [
-        "Use file-based golden fixtures under `tests/golden/application/` for `MealPlanCalculationService` outputs.",
-        "Cover explicit service scenarios: periodized day with training session, non-periodized day with training session, and omitted training session (`training_session=None`).",
-        "Snapshots validate canonical meal ordering and response shape consistency.",
-        "Application snapshot suite runs without CLI rendering dependencies.",
+        "Training meal insertion position follows --training-before semantics.",
+        "Insertion before each supported meal target is deterministic.",
+        "At most one training meal appears in output.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Implement hybrid snapshot tolerance policy",
-      "description": "As a test author, I want strict structural snapshots and explicit numeric tolerance handling so tests remain stable without masking real regressions.",
+      "title": "Handle training-before-training as semantic runtime error",
+      "description": "As a maintainer, I want --training-before=training to be parseable but rejected semantically so recursive placement is prevented with deterministic runtime validation.",
       "acceptanceCriteria": [
-        "Define and document strict-vs-tolerant fields in a contributor-facing section in `README.md` or `docs/REQUIREMENTS.md`.",
-        "Enforce strict checks for payload keys, canonical ordering, and string or enum values.",
-        "Apply tolerance only to numeric macro and energy fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, and meal macro grams) using absolute tolerance `0.01`.",
-        "Centralize tolerance constants in one test helper module (for example `tests/golden/helpers.py`) and reuse it across CLI and application golden tests.",
+        "Input path can parse training as a syntactic --training-before value.",
+        "--training-before=training fails semantic runtime validation deterministically.",
+        "Error messaging follows existing validation/runtime conventions.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Verify package artifact builds",
-      "description": "As a release owner, I want reproducible package build artifacts so the project can be distributed safely.",
+      "title": "Add per-meal kcal field",
+      "description": "As a user, I want each meal to display kcal in addition to macros so I can track per-meal energy intake.",
       "acceptanceCriteria": [
-        "Add automated build verification for both source distribution (`sdist`) and wheel artifacts.",
-        "Build outputs are generated via `uv build` and placed in `dist/`.",
-        "Generated artifacts include expected package metadata and CLI entry points.",
-        "Packaging build checks are included in CI.",
+        "Each emitted meal includes kcal alongside carbs_g, protein_g, and fat_g.",
+        "Per-meal kcal values are macro-derived using existing conversion rules.",
+        "Output structure remains deterministic across runs.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Verify pip-installable and runnable workflow",
-      "description": "As a user, I want a clean install-and-run path so I can use the tool outside the source tree.",
+      "title": "Reconcile displayed meal kcal totals to TDEE",
+      "description": "As a user, I want the sum of displayed meal kcal to match top-level TDEE exactly so reported totals are trustworthy.",
       "acceptanceCriteria": [
-        "Document and test isolated install workflow: create fresh venv, install `dist/*.whl` via pip, then execute smoke commands.",
-        "Verify installed command invocation for both `mealplan --help` and `python -m mealplan --help`.",
-        "Include at least one post-install smoke command validation.",
-        "Installability checks are automated in CI.",
+        "After rounding and reconciliation, sum(displayed meal kcal) equals top-level TDEE.",
+        "Any small rounding delta is corrected by adjusting evening-snack displayed kcal only.",
+        "Reconciliation is deterministic and does not change meal ordering.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Add release checklist documentation",
-      "description": "As a maintainer, I want a concrete release checklist so each release candidate is validated consistently.",
+      "title": "Keep reconciliation display-only for kcal",
+      "description": "As a maintainer, I want evening-snack reconciliation to adjust displayed kcal only so macro gram allocations remain unchanged.",
       "acceptanceCriteria": [
-        "Add a release-readiness checklist document with pre-release gates.",
-        "Checklist includes quality gates, snapshot pass criteria, packaging checks, and install smoke checks.",
-        "Checklist includes versioning and release-note expectations for first usable release.",
-        "Checklist references exact commands and expected outcomes.",
+        "Reconciliation mutates displayed evening-snack kcal only.",
+        "Displayed carbs_g, protein_g, and fat_g are unchanged by reconciliation.",
+        "Behavior is covered by explicit tests or contract assertions.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Add CI automation for release-readiness gates",
-      "description": "As a maintainer, I want CI automation for snapshot, packaging, and install smoke checks so regressions are blocked before merge.",
+      "title": "Add regression tests for insertion, validation, and kcal balancing",
+      "description": "As a maintainer, I want focused regression tests for training insertion, semantic validation, and kcal reconciliation so future changes do not regress this enhancement.",
       "acceptanceCriteria": [
-        "CI runs CLI and application golden snapshot suites.",
-        "CI builds both `sdist` and wheel artifacts.",
-        "CI runs install-and-smoke checks in an isolated environment.",
-        "CI is structured into separate jobs: quality/tests, packaging build, and install-smoke (with explicit dependencies between jobs).",
-        "CI failure diagnostics clearly identify snapshot drift, packaging failures, and install failures.",
+        "Tests cover training meal present and absent behavior for training_carbs_g > 0 and = 0.",
+        "Tests cover deterministic insertion ordering for supported --training-before targets.",
+        "Tests cover semantic runtime rejection for --training-before=training.",
+        "Tests cover training meal carbs-only composition.",
+        "Tests cover per-meal kcal emission and exact summed meal-kcal-to-TDEE equality.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Update docs and examples for release-ready usage",
-      "description": "As a user, I want up-to-date usage and packaging docs so installation and command execution are unambiguous.",
+      "title": "Update canonical docs for contract changes",
+      "description": "As a maintainer, I want canonical docs updated so the new training-meal and kcal output contract is documented and stable.",
       "acceptanceCriteria": [
-        "Update README and docs with packaged installation and execution paths.",
-        "Document deterministic-output and golden-testing expectations for contributors.",
-        "Add or refresh representative release-context CLI usage examples.",
-        "Ensure docs align with CI gates and release checklist workflow.",
+        "Update docs/REQUIREMENTS.md with training-meal insertion rules and semantic rejection of --training-before=training.",
+        "Update docs/MODEL.md with output shape changes including optional training meal and per-meal kcal.",
+        "Update docs/ARCHITECTURE.md with display-only evening-snack kcal reconciliation targeting TDEE.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 8,
-      "passes": true,
+      "passes": false,
       "notes": ""
     }
   ]

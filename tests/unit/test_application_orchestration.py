@@ -831,16 +831,29 @@ def test_meal_plan_calculation_service_integration_success_matrix(
     response = MealPlanCalculationService().calculate(request)
 
     assert isinstance(response, MealPlanResponse)
-    assert [meal.meal for meal in response.meals] == list(CANONICAL_MEAL_ORDER)
-    assert len(response.meals) == len(CANONICAL_MEAL_ORDER)
+    expected_meal_sequence: list[MealName | str] = list(CANONICAL_MEAL_ORDER)
+    if expected_training_carbs_g > 0.0:
+        expected_meal_sequence.append("training")
+    assert [meal.meal for meal in response.meals] == expected_meal_sequence
+    assert len(response.meals) == len(expected_meal_sequence)
     assert response.training_carbs_g == pytest.approx(expected_training_carbs_g)
 
-    carbs_total = sum(meal.carbs_g for meal in response.meals)
-    protein_total = sum(meal.protein_g for meal in response.meals)
-    fat_total = sum(meal.fat_g for meal in response.meals)
+    canonical_meals = [meal for meal in response.meals if meal.meal != "training"]
+    training_meals = [meal for meal in response.meals if meal.meal == "training"]
+
+    carbs_total = sum(meal.carbs_g for meal in canonical_meals)
+    protein_total = sum(meal.protein_g for meal in canonical_meals)
+    fat_total = sum(meal.fat_g for meal in canonical_meals)
     assert carbs_total == pytest.approx(response.carbs_g)
     assert protein_total == pytest.approx(response.protein_g)
     assert fat_total == pytest.approx(response.fat_g)
+    if expected_training_carbs_g > 0.0:
+        assert len(training_meals) == 1
+        assert training_meals[0].carbs_g == pytest.approx(expected_training_carbs_g)
+        assert training_meals[0].protein_g == 0.0
+        assert training_meals[0].fat_g == 0.0
+    else:
+        assert training_meals == []
 
 
 def test_meal_plan_calculation_service_integration_validation_failure(

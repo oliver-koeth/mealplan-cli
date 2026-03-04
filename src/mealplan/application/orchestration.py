@@ -166,15 +166,18 @@ def validate_response_invariants(response: MealPlanResponse) -> None:
         carbs_g=float(response.carbs_g),
         fat_g=float(response.fat_g),
     )
-    meal_allocations = [
-        MealAllocation(
-            meal=allocation.meal,
-            carbs_g=float(allocation.carbs_g),
-            protein_g=float(allocation.protein_g),
-            fat_g=float(allocation.fat_g),
+    meal_allocations: list[MealAllocation] = []
+    for allocation in response.meals:
+        if allocation.meal == "training":
+            continue
+        meal_allocations.append(
+            MealAllocation(
+                meal=cast(MealName, allocation.meal),
+                carbs_g=float(allocation.carbs_g),
+                protein_g=float(allocation.protein_g),
+                fat_g=float(allocation.fat_g),
+            )
         )
-        for allocation in response.meals
-    ]
 
     validate_macro_targets_invariants(macro_targets)
     validate_meal_allocation_invariants(meal_allocations)

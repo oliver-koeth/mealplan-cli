@@ -23,7 +23,7 @@ MEAL_ASSEMBLY_RECONCILIATION_MACRO_ORDER: tuple[MacroField, MacroField, MacroFie
 
 
 class MealPayloadRow(TypedDict):
-    meal: MealName
+    meal: MealName | Literal["training"]
     carbs_g: float
     protein_g: float
     fat_g: float
@@ -148,6 +148,7 @@ def calculate_meal_split_and_response_payload(
         protein_g=protein_g,
         fat_g=fat_g,
     )
+    _append_training_meal_if_needed(meals=meals, training_carbs_g=training_carbs_g)
 
     return _assemble_meal_split_response_payload(
         tdee_kcal=tdee_kcal,
@@ -156,6 +157,23 @@ def calculate_meal_split_and_response_payload(
         carbs_g=carbs_g,
         fat_g=fat_g,
         meals=meals,
+    )
+
+
+def _append_training_meal_if_needed(
+    *,
+    meals: list[MealPayloadRow],
+    training_carbs_g: float,
+) -> None:
+    if training_carbs_g <= 0.0:
+        return
+    meals.append(
+        {
+            "meal": "training",
+            "carbs_g": training_carbs_g,
+            "protein_g": 0.0,
+            "fat_g": 0.0,
+        }
     )
 
 

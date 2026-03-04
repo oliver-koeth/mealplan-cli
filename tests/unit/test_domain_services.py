@@ -192,7 +192,7 @@ def test_calculate_meal_split_and_response_payload_has_stable_orchestration_sign
     )
 
 
-def test_calculate_meal_split_and_response_payload_returns_canonical_payload_shape() -> None:
+def test_calculate_meal_split_and_response_payload_appends_training_meal_when_positive() -> None:
     carb_allocation_g_by_meal = dict(
         zip(
             CANONICAL_MEAL_ORDER,
@@ -226,14 +226,19 @@ def test_calculate_meal_split_and_response_payload_returns_canonical_payload_sha
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert len(meals) == len(CANONICAL_MEAL_ORDER)
+    assert len(meals) == len(CANONICAL_MEAL_ORDER) + 1
     meal_sequence = [entry["meal"] for entry in meals]
-    assert meal_sequence == list(CANONICAL_MEAL_ORDER)
-    assert len(set(meal_sequence)) == len(CANONICAL_MEAL_ORDER)
-    assert set(meal_sequence) == set(CANONICAL_MEAL_ORDER)
-    assert [entry["carbs_g"] for entry in meals] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
-    assert [entry["protein_g"] for entry in meals] == [30.0] * len(CANONICAL_MEAL_ORDER)
-    assert [entry["fat_g"] for entry in meals] == [12.0] * len(CANONICAL_MEAL_ORDER)
+    assert meal_sequence[:-1] == list(CANONICAL_MEAL_ORDER)
+    assert meal_sequence[-1] == "training"
+    assert [entry["carbs_g"] for entry in meals[:-1]] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
+    assert [entry["protein_g"] for entry in meals[:-1]] == [30.0] * len(CANONICAL_MEAL_ORDER)
+    assert [entry["fat_g"] for entry in meals[:-1]] == [12.0] * len(CANONICAL_MEAL_ORDER)
+    assert meals[-1] == {
+        "meal": "training",
+        "carbs_g": 85.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+    }
 
 
 def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meals() -> None:
@@ -284,7 +289,11 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
     assert parsed.protein_g == 180.0
     assert parsed.carbs_g == 300.0
     assert parsed.fat_g == 72.0
-    assert len(parsed.meals) == len(CANONICAL_MEAL_ORDER)
+    assert len(parsed.meals) == len(CANONICAL_MEAL_ORDER) + 1
+    assert parsed.meals[-1].meal == "training"
+    assert parsed.meals[-1].carbs_g == 85.0
+    assert parsed.meals[-1].protein_g == 0.0
+    assert parsed.meals[-1].fat_g == 0.0
 
 
 def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equally() -> None:
@@ -295,7 +304,7 @@ def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equall
 
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2400.0,
-        training_carbs_g=60.0,
+        training_carbs_g=0.0,
         protein_g=protein_g,
         carbs_g=300.0,
         fat_g=fat_g,
@@ -327,7 +336,7 @@ def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> No
 
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2100.0,
-        training_carbs_g=45.0,
+        training_carbs_g=0.0,
         protein_g=protein_g,
         carbs_g=240.0,
         fat_g=fat_g,
@@ -353,7 +362,7 @@ def test_meal_split_applies_residual_adjustment_to_evening_snack_only() -> None:
 
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
-        training_carbs_g=50.0,
+        training_carbs_g=0.0,
         protein_g=100.0,
         carbs_g=60.03,
         fat_g=10.0,
@@ -381,7 +390,7 @@ def test_meal_split_applies_residual_adjustment_to_evening_snack_only() -> None:
 def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_targets() -> None:
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
-        training_carbs_g=50.0,
+        training_carbs_g=0.0,
         protein_g=120.0,
         carbs_g=60.0,
         fat_g=30.0,
@@ -402,7 +411,7 @@ def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_target
 def test_meal_split_allows_subcent_target_delta_within_reconciliation_tolerance() -> None:
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
-        training_carbs_g=50.0,
+        training_carbs_g=0.0,
         protein_g=100.0,
         carbs_g=60.035,
         fat_g=10.0,
@@ -412,6 +421,21 @@ def test_meal_split_allows_subcent_target_delta_within_reconciliation_tolerance(
     meals = payload["meals"]
     reconciled_carbs = sum(float(entry["carbs_g"]) for entry in meals)
     assert abs(reconciled_carbs - payload["carbs_g"]) <= MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE
+
+
+def test_calculate_meal_split_and_response_payload_omits_training_meal_when_zero() -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=0.0,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
+    )
+
+    meals = payload["meals"]
+    assert isinstance(meals, list)
+    assert [entry["meal"] for entry in meals] == list(CANONICAL_MEAL_ORDER)
 
 
 def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:

@@ -101,6 +101,7 @@ When in doubt, update those source docs instead of expanding this file.
 71. Keep CI release-readiness gates split into dependent jobs in `.github/workflows/ci.yml` (`quality` -> `package-build` -> `install-smoke`) and pass built artifacts via `actions/upload-artifact`/`actions/download-artifact` so install-smoke validates the exact wheel produced by packaging.
 72. When CI gate commands or job boundaries change, update `README.md` and `CONTRIBUTING.md` in the same iteration so contributor-facing quality/package/install guidance stays synchronized with `.github/workflows/ci.yml` and `docs/RELEASE_CHECKLIST.md`.
 73. For net-new incremental features, follow `docs/ENHANCEMENTS.md`: author one `docs/enhancements/enhance-*` brief, generate PRD in `tasks/`, execute from `scripts/ralph/prd.json`, and archive outputs under `scripts/ralph/archive/`.
+74. For response-level optional `training` meal support, keep canonical six-meal domain invariants scoped to non-training meals, allow at most one `training` entry as a trailing response row, and keep training-row macros carbs-only (`protein_g=0`, `fat_g=0`).
 
 ## Ralph Runner
 

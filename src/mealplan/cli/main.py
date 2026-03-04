@@ -19,7 +19,6 @@ from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
 from mealplan.application.stub import run_probe
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
-from mealplan.domain.model import CANONICAL_MEAL_ORDER
 from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 
@@ -160,9 +159,8 @@ def _render_text_output(response: MealPlanResponse) -> str:
         f"fat_g: {payload['fat_g']}",
         "meals:",
     ]
-    meal_by_name = {meal["meal"]: meal for meal in payload["meals"]}
-    for meal_name in CANONICAL_MEAL_ORDER:
-        meal = meal_by_name[meal_name]
+    for meal in payload["meals"]:
+        meal_name = meal["meal"]
         lines.append(
             f"- {meal_name}: carbs_g={meal['carbs_g']} "
             f"protein_g={meal['protein_g']} fat_g={meal['fat_g']}"
@@ -184,9 +182,8 @@ def _render_table_output(response: MealPlanResponse) -> str:
         "| meal | carbs_g | protein_g | fat_g |",
         "| --- | --- | --- | --- |",
     ]
-    meal_by_name = {meal["meal"]: meal for meal in payload["meals"]}
-    for meal_name in CANONICAL_MEAL_ORDER:
-        meal = meal_by_name[meal_name]
+    for meal in payload["meals"]:
+        meal_name = meal["meal"]
         lines.append(
             f"| {meal_name} | {meal['carbs_g']} | {meal['protein_g']} | {meal['fat_g']} |"
         )

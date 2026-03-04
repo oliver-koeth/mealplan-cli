@@ -147,6 +147,7 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
         "afternoon-snack",
         "dinner",
         "evening-snack",
+        "training",
     ]
 
 
