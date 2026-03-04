@@ -1,0 +1,5 @@
+# Ralph Progress Log
+Started: Wed Mar  4 13:00:00 CET 2026
+
+## Codebase Patterns
+- (Fill during iterations)

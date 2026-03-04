@@ -1,0 +1,130 @@
+{
+  "project": "mealplan",
+  "branchName": "ralph/enhance-001-training-carb-meal-and-kcal-breakdown",
+  "description": "Enhance meal-plan output by conditionally inserting one training meal (before any meal target), adding per-meal kcal, and reconciling displayed meal kcal to top-level TDEE via deterministic evening-snack display-only correction.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Insert one conditional training meal",
+      "description": "As a user following training-day guidance, I want exactly one training meal to appear when training carbs are prescribed so the plan maps directly to workout fueling.",
+      "acceptanceCriteria": [
+        "When training_carbs_g > 0, output includes exactly one training meal.",
+        "When training_carbs_g = 0, output includes no training meal.",
+        "Training meal carbs equal training_carbs_g.",
+        "Training meal macros are carbs-only: protein_g=0 and fat_g=0.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Place training meal before any meal target",
+      "description": "As a user, I want training meal placement to follow --training-before before any meal target so ordering is predictable.",
+      "acceptanceCriteria": [
+        "Training meal insertion position follows --training-before semantics.",
+        "Insertion before each supported meal target is deterministic.",
+        "At most one training meal appears in output.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Handle training-before-training as semantic runtime error",
+      "description": "As a maintainer, I want --training-before=training to be parseable but rejected semantically so recursive placement is prevented with deterministic runtime validation.",
+      "acceptanceCriteria": [
+        "Input path can parse training as a syntactic --training-before value.",
+        "--training-before=training fails semantic runtime validation deterministically.",
+        "Error messaging follows existing validation/runtime conventions.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add per-meal kcal field",
+      "description": "As a user, I want each meal to display kcal in addition to macros so I can track per-meal energy intake.",
+      "acceptanceCriteria": [
+        "Each emitted meal includes kcal alongside carbs_g, protein_g, and fat_g.",
+        "Per-meal kcal values are macro-derived using existing conversion rules.",
+        "Output structure remains deterministic across runs.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Reconcile displayed meal kcal totals to TDEE",
+      "description": "As a user, I want the sum of displayed meal kcal to match top-level TDEE exactly so reported totals are trustworthy.",
+      "acceptanceCriteria": [
+        "After rounding and reconciliation, sum(displayed meal kcal) equals top-level TDEE.",
+        "Any small rounding delta is corrected by adjusting evening-snack displayed kcal only.",
+        "Reconciliation is deterministic and does not change meal ordering.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Keep reconciliation display-only for kcal",
+      "description": "As a maintainer, I want evening-snack reconciliation to adjust displayed kcal only so macro gram allocations remain unchanged.",
+      "acceptanceCriteria": [
+        "Reconciliation mutates displayed evening-snack kcal only.",
+        "Displayed carbs_g, protein_g, and fat_g are unchanged by reconciliation.",
+        "Behavior is covered by explicit tests or contract assertions.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Add regression tests for insertion, validation, and kcal balancing",
+      "description": "As a maintainer, I want focused regression tests for training insertion, semantic validation, and kcal reconciliation so future changes do not regress this enhancement.",
+      "acceptanceCriteria": [
+        "Tests cover training meal present and absent behavior for training_carbs_g > 0 and = 0.",
+        "Tests cover deterministic insertion ordering for supported --training-before targets.",
+        "Tests cover semantic runtime rejection for --training-before=training.",
+        "Tests cover training meal carbs-only composition.",
+        "Tests cover per-meal kcal emission and exact summed meal-kcal-to-TDEE equality.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Update canonical docs for contract changes",
+      "description": "As a maintainer, I want canonical docs updated so the new training-meal and kcal output contract is documented and stable.",
+      "acceptanceCriteria": [
+        "Update docs/REQUIREMENTS.md with training-meal insertion rules and semantic rejection of --training-before=training.",
+        "Update docs/MODEL.md with output shape changes including optional training meal and per-meal kcal.",
+        "Update docs/ARCHITECTURE.md with display-only evening-snack kcal reconciliation targeting TDEE.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
