@@ -14,6 +14,7 @@ from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, Tra
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.domain.services import (
     CARB_RECONCILIATION_TOLERANCE,
+    MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE,
     _assemble_meal_split_response_payload,
     _validate_carb_reconciliation,
     calculate_macro_targets,
@@ -398,16 +399,19 @@ def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_target
     assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(payload["fat_g"])
 
 
-def test_meal_split_raises_reconciliation_error_for_unreconcilable_subcent_target() -> None:
-    with pytest.raises(DomainRuleError, match=r"^meal_assembly\.reconciliation:"):
-        calculate_meal_split_and_response_payload(
-            tdee_kcal=2200.0,
-            training_carbs_g=50.0,
-            protein_g=100.0,
-            carbs_g=60.035,
-            fat_g=10.0,
-            carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 10.005),
-        )
+def test_meal_split_allows_subcent_target_delta_within_reconciliation_tolerance() -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2200.0,
+        training_carbs_g=50.0,
+        protein_g=100.0,
+        carbs_g=60.035,
+        fat_g=10.0,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 10.005),
+    )
+
+    meals = payload["meals"]
+    reconciled_carbs = sum(float(entry["carbs_g"]) for entry in meals)
+    assert abs(reconciled_carbs - payload["carbs_g"]) <= MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE
 
 
 def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:

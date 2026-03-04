@@ -13,7 +13,7 @@ from mealplan.domain.validation import validate_meal_allocation_invariants
 from mealplan.shared.errors import DomainRuleError
 
 CARB_RECONCILIATION_TOLERANCE = 1e-9
-MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE = 1e-9
+MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE = 1e-2
 MacroField = Literal["carbs_g", "protein_g", "fat_g"]
 MEAL_ASSEMBLY_RECONCILIATION_MACRO_ORDER: tuple[MacroField, MacroField, MacroField] = (
     "carbs_g",

@@ -1,0 +1,2 @@
+[console_scripts]
+mealplan = mealplan.cli.main:main

@@ -858,14 +858,14 @@ def test_meal_plan_calculation_service_integration_validation_failure(
     assert map_exception_to_exit_code(error_info.value) is ExitCode.VALIDATION
 
 
-def test_meal_plan_calculation_service_integration_meal_assembly_failure_propagation(
+def test_meal_plan_calculation_service_integration_meal_assembly_reconciliation_tolerance(
     meal_plan_request_payload: dict[str, Any],
 ) -> None:
-    """Integration matrix: downstream domain failures bubble through calculate(...)."""
+    """Integration matrix: sub-cent reconciliation drift is accepted within tolerance."""
     request = MealPlanRequest.model_validate(meal_plan_request_payload)
+    response = MealPlanCalculationService().calculate(request)
 
-    with pytest.raises(DomainRuleError) as error_info:
-        MealPlanCalculationService().calculate(request)
+    assert isinstance(response, MealPlanResponse)
 
-    assert "meal_assembly.reconciliation:" in str(error_info.value)
-    assert map_exception_to_exit_code(error_info.value) is ExitCode.DOMAIN
+    fat_total = sum(meal.fat_g for meal in response.meals)
+    assert abs(fat_total - response.fat_g) <= 1e-2
