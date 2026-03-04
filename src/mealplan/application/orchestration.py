@@ -59,6 +59,7 @@ class MealPlanCalculationService:
         return self._run_assembly_stage(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
+            training_before_meal=training_session.training_before_meal,
             macro_targets=macro_targets,
             carb_allocation_g_by_meal=carb_allocation_g_by_meal,
         )
@@ -105,6 +106,7 @@ class MealPlanCalculationService:
         *,
         tdee_kcal: float,
         training_carbs_g: float,
+        training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
@@ -112,6 +114,7 @@ class MealPlanCalculationService:
         response_payload = calculate_meal_split_and_response_payload(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
+            training_before_meal=training_before_meal,
             protein_g=macro_targets.protein_g,
             carbs_g=macro_targets.carbs_g,
             fat_g=macro_targets.fat_g,

@@ -79,14 +79,12 @@ class MealPlanResponse(BoundaryModel):
 
     @model_validator(mode="after")
     def _ensure_canonical_meal_order(self) -> MealPlanResponse:
-        """Require canonical order plus optional single trailing training meal."""
+        """Require canonical order plus optional single training meal."""
         meal_sequence = [entry.meal for entry in self.meals]
         counts = Counter(meal_sequence)
         training_count = counts["training"]
         if training_count > 1:
             raise ValueError("meals may include at most one training meal")
-        if training_count == 1 and meal_sequence[-1] != "training":
-            raise ValueError("training meal must appear after canonical meals")
 
         canonical_only_sequence = [meal for meal in meal_sequence if meal != "training"]
         if canonical_only_sequence != list(CANONICAL_MEAL_ORDER):

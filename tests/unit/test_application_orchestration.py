@@ -97,12 +97,14 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
         *,
         tdee_kcal: float,
         training_carbs_g: float,
+        training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
         steps.append("assembly")
         assert tdee_kcal == 1.0
         assert training_carbs_g == 4.0
+        assert training_before_meal == MealName.LUNCH
         assert macro_targets == MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0)
         assert carb_allocation_g_by_meal == dict.fromkeys(CANONICAL_MEAL_ORDER, 1.0)
         return MealPlanResponse.placeholder()
@@ -158,11 +160,18 @@ def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
         *,
         tdee_kcal: float,
         training_carbs_g: float,
+        training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
         steps.append("assembly")
-        _ = tdee_kcal, training_carbs_g, macro_targets, carb_allocation_g_by_meal
+        _ = (
+            tdee_kcal,
+            training_carbs_g,
+            training_before_meal,
+            macro_targets,
+            carb_allocation_g_by_meal,
+        )
         return MealPlanResponse.placeholder()
 
     monkeypatch.setattr(service, "_run_energy_stage", track_energy)
@@ -217,7 +226,12 @@ def test_meal_plan_calculation_service_uses_normalized_training_for_fueling_and_
     monkeypatch.setattr(
         service,
         "_run_assembly_stage",
-        lambda *, tdee_kcal, training_carbs_g, macro_targets, carb_allocation_g_by_meal: (
+        lambda *,
+        tdee_kcal,
+        training_carbs_g,
+        training_before_meal,
+        macro_targets,
+        carb_allocation_g_by_meal: (
             MealPlanResponse.placeholder()
         ),
     )
@@ -270,7 +284,12 @@ def test_meal_plan_calculation_service_builds_user_profile_and_calls_energy_macr
     monkeypatch.setattr(
         service,
         "_run_assembly_stage",
-        lambda *, tdee_kcal, training_carbs_g, macro_targets, carb_allocation_g_by_meal: (
+        lambda *,
+        tdee_kcal,
+        training_carbs_g,
+        training_before_meal,
+        macro_targets,
+        carb_allocation_g_by_meal: (
             MealPlanResponse.placeholder()
         ),
     )
@@ -321,11 +340,13 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
         *,
         tdee_kcal: float,
         training_carbs_g: float,
+        training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
         captured["assembly_tdee"] = tdee_kcal
         captured["assembly_training_carbs"] = training_carbs_g
+        captured["assembly_training_before"] = training_before_meal
         captured["assembly_macro"] = macro_targets
         captured["assembly_carb_allocation"] = carb_allocation_g_by_meal
         return MealPlanResponse.placeholder()
@@ -338,6 +359,7 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
     assert captured["periodization_macro"] == macro_value
     assert captured["assembly_tdee"] == tdee_value
     assert captured["assembly_training_carbs"] == 0.0
+    assert captured["assembly_training_before"] == MealName.LUNCH
     assert captured["assembly_macro"] == macro_value
     assert captured["assembly_carb_allocation"] == dict.fromkeys(CANONICAL_MEAL_ORDER, 11.0)
 
@@ -390,7 +412,12 @@ def test_meal_plan_calculation_service_calls_periodization_with_canonical_argume
     monkeypatch.setattr(
         service,
         "_run_assembly_stage",
-        lambda *, tdee_kcal, training_carbs_g, macro_targets, carb_allocation_g_by_meal: (
+        lambda *,
+        tdee_kcal,
+        training_carbs_g,
+        training_before_meal,
+        macro_targets,
+        carb_allocation_g_by_meal: (
             MealPlanResponse.placeholder()
         ),
     )
@@ -446,6 +473,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         *,
         tdee_kcal: float,
         training_carbs_g: float,
+        training_before_meal: MealName | None,
         protein_g: float,
         carbs_g: float,
         fat_g: float,
@@ -453,6 +481,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
     ) -> dict[str, Any]:
         captured["tdee_kcal"] = tdee_kcal
         captured["training_carbs_g"] = training_carbs_g
+        captured["training_before_meal"] = training_before_meal
         captured["protein_g"] = protein_g
         captured["carbs_g"] = carbs_g
         captured["fat_g"] = fat_g
@@ -467,6 +496,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
     response = service._run_assembly_stage(
         tdee_kcal=2555.123,
         training_carbs_g=61.0,
+        training_before_meal=MealName.LUNCH,
         macro_targets=macro_targets,
         carb_allocation_g_by_meal=carb_allocation,
     )
@@ -475,6 +505,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
     assert captured == {
         "tdee_kcal": 2555.123,
         "training_carbs_g": 61.0,
+        "training_before_meal": MealName.LUNCH,
         "protein_g": 155.5,
         "carbs_g": 266.6,
         "fat_g": 77.7,
@@ -505,11 +536,13 @@ def test_meal_plan_calculation_service_calculate_passes_periodization_allocation
         *,
         tdee_kcal: float,
         training_carbs_g: float,
+        training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
         captured["tdee_kcal"] = tdee_kcal
         captured["training_carbs_g"] = training_carbs_g
+        captured["training_before_meal"] = training_before_meal
         captured["macro_targets"] = macro_targets
         captured["carb_allocation"] = carb_allocation_g_by_meal
         return MealPlanResponse.placeholder()
@@ -521,6 +554,7 @@ def test_meal_plan_calculation_service_calculate_passes_periodization_allocation
     assert captured == {
         "tdee_kcal": 1.0,
         "training_carbs_g": 5.0,
+        "training_before_meal": MealName.LUNCH,
         "macro_targets": MacroTargets(protein_g=2.0, carbs_g=3.0, fat_g=4.0),
         "carb_allocation": expected_allocation,
     }
@@ -832,8 +866,9 @@ def test_meal_plan_calculation_service_integration_success_matrix(
 
     assert isinstance(response, MealPlanResponse)
     expected_meal_sequence: list[MealName | str] = list(CANONICAL_MEAL_ORDER)
-    if expected_training_carbs_g > 0.0:
-        expected_meal_sequence.append("training")
+    if expected_training_carbs_g > 0.0 and request.training_session is not None:
+        insertion_idx = expected_meal_sequence.index(request.training_session.training_before_meal)
+        expected_meal_sequence.insert(insertion_idx, "training")
     assert [meal.meal for meal in response.meals] == expected_meal_sequence
     assert len(response.meals) == len(expected_meal_sequence)
     assert response.training_carbs_g == pytest.approx(expected_training_carbs_g)

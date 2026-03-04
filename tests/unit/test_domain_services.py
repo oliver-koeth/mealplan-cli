@@ -186,13 +186,13 @@ def test_calculate_meal_split_and_response_payload_has_stable_orchestration_sign
     signature = inspect.signature(calculate_meal_split_and_response_payload)
 
     assert str(signature) == (
-        "(tdee_kcal: 'float', training_carbs_g: 'float', "
+        "(tdee_kcal: 'float', training_carbs_g: 'float', training_before_meal: 'MealName | None', "
         "protein_g: 'float', carbs_g: 'float', fat_g: 'float', "
         "carb_allocation_g_by_meal: 'Mapping[MealName, float]') -> 'dict[str, object]'"
     )
 
 
-def test_calculate_meal_split_and_response_payload_appends_training_meal_when_positive() -> None:
+def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_target() -> None:
     carb_allocation_g_by_meal = dict(
         zip(
             CANONICAL_MEAL_ORDER,
@@ -204,6 +204,7 @@ def test_calculate_meal_split_and_response_payload_appends_training_meal_when_po
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2400.0,
         training_carbs_g=85.0,
+        training_before_meal=MealName.LUNCH,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
@@ -228,17 +229,51 @@ def test_calculate_meal_split_and_response_payload_appends_training_meal_when_po
     assert isinstance(meals, list)
     assert len(meals) == len(CANONICAL_MEAL_ORDER) + 1
     meal_sequence = [entry["meal"] for entry in meals]
-    assert meal_sequence[:-1] == list(CANONICAL_MEAL_ORDER)
-    assert meal_sequence[-1] == "training"
-    assert [entry["carbs_g"] for entry in meals[:-1]] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
-    assert [entry["protein_g"] for entry in meals[:-1]] == [30.0] * len(CANONICAL_MEAL_ORDER)
-    assert [entry["fat_g"] for entry in meals[:-1]] == [12.0] * len(CANONICAL_MEAL_ORDER)
-    assert meals[-1] == {
+    assert meal_sequence == [
+        MealName.BREAKFAST,
+        MealName.MORNING_SNACK,
+        "training",
+        MealName.LUNCH,
+        MealName.AFTERNOON_SNACK,
+        MealName.DINNER,
+        MealName.EVENING_SNACK,
+    ]
+    assert meals[2] == {
         "meal": "training",
         "carbs_g": 85.0,
         "protein_g": 0.0,
         "fat_g": 0.0,
     }
+    canonical_meals = [entry for entry in meals if entry["meal"] != "training"]
+    assert [entry["carbs_g"] for entry in canonical_meals] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
+    assert [entry["protein_g"] for entry in canonical_meals] == [30.0] * len(CANONICAL_MEAL_ORDER)
+    assert [entry["fat_g"] for entry in canonical_meals] == [12.0] * len(CANONICAL_MEAL_ORDER)
+
+
+@pytest.mark.parametrize("training_before_meal", list(CANONICAL_MEAL_ORDER))
+def test_calculate_meal_split_and_response_payload_deterministically_inserts_before_each_target(
+    training_before_meal: MealName,
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=60.0,
+        training_before_meal=training_before_meal,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
+    )
+
+    meals = payload["meals"]
+    assert isinstance(meals, list)
+    assert [entry["meal"] for entry in meals].count("training") == 1
+    training_idx = next(
+        idx for idx, meal in enumerate(meals) if meal["meal"] == "training"
+    )
+    assert meals[training_idx + 1]["meal"] == training_before_meal
+    assert [entry["meal"] for entry in meals if entry["meal"] != "training"] == list(
+        CANONICAL_MEAL_ORDER
+    )
 
 
 def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meals() -> None:
@@ -276,6 +311,7 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2400.0,
         training_carbs_g=85.0,
+        training_before_meal=MealName.LUNCH,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
@@ -290,10 +326,10 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
     assert parsed.carbs_g == 300.0
     assert parsed.fat_g == 72.0
     assert len(parsed.meals) == len(CANONICAL_MEAL_ORDER) + 1
-    assert parsed.meals[-1].meal == "training"
-    assert parsed.meals[-1].carbs_g == 85.0
-    assert parsed.meals[-1].protein_g == 0.0
-    assert parsed.meals[-1].fat_g == 0.0
+    training_meal = next(meal for meal in parsed.meals if meal.meal == "training")
+    assert training_meal.carbs_g == 85.0
+    assert training_meal.protein_g == 0.0
+    assert training_meal.fat_g == 0.0
 
 
 def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equally() -> None:
@@ -305,6 +341,7 @@ def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equall
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2400.0,
         training_carbs_g=0.0,
+        training_before_meal=None,
         protein_g=protein_g,
         carbs_g=300.0,
         fat_g=fat_g,
@@ -337,6 +374,7 @@ def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> No
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2100.0,
         training_carbs_g=0.0,
+        training_before_meal=None,
         protein_g=protein_g,
         carbs_g=240.0,
         fat_g=fat_g,
@@ -363,6 +401,7 @@ def test_meal_split_applies_residual_adjustment_to_evening_snack_only() -> None:
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
         training_carbs_g=0.0,
+        training_before_meal=None,
         protein_g=100.0,
         carbs_g=60.03,
         fat_g=10.0,
@@ -391,6 +430,7 @@ def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_target
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
         training_carbs_g=0.0,
+        training_before_meal=None,
         protein_g=120.0,
         carbs_g=60.0,
         fat_g=30.0,
@@ -412,6 +452,7 @@ def test_meal_split_allows_subcent_target_delta_within_reconciliation_tolerance(
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
         training_carbs_g=0.0,
+        training_before_meal=None,
         protein_g=100.0,
         carbs_g=60.035,
         fat_g=10.0,
@@ -427,6 +468,7 @@ def test_calculate_meal_split_and_response_payload_omits_training_meal_when_zero
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2400.0,
         training_carbs_g=0.0,
+        training_before_meal=None,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
@@ -451,6 +493,7 @@ def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:
         calculate_meal_split_and_response_payload(
             tdee_kcal=2400.0,
             training_carbs_g=70.0,
+            training_before_meal=MealName.LUNCH,
             protein_g=180.0,
             carbs_g=300.0,
             fat_g=70.0,
@@ -471,6 +514,7 @@ def test_meal_split_raises_for_extra_carb_allocation_meals() -> None:
         calculate_meal_split_and_response_payload(
             tdee_kcal=2400.0,
             training_carbs_g=70.0,
+            training_before_meal=MealName.LUNCH,
             protein_g=180.0,
             carbs_g=300.0,
             fat_g=70.0,

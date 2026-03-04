@@ -143,11 +143,11 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
     assert [meal["meal"] for meal in response["meals"]] == [
         "breakfast",
         "morning-snack",
+        "training",
         "lunch",
         "afternoon-snack",
         "dinner",
         "evening-snack",
-        "training",
     ]
 
 

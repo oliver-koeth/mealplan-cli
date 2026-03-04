@@ -16,6 +16,12 @@
       "protein_g": 18.0
     },
     {
+      "carbs_g": 30.0,
+      "fat_g": 0.0,
+      "meal": "training",
+      "protein_g": 0.0
+    },
+    {
       "carbs_g": 64.8,
       "fat_g": 9.5,
       "meal": "lunch",
@@ -38,12 +44,6 @@
       "fat_g": 9.5,
       "meal": "evening-snack",
       "protein_g": 18.0
-    },
-    {
-      "carbs_g": 30.0,
-      "fat_g": 0.0,
-      "meal": "training",
-      "protein_g": 0.0
     }
   ],
   "protein_g": 108.0,
