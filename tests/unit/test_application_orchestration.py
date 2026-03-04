@@ -887,8 +887,13 @@ def test_meal_plan_calculation_service_integration_success_matrix(
         assert training_meals[0].carbs_g == pytest.approx(expected_training_carbs_g)
         assert training_meals[0].protein_g == 0.0
         assert training_meals[0].fat_g == 0.0
+        assert training_meals[0].kcal == round(expected_training_carbs_g * 4.0, 2)
     else:
         assert training_meals == []
+
+    for meal in response.meals:
+        assert isinstance(meal.kcal, float)
+    assert sum(meal.kcal for meal in response.meals) == response.TDEE
 
 
 def test_meal_plan_calculation_service_integration_validation_failure(

@@ -6,6 +6,7 @@ Started: Wed Mar  4 15:29:43 CET 2026
 - Typer option annotations cannot be unions with multiple non-`None` members; accept `str | None` in CLI and enforce richer value semantics in contract + semantic validation.
 - For meal energy display, recompute each meal `kcal` from displayed grams first, then apply a display-only evening-snack `kcal` correction so `sum(meals[*].kcal)` exactly matches top-level `TDEE`.
 - For display-only kcal reconciliation regressions, assert evening-snack macro grams stay unchanged and include a training-meal-present case to prove only displayed `kcal` is adjusted.
+- Keep application integration success matrices asserting every meal includes `kcal` and exact `sum(meals[*].kcal) == TDEE` to catch cross-layer reconciliation regressions.
 ---
 ## [2026-03-04 15:35:44 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -134,4 +135,17 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: reconciliation assertions should verify macro invariance explicitly (`carbs_g`, `protein_g`, `fat_g`) rather than inferring from kcal totals alone.
   - Gotchas encountered: top-level `carbs_g` excludes optional `training_carbs_g`, so training-row checks should validate row-local invariants instead of summing training carbs into canonical meal carb targets.
   - Useful context: a deterministic residual fixture (`TDEE` off by `0.03`) is enough to exercise display-only evening-snack `kcal` correction without perturbing macro reconciliation logic.
+---
+## [2026-03-04 16:00:13 CET] - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
+- Strengthened end-to-end regression coverage in application integration success scenarios by asserting training-meal kcal composition, presence of `kcal` on every emitted meal, and exact `sum(meals[*].kcal) == TDEE`.
+- This closes the remaining cross-layer gap for insertion/validation/kcal-balancing regression protection while keeping existing semantic-validation and insertion matrix tests intact.
+- Files changed:
+  - tests/unit/test_application_orchestration.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: application-level integration tests should pin both macro invariants and displayed-energy invariants so domain reconciliation changes cannot silently drift at the service boundary.
+  - Gotchas encountered: kcal reconciliation expectations should use exact equality in these fixtures to enforce deterministic display totals and avoid overly permissive assertions.
+  - Useful context: the existing `test_meal_plan_calculation_service_integration_success_matrix` already spans periodized, non-periodized, and omitted-training inputs, so it is the highest-leverage place for cross-layer regression assertions.
 ---
