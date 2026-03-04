@@ -243,11 +243,20 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
         "carbs_g": 85.0,
         "protein_g": 0.0,
         "fat_g": 0.0,
+        "kcal": 340.0,
     }
     canonical_meals = [entry for entry in meals if entry["meal"] != "training"]
     assert [entry["carbs_g"] for entry in canonical_meals] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
     assert [entry["protein_g"] for entry in canonical_meals] == [30.0] * len(CANONICAL_MEAL_ORDER)
     assert [entry["fat_g"] for entry in canonical_meals] == [12.0] * len(CANONICAL_MEAL_ORDER)
+    assert [entry["kcal"] for entry in canonical_meals] == [
+        508.0,
+        348.0,
+        588.0,
+        388.0,
+        468.0,
+        268.0,
+    ]
 
 
 @pytest.mark.parametrize("training_before_meal", list(CANONICAL_MEAL_ORDER))
@@ -278,7 +287,7 @@ def test_calculate_meal_split_and_response_payload_deterministically_inserts_bef
 
 def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meals() -> None:
     meals = [
-        {"meal": meal, "carbs_g": 10.0, "protein_g": 20.0, "fat_g": 5.0}
+        {"meal": meal, "carbs_g": 10.0, "protein_g": 20.0, "fat_g": 5.0, "kcal": 165.0}
         for meal in CANONICAL_MEAL_ORDER
     ]
 
@@ -330,6 +339,7 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
     assert training_meal.carbs_g == 85.0
     assert training_meal.protein_g == 0.0
     assert training_meal.fat_g == 0.0
+    assert training_meal.kcal == 340.0
 
 
 def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equally() -> None:
@@ -354,8 +364,16 @@ def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equall
     assert [entry["fat_g"] for entry in meals[:-1]] == [expected_per_meal_fat_g] * 5
     assert meals[-1]["protein_g"] == 24.15
     assert meals[-1]["fat_g"] == 12.15
+    assert meals[-1]["kcal"] == 405.95
     assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(protein_g)
     assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(fat_g)
+    for meal in meals:
+        assert meal["kcal"] == round(
+            (float(meal["carbs_g"]) * 4.0)
+            + (float(meal["protein_g"]) * 4.0)
+            + (float(meal["fat_g"]) * 9.0),
+            2,
+        )
 
 
 def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> None:

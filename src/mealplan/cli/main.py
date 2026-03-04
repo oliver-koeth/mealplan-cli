@@ -163,7 +163,7 @@ def _render_text_output(response: MealPlanResponse) -> str:
         meal_name = meal["meal"]
         lines.append(
             f"- {meal_name}: carbs_g={meal['carbs_g']} "
-            f"protein_g={meal['protein_g']} fat_g={meal['fat_g']}"
+            f"protein_g={meal['protein_g']} fat_g={meal['fat_g']} kcal={meal['kcal']}"
         )
     return "\n".join(lines)
 
@@ -179,13 +179,14 @@ def _render_table_output(response: MealPlanResponse) -> str:
         f"| carbs_g | {payload['carbs_g']} |",
         f"| fat_g | {payload['fat_g']} |",
         "",
-        "| meal | carbs_g | protein_g | fat_g |",
-        "| --- | --- | --- | --- |",
+        "| meal | carbs_g | protein_g | fat_g | kcal |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for meal in payload["meals"]:
         meal_name = meal["meal"]
         lines.append(
-            f"| {meal_name} | {meal['carbs_g']} | {meal['protein_g']} | {meal['fat_g']} |"
+            f"| {meal_name} | {meal['carbs_g']} | {meal['protein_g']} | "
+            f"{meal['fat_g']} | {meal['kcal']} |"
         )
     return "\n".join(lines)
 

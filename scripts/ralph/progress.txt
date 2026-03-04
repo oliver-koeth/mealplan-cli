@@ -4,6 +4,7 @@ Started: Wed Mar  4 15:29:43 CET 2026
 - Response payloads may include at most one optional `training` meal; keep core canonical-order and macro reconciliation invariants scoped to the six canonical meals only.
 - Insert `training` deterministically before `training_before_meal`; validate response meal order by filtering out `training` then matching canonical meal order.
 - Typer option annotations cannot be unions with multiple non-`None` members; accept `str | None` in CLI and enforce richer value semantics in contract + semantic validation.
+- After macro reconciliation mutates displayed meal grams, recompute each meal `kcal` from displayed grams (`carbs*4 + protein*4 + fat*9`) so meal rows remain internally consistent.
 ---
 ## [2026-03-04 15:35:44 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -72,4 +73,33 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: to make a CLI value syntactically parseable but semantically invalid, accept broad CLI typing (`str`) and push strict interpretation into contract + semantic validation.
   - Gotchas encountered: Typer asserts on option unions containing multiple non-`None` types, which can break all commands at startup if used in function annotations.
   - Useful context: keep semantic validation errors field-prefixed (`training_session.training_before_meal: ...`) so exit-code mapping and existing CLI/error tests stay stable.
+---
+## [2026-03-04 15:51:11 CET] - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented per-meal `kcal` output across response contracts, domain assembly payloads, and CLI renderers (json/text/table).
+- Added deterministic macro-derived kcal computation (`4/4/9`) for all emitted meals, including optional `training` rows.
+- Ensured `kcal` is recomputed after macro reconciliation so displayed kcal always matches final displayed meal grams.
+- Updated unit/CLI/golden fixtures and assertions to include `kcal` in canonical meal payloads.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/application/contracts.py
+  - src/mealplan/cli/main.py
+  - src/mealplan/domain/services.py
+  - tests/cli/test_calculate.py
+  - tests/golden/application/non_periodized_with_training.golden.json
+  - tests/golden/application/periodized_with_training.golden.json
+  - tests/golden/application/periodized_without_training.golden.json
+  - tests/golden/cli/success_default_json.golden.json
+  - tests/golden/cli/success_table_format.golden.json
+  - tests/golden/cli/success_text_format.golden.json
+  - tests/golden/helpers.py
+  - tests/unit/conftest.py
+  - tests/unit/test_application_contracts.py
+  - tests/unit/test_domain_services.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: meal-level `kcal` should be treated as a derived display field at meal serialization, then refreshed after any reconciliation that mutates displayed meal grams.
+  - Gotchas encountered: adding one field to meal rows affects strict contract tests and both application/CLI golden snapshots because fixture key order and complete row shape are asserted.
+  - Useful context: `make quality` currently depends on `.venv/bin/uv`; when unavailable locally, run equivalent gates directly via `.venv/bin/ruff check .`, `.venv/bin/mypy --strict src`, and `.venv/bin/pytest`.
 ---

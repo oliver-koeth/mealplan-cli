@@ -74,6 +74,7 @@ def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
                     "carbs_g": 35.0,
                     "protein_g": 26.67,
                     "fat_g": 12.83,
+                    "kcal": 360.03,
                 }
                 for meal in CANONICAL_MEAL_ORDER
             ],
@@ -192,6 +193,7 @@ def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
     assert "protein_g:" in text_output
     assert "carbs_g:" in text_output
     assert "fat_g:" in text_output
+    assert "kcal=" in text_output
 
     meal_lines = [
         line for line in text_output.splitlines() if line.startswith("- ")
@@ -221,6 +223,7 @@ def test_calculate_table_format_outputs_top_level_and_canonical_meals() -> None:
     assert "| protein_g |" in table_output
     assert "| carbs_g |" in table_output
     assert "| fat_g |" in table_output
+    assert "| meal | carbs_g | protein_g | fat_g | kcal |" in table_output
 
     meal_rows = [
         line

@@ -193,7 +193,7 @@ def test_meal_plan_response_allows_optional_training_meal_between_canonical_meal
     payload["meals"] = [
         payload["meals"][0],
         payload["meals"][1],
-        {"meal": "training", "carbs_g": 60.0, "protein_g": 0.0, "fat_g": 0.0},
+        {"meal": "training", "carbs_g": 60.0, "protein_g": 0.0, "fat_g": 0.0, "kcal": 240.0},
         *payload["meals"][2:],
     ]
 
@@ -207,7 +207,7 @@ def test_meal_plan_response_rejects_noncanonical_order_even_with_training_meal(
 ) -> None:
     payload = meal_plan_response_payload
     payload["meals"] = [
-        {"meal": "training", "carbs_g": 60.0, "protein_g": 0.0, "fat_g": 0.0},
+        {"meal": "training", "carbs_g": 60.0, "protein_g": 0.0, "fat_g": 0.0, "kcal": 240.0},
         payload["meals"][1],
         payload["meals"][0],
         *payload["meals"][2:],
@@ -225,8 +225,8 @@ def test_meal_plan_response_rejects_duplicate_training_meals(
     payload = meal_plan_response_payload
     payload["meals"].extend(
         [
-            {"meal": "training", "carbs_g": 30.0, "protein_g": 0.0, "fat_g": 0.0},
-            {"meal": "training", "carbs_g": 30.0, "protein_g": 0.0, "fat_g": 0.0},
+            {"meal": "training", "carbs_g": 30.0, "protein_g": 0.0, "fat_g": 0.0, "kcal": 120.0},
+            {"meal": "training", "carbs_g": 30.0, "protein_g": 0.0, "fat_g": 0.0, "kcal": 120.0},
         ]
     )
 
@@ -335,6 +335,7 @@ def test_contract_units_policy_covers_request_and_response_units() -> None:
         "protein_g": "g",
         "carbs_g": "g",
         "fat_g": "g",
+        "kcal": "kcal",
     }
 
     assert MealPlanRequest.model_fields["age"].description == "Age in years."

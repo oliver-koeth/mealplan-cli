@@ -23,6 +23,7 @@ CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "protein_g": "g",
     "carbs_g": "g",
     "fat_g": "g",
+    "kcal": "kcal",
 }
 
 
@@ -61,6 +62,7 @@ class MealAllocation(BoundaryModel):
     carbs_g: StrictFloat
     protein_g: StrictFloat
     fat_g: StrictFloat
+    kcal: StrictFloat
 
 
 class MealPlanResponse(BoundaryModel):
@@ -102,7 +104,7 @@ class MealPlanResponse(BoundaryModel):
             carbs_g=0.0,
             fat_g=0.0,
             meals=[
-                MealAllocation(meal=meal, carbs_g=0.0, protein_g=0.0, fat_g=0.0)
+                MealAllocation(meal=meal, carbs_g=0.0, protein_g=0.0, fat_g=0.0, kcal=0.0)
                 for meal in CANONICAL_MEAL_ORDER
             ],
         )
