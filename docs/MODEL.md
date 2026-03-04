@@ -154,11 +154,25 @@ This document defines the canonical domain model for `mealplan`: object structur
   - `protein_g: float`
   - `carbs_g: float`
   - `fat_g: float`
+  - `kcal: float` (derived display field)
 - Invariants:
   - `meal_name` must be unique within a plan
   - `protein_g`, `carbs_g`, `fat_g` each `>= 0`
+  - `kcal` is derived from displayed meal macros (`4/4/9`), with final display-only reconciliation allowed on `evening-snack`.
 
-### 5.5 `MealPlan`
+### 5.5 `ResponseMealAllocation`
+- Fields:
+  - `meal: MealName | "training"`
+  - `protein_g: float`
+  - `carbs_g: float`
+  - `fat_g: float`
+  - `kcal: float`
+- Invariants:
+  - At most one `training` row may be present.
+  - Canonical-order validation is applied to non-training meals only.
+  - If `meal == "training"` then `protein_g = 0`, `fat_g = 0`, and `carbs_g = training_carbs_g`.
+
+### 5.6 `MealPlan`
 - Fields:
   - `tdee_kcal: float`
   - `training_carbs_g: float`
@@ -228,14 +242,17 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Inputs:
   - Canonical top-level macro/energy values plus a complete six-meal carb allocation map.
 - Output contract:
-  - Returns top-level response fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) plus canonical `meals`.
-  - `meals` contains exactly six `MealAllocation`-compatible entries in canonical order.
+  - Returns top-level response fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) plus response `meals`.
+  - `meals` contains exactly six canonical entries plus at most one optional `training` entry.
+  - Optional `training` entry is inserted immediately before `training_before_meal` when `training_carbs_g > 0`; no `training` entry is emitted when `training_carbs_g == 0`.
 - Rules:
   - Protein and fat are split equally across six meals using float arithmetic before output-boundary rounding.
   - Carbs per meal are sourced from `carb_allocation_g_by_meal` with exact canonical key coverage (no missing/extra keys).
   - Round per-meal `carbs_g`, `protein_g`, `fat_g` to 2 decimals only at response-boundary serialization.
+  - Each response meal row includes derived `kcal`.
   - Top-level values remain canonical inputs and are not recomputed from rounded meal rows.
   - Apply deterministic residual adjustment only to `evening-snack` and in fixed macro order: `carbs_g`, `protein_g`, `fat_g`.
+  - After macro reconciliation and row-level `kcal` derivation, apply a display-only residual adjustment to `evening-snack.kcal` so `sum(meals[*].kcal) == TDEE` exactly.
   - If post-adjustment meal totals still mismatch top-level targets, raise `DomainRuleError` prefixed `meal_assembly.reconciliation`.
 
 ### 6.6 Phase 8 Application Boundary Contract
@@ -275,8 +292,9 @@ This document defines the canonical domain model for `mealplan`: object structur
 
 ### 7.3 Output Verification
 - Output top-level fields are present: `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `meals`.
-- `meals` length is exactly 6 and ordered canonically.
+- `meals` length is `6` or `7` (with at most one `training` row) and canonical ordering is preserved for non-training meals.
 - Meal macro totals reconcile to top-level totals under configured rounding policy.
+- Every meal row includes `kcal`, and displayed meal energy reconciles exactly: `sum(meals[*].kcal) == TDEE`.
 
 ## 8. Units, Precision, and Rounding
 - Base units:
@@ -289,9 +307,11 @@ This document defines the canonical domain model for `mealplan`: object structur
   - No rounding inside `calculate_periodized_carb_allocation`; preserve full float outputs for deterministic reconciliation checks.
 - Output precision policy (recommended):
   - Phase 7 meal payloads round each meal macro field (`carbs_g`, `protein_g`, `fat_g`) to 2 decimals at boundary serialization only.
+  - Per-meal `kcal` is derived from displayed macro grams after macro reconciliation.
 - Reconciliation policy:
   - If boundary rounding creates drift, apply residual correction only to canonical last meal (`evening-snack`).
   - Apply residual correction in deterministic macro order: `carbs_g`, then `protein_g`, then `fat_g`.
+  - After macro reconciliation, apply a display-only residual correction to `evening-snack.kcal` to enforce `sum(meals[*].kcal) == TDEE`.
 
 ## 9. Example Specifications
 

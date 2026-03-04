@@ -7,6 +7,7 @@ Started: Wed Mar  4 15:29:43 CET 2026
 - For meal energy display, recompute each meal `kcal` from displayed grams first, then apply a display-only evening-snack `kcal` correction so `sum(meals[*].kcal)` exactly matches top-level `TDEE`.
 - For display-only kcal reconciliation regressions, assert evening-snack macro grams stay unchanged and include a training-meal-present case to prove only displayed `kcal` is adjusted.
 - Keep application integration success matrices asserting every meal includes `kcal` and exact `sum(meals[*].kcal) == TDEE` to catch cross-layer reconciliation regressions.
+- For contract-evolution stories, synchronize docs by concern in one iteration: functional behavior in `docs/REQUIREMENTS.md`, data shape/invariants in `docs/MODEL.md`, and layer ownership/boundaries in `docs/ARCHITECTURE.md`.
 ---
 ## [2026-03-04 15:35:44 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -148,4 +149,19 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: application-level integration tests should pin both macro invariants and displayed-energy invariants so domain reconciliation changes cannot silently drift at the service boundary.
   - Gotchas encountered: kcal reconciliation expectations should use exact equality in these fixtures to enforce deterministic display totals and avoid overly permissive assertions.
   - Useful context: the existing `test_meal_plan_calculation_service_integration_success_matrix` already spans periodized, non-periodized, and omitted-training inputs, so it is the highest-leverage place for cross-layer regression assertions.
+---
+## [2026-03-04 16:03:47 CET] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- Updated canonical docs for the output-contract changes: conditional optional `training` meal behavior, parseable-but-semantically-invalid `--training-before=training`, per-meal `kcal`, and deterministic display-only `evening-snack.kcal` reconciliation to enforce `sum(meals[*].kcal) == TDEE`.
+- Ran quality checks successfully via virtualenv binaries because `make quality` hardcodes a missing `.venv/bin/uv` path in this workspace.
+- Files changed:
+  - docs/REQUIREMENTS.md
+  - docs/MODEL.md
+  - docs/ARCHITECTURE.md
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: contract updates stay clear and maintainable when docs are split by concern (`REQUIREMENTS` behavior, `MODEL` shape/invariants, `ARCHITECTURE` layer boundaries/examples) and updated together.
+  - Gotchas encountered: architecture response examples should include both optional `training` row and `kcal` fields when that contract is active, otherwise docs drift from DTO validation rules.
+  - Useful context: this repo’s effective local quality gate in this environment is `.venv/bin/ruff check . && .venv/bin/mypy --strict src && .venv/bin/pytest -q`.
 ---
