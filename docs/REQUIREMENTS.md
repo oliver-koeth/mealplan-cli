@@ -51,9 +51,11 @@ The tool must be fully machine-executable without ambiguity.
   ---------------------------- -------------- ----------------------------
   `--training-zones`           JSON           Minutes per zone 1--5
 
-  `--training-before`          enum           breakfast / morning-snack /
+  `--training-before`          string         breakfast / morning-snack /
                                               lunch / afternoon-snack /
-                                              dinner / evening-snack
+                                              dinner / evening-snack /
+                                              training (parseable but
+                                              semantically invalid)
   ------------------------------------------------------------------------
 
 ### Runtime and Output Controls
@@ -154,6 +156,8 @@ The specified meal is the first post-training meal.
 
 The second post-training meal is the next chronological meal.
 
+`--training-before=training` is syntactically accepted at input parsing, but must fail deterministic semantic runtime validation to prevent recursive insertion semantics.
+
 ------------------------------------------------------------------------
 
 ### 8.2 Post-Training Rule
@@ -212,19 +216,22 @@ JSON structure:
 
 { "TDEE": number, "training_carbs_g": number, "protein_g": number,
 "carbs_g": number, "fat_g": number, "meals": \[
-{"meal":"breakfast","carbs_g":x,"protein_g":y,"fat_g":z} \] }
+{"meal":"breakfast","carbs_g":x,"protein_g":y,"fat_g":z,"kcal":k} \] }
 
 ### 9.1 Phase 7 Assembly and Rounding Contract
 
 -   Canonical meal-assembly API is domain-only in Phase 7:
     `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal)`.
--   Response `meals` must contain exactly six canonical entries in this order:
-    `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`.
--   Per-meal `carbs_g`, `protein_g`, and `fat_g` values are rounded to 2 decimals at output boundary only.
+-   Response `meals` must include six canonical entries in this order:
+    `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`, with at most one optional `training` entry.
+-   If `training_carbs_g > 0`, insert exactly one `training` meal before `training_before_meal` (append only when no target exists); if `training_carbs_g == 0`, insert none.
+-   Training meal composition is carbs-only: `carbs_g = training_carbs_g`, `protein_g = 0`, `fat_g = 0`.
+-   Per-meal `carbs_g`, `protein_g`, and `fat_g` values are rounded to 2 decimals at output boundary only, and each meal row includes derived `kcal`.
 -   Top-level fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) remain canonical inputs and are not re-derived from rounded meal rows.
 -   If rounded meal totals drift from top-level targets, residual correction is applied only to `evening-snack`.
 -   Residual macro correction order is deterministic and fixed:
     `carbs_g`, then `protein_g`, then `fat_g`.
+-   After meal-level `kcal` is derived from displayed meal macros, apply a display-only residual correction to `evening-snack.kcal` so `sum(meals[*].kcal) == TDEE` exactly.
 
 ### 9.2 Phase 8 Application Orchestration Flow
 

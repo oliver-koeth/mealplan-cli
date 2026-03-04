@@ -101,6 +101,12 @@ When in doubt, update those source docs instead of expanding this file.
 71. Keep CI release-readiness gates split into dependent jobs in `.github/workflows/ci.yml` (`quality` -> `package-build` -> `install-smoke`) and pass built artifacts via `actions/upload-artifact`/`actions/download-artifact` so install-smoke validates the exact wheel produced by packaging.
 72. When CI gate commands or job boundaries change, update `README.md` and `CONTRIBUTING.md` in the same iteration so contributor-facing quality/package/install guidance stays synchronized with `.github/workflows/ci.yml` and `docs/RELEASE_CHECKLIST.md`.
 73. For net-new incremental features, follow `docs/ENHANCEMENTS.md`: author one `docs/enhancements/enhance-*` brief, generate PRD in `tasks/`, execute from `scripts/ralph/prd.json`, and archive outputs under `scripts/ralph/archive/`.
+74. For response-level optional `training` meal support, keep canonical six-meal domain invariants scoped to non-training meals, allow at most one `training` entry, and keep training-row macros carbs-only (`protein_g=0`, `fat_g=0`).
+75. For `training` meal ordering, insert at most one `training` row immediately before `training_before_meal`; in response-contract validation, enforce canonical order only after filtering out `training`.
+76. In Typer command signatures, avoid union option annotations with multiple non-`None` types (for example `MealName | Literal["training"] | None`), because Typer parameter conversion asserts on such unions; accept `str | None` at CLI and enforce allowed values in contract/semantic validation layers.
+77. For meal-level energy display, first recompute each row `kcal` from displayed macros (`4/4/9`), then apply a final display-only `TDEE` reconciliation by adjusting `evening-snack.kcal` so `sum(meals[*].kcal) == TDEE` without mutating meal macros.
+78. For display-only kcal reconciliation tests, include assertions that `evening-snack` macro grams remain unchanged and add at least one case with optional `training` meal present to prove only displayed `kcal` is reconciled.
+79. In application integration success matrices, assert every emitted meal has `kcal` and enforce exact `sum(meals[*].kcal) == TDEE` so cross-layer display-energy regressions are caught outside isolated domain tests.
 
 ## Ralph Runner
 

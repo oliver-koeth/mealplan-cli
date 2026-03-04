@@ -170,10 +170,13 @@ mealplan/
   - Remaining carbs split evenly over non-high meals.
 - Phase 7 meal assembly boundary:
   - Canonical domain API: `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal) -> dict[str, object]`.
-  - Domain API builds top-level response fields plus canonical `meals[]`; no Phase 7 application-layer wrapper.
+  - Domain API builds top-level response fields plus `meals[]`; no Phase 7 application-layer wrapper.
   - Build `MealAllocation` rows and validate canonical order/coverage before payload serialization.
+  - Response `meals[]` always includes the six canonical meals and may include one optional `training` row inserted before `training_before_meal` when `training_carbs_g > 0`.
+  - `training` row is carbs-only (`protein_g=0`, `fat_g=0`) and carries derived `kcal`.
   - Round meal macro fields (`carbs_g`, `protein_g`, `fat_g`) to 2 decimals at serialization boundary only.
   - Reconcile rounding drift deterministically by adjusting only canonical last meal (`evening-snack`) in fixed macro order: `carbs_g`, `protein_g`, `fat_g`.
+  - Recompute displayed row-level `kcal` from displayed macro grams, then apply display-only residual adjustment to `evening-snack.kcal` so `sum(meals[*].kcal) == TDEE`.
   - If totals still mismatch after residual adjustment, raise `DomainRuleError` with prefix `meal_assembly.reconciliation`.
 - Precedence and deterministic ordering:
   - Meal order fixed: breakfast -> morning-snack -> lunch -> afternoon-snack -> dinner -> evening-snack.
@@ -205,8 +208,8 @@ mealplan/
 - Output schema:
   - Canonical response DTO module path: `src/mealplan/application/contracts.py` (`MealPlanResponse`, `MealAllocation`).
   - `MealPlanResponse` exact top-level fields: `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `meals`.
-  - `MealAllocation` exact fields: `meal`, `carbs_g`, `protein_g`, `fat_g`.
-  - `meals[]` is serialized in canonical order only.
+  - `MealAllocation` exact fields: `meal`, `carbs_g`, `protein_g`, `fat_g`, `kcal`.
+  - `meals[]` preserves canonical order for base meals and allows at most one optional `training` row.
 - Canonical meal order:
   - Single source: `src/mealplan/domain/model.py` `CANONICAL_MEAL_ORDER`.
   - Required order: `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`.
@@ -272,12 +275,13 @@ mealplan/
   "carbs_g": 290.0,
   "fat_g": 70.0,
   "meals": [
-    {"meal": "breakfast", "carbs_g": 40.0, "protein_g": 24.0, "fat_g": 12.0},
-    {"meal": "morning-snack", "carbs_g": 35.0, "protein_g": 20.0, "fat_g": 10.0},
-    {"meal": "lunch", "carbs_g": 75.0, "protein_g": 32.0, "fat_g": 16.0},
-    {"meal": "afternoon-snack", "carbs_g": 35.0, "protein_g": 20.0, "fat_g": 10.0},
-    {"meal": "dinner", "carbs_g": 75.0, "protein_g": 32.0, "fat_g": 16.0},
-    {"meal": "evening-snack", "carbs_g": 30.0, "protein_g": 17.0, "fat_g": 6.0}
+    {"meal": "breakfast", "carbs_g": 40.0, "protein_g": 24.0, "fat_g": 12.0, "kcal": 364.0},
+    {"meal": "morning-snack", "carbs_g": 35.0, "protein_g": 20.0, "fat_g": 10.0, "kcal": 310.0},
+    {"meal": "training", "carbs_g": 60.0, "protein_g": 0.0, "fat_g": 0.0, "kcal": 240.0},
+    {"meal": "lunch", "carbs_g": 75.0, "protein_g": 32.0, "fat_g": 16.0, "kcal": 564.0},
+    {"meal": "afternoon-snack", "carbs_g": 35.0, "protein_g": 20.0, "fat_g": 10.0, "kcal": 310.0},
+    {"meal": "dinner", "carbs_g": 75.0, "protein_g": 32.0, "fat_g": 16.0, "kcal": 564.0},
+    {"meal": "evening-snack", "carbs_g": 30.0, "protein_g": 17.0, "fat_g": 6.0, "kcal": 148.0}
   ]
 }
 ```

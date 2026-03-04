@@ -10,7 +10,7 @@ NUMERIC_TOLERANCE_ABS = 0.01
 _TOLERANT_TOP_LEVEL_NUMERIC_FIELDS = frozenset(
     {"TDEE", "training_carbs_g", "protein_g", "carbs_g", "fat_g"}
 )
-_TOLERANT_MEAL_NUMERIC_FIELDS = frozenset({"protein_g", "carbs_g", "fat_g"})
+_TOLERANT_MEAL_NUMERIC_FIELDS = frozenset({"protein_g", "carbs_g", "fat_g", "kcal"})
 
 
 def load_golden_json(path: Path) -> Any:

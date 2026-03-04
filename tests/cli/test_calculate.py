@@ -74,6 +74,7 @@ def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
                     "carbs_g": 35.0,
                     "protein_g": 26.67,
                     "fat_g": 12.83,
+                    "kcal": 360.03,
                 }
                 for meal in CANONICAL_MEAL_ORDER
             ],
@@ -143,6 +144,7 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
     assert [meal["meal"] for meal in response["meals"]] == [
         "breakfast",
         "morning-snack",
+        "training",
         "lunch",
         "afternoon-snack",
         "dinner",
@@ -191,6 +193,7 @@ def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
     assert "protein_g:" in text_output
     assert "carbs_g:" in text_output
     assert "fat_g:" in text_output
+    assert "kcal=" in text_output
 
     meal_lines = [
         line for line in text_output.splitlines() if line.startswith("- ")
@@ -220,6 +223,7 @@ def test_calculate_table_format_outputs_top_level_and_canonical_meals() -> None:
     assert "| protein_g |" in table_output
     assert "| carbs_g |" in table_output
     assert "| fat_g |" in table_output
+    assert "| meal | carbs_g | protein_g | fat_g | kcal |" in table_output
 
     meal_rows = [
         line
@@ -366,6 +370,39 @@ def test_calculate_training_fields_are_parsed_then_validated_by_application() ->
         "Error: training_session.training_before_meal: required when total zones_minutes > 0"
         in result.stderr
     )
+
+
+def test_calculate_training_before_training_is_semantic_validation_error() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "calculate",
+            "--age",
+            "40",
+            "--gender",
+            "male",
+            "--height",
+            "180",
+            "--weight",
+            "75",
+            "--activity",
+            "medium",
+            "--carbs",
+            "low",
+            "--training-tomorrow",
+            "high",
+            "--training-before",
+            "training",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "Error: training_session.training_before_meal: must not be 'training'" in result.stderr
 
 
 def test_calculate_training_zones_accepts_json_string_input() -> None:

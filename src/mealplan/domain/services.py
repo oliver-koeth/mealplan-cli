@@ -23,10 +23,11 @@ MEAL_ASSEMBLY_RECONCILIATION_MACRO_ORDER: tuple[MacroField, MacroField, MacroFie
 
 
 class MealPayloadRow(TypedDict):
-    meal: MealName
+    meal: MealName | Literal["training"]
     carbs_g: float
     protein_g: float
     fat_g: float
+    kcal: float
 
 
 def calculate_tdee_kcal(profile: UserProfile) -> float:
@@ -111,6 +112,7 @@ def calculate_periodized_carb_allocation(
 def calculate_meal_split_and_response_payload(
     tdee_kcal: float,
     training_carbs_g: float,
+    training_before_meal: MealName | None,
     protein_g: float,
     carbs_g: float,
     fat_g: float,
@@ -134,12 +136,7 @@ def calculate_meal_split_and_response_payload(
     validate_meal_allocation_invariants(meal_allocations)
 
     meals: list[MealPayloadRow] = [
-        {
-            "meal": allocation.meal,
-            "carbs_g": round(allocation.carbs_g, 2),
-            "protein_g": round(allocation.protein_g, 2),
-            "fat_g": round(allocation.fat_g, 2),
-        }
+        _serialize_meal_row_with_kcal(allocation)
         for allocation in meal_allocations
     ]
     _reconcile_rounded_meal_totals(
@@ -148,6 +145,13 @@ def calculate_meal_split_and_response_payload(
         protein_g=protein_g,
         fat_g=fat_g,
     )
+    _insert_training_meal_if_needed(
+        meals=meals,
+        training_carbs_g=training_carbs_g,
+        training_before_meal=training_before_meal,
+    )
+    _recalculate_meal_kcal_from_macros(meals=meals)
+    _reconcile_displayed_meal_kcal_to_tdee(meals=meals, tdee_kcal=tdee_kcal)
 
     return _assemble_meal_split_response_payload(
         tdee_kcal=tdee_kcal,
@@ -157,6 +161,34 @@ def calculate_meal_split_and_response_payload(
         fat_g=fat_g,
         meals=meals,
     )
+
+
+def _insert_training_meal_if_needed(
+    *,
+    meals: list[MealPayloadRow],
+    training_carbs_g: float,
+    training_before_meal: MealName | None,
+) -> None:
+    if training_carbs_g <= 0.0:
+        return
+
+    training_meal: MealPayloadRow = {
+        "meal": "training",
+        "carbs_g": training_carbs_g,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "kcal": round(training_carbs_g * 4.0, 2),
+    }
+    if training_before_meal is None:
+        meals.append(training_meal)
+        return
+
+    for idx, meal in enumerate(meals):
+        if meal["meal"] == training_before_meal:
+            meals.insert(idx, training_meal)
+            return
+
+    meals.append(training_meal)
 
 
 def _assemble_meal_split_response_payload(
@@ -176,6 +208,46 @@ def _assemble_meal_split_response_payload(
         "fat_g": fat_g,
         "meals": meals,
     }
+
+
+def _serialize_meal_row_with_kcal(allocation: MealAllocation) -> MealPayloadRow:
+    carbs_g = round(allocation.carbs_g, 2)
+    protein_g = round(allocation.protein_g, 2)
+    fat_g = round(allocation.fat_g, 2)
+    return {
+        "meal": allocation.meal,
+        "carbs_g": carbs_g,
+        "protein_g": protein_g,
+        "fat_g": fat_g,
+        "kcal": _kcal_from_macros(carbs_g=carbs_g, protein_g=protein_g, fat_g=fat_g),
+    }
+
+
+def _recalculate_meal_kcal_from_macros(*, meals: list[MealPayloadRow]) -> None:
+    for meal in meals:
+        meal["kcal"] = _kcal_from_macros(
+            carbs_g=float(meal["carbs_g"]),
+            protein_g=float(meal["protein_g"]),
+            fat_g=float(meal["fat_g"]),
+        )
+
+
+def _kcal_from_macros(*, carbs_g: float, protein_g: float, fat_g: float) -> float:
+    return round((carbs_g * 4.0) + (protein_g * 4.0) + (fat_g * 9.0), 2)
+
+
+def _reconcile_displayed_meal_kcal_to_tdee(
+    *,
+    meals: list[MealPayloadRow],
+    tdee_kcal: float,
+) -> None:
+    displayed_meal_kcal_total = round(sum(float(meal["kcal"]) for meal in meals), 2)
+    residual = round(tdee_kcal - displayed_meal_kcal_total, 2)
+    if residual == 0.0:
+        return
+
+    evening_snack = _get_evening_snack_meal(meals=meals)
+    evening_snack["kcal"] = round(float(evening_snack["kcal"]) + residual, 2)
 
 
 def _reconcile_rounded_meal_totals(

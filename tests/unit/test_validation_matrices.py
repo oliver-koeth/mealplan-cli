@@ -47,6 +47,18 @@ from mealplan.shared.exit_codes import ExitCode, map_exception_to_exit_code
             "training_session.training_before_meal:",
             id="training-dependency",
         ),
+        pytest.param(
+            lambda payload: payload.update(
+                {
+                    "training_session": {
+                        "zones_minutes": {"1": 0},
+                        "training_before_meal": "training",
+                    }
+                }
+            ),
+            "training_session.training_before_meal:",
+            id="training-before-training",
+        ),
     ],
 )
 def test_semantic_validation_failure_matrix(

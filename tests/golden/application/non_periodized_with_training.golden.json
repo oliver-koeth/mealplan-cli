@@ -6,36 +6,49 @@
     {
       "carbs_g": 45.0,
       "fat_g": 5.5,
+      "kcal": 301.5,
       "meal": "breakfast",
       "protein_g": 18.0
     },
     {
       "carbs_g": 45.0,
       "fat_g": 5.5,
+      "kcal": 301.5,
       "meal": "morning-snack",
       "protein_g": 18.0
     },
     {
+      "carbs_g": 30.0,
+      "fat_g": 0.0,
+      "kcal": 120.0,
+      "meal": "training",
+      "protein_g": 0.0
+    },
+    {
       "carbs_g": 45.0,
       "fat_g": 5.5,
+      "kcal": 301.5,
       "meal": "lunch",
       "protein_g": 18.0
     },
     {
       "carbs_g": 45.0,
       "fat_g": 5.5,
+      "kcal": 301.5,
       "meal": "afternoon-snack",
       "protein_g": 18.0
     },
     {
       "carbs_g": 45.0,
       "fat_g": 5.5,
+      "kcal": 301.5,
       "meal": "dinner",
       "protein_g": 18.0
     },
     {
       "carbs_g": 45.0,
       "fat_g": 5.5,
+      "kcal": 181.5,
       "meal": "evening-snack",
       "protein_g": 18.0
     }

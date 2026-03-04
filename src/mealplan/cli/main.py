@@ -18,8 +18,7 @@ from mealplan.application.contracts import (
 from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
 from mealplan.application.stub import run_probe
-from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
-from mealplan.domain.model import CANONICAL_MEAL_ORDER
+from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, TrainingLoadTomorrow
 from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 
@@ -89,7 +88,7 @@ def calculate_command(
     carbs: CarbMode = CARBS_OPTION,
     training_tomorrow: TrainingLoadTomorrow = TRAINING_TOMORROW_OPTION,
     training_zones: str | None = TRAINING_ZONES_OPTION,
-    training_before: MealName | None = TRAINING_BEFORE_OPTION,
+    training_before: str | None = TRAINING_BEFORE_OPTION,
     output_format: OutputFormat = OUTPUT_FORMAT_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
@@ -120,7 +119,7 @@ def calculate_command(
 def _build_training_session_payload(
     *,
     training_zones: str | None,
-    training_before: MealName | None,
+    training_before: str | None,
 ) -> dict[str, object] | None:
     if training_zones is None and training_before is None:
         return None
@@ -160,12 +159,11 @@ def _render_text_output(response: MealPlanResponse) -> str:
         f"fat_g: {payload['fat_g']}",
         "meals:",
     ]
-    meal_by_name = {meal["meal"]: meal for meal in payload["meals"]}
-    for meal_name in CANONICAL_MEAL_ORDER:
-        meal = meal_by_name[meal_name]
+    for meal in payload["meals"]:
+        meal_name = meal["meal"]
         lines.append(
             f"- {meal_name}: carbs_g={meal['carbs_g']} "
-            f"protein_g={meal['protein_g']} fat_g={meal['fat_g']}"
+            f"protein_g={meal['protein_g']} fat_g={meal['fat_g']} kcal={meal['kcal']}"
         )
     return "\n".join(lines)
 
@@ -181,14 +179,14 @@ def _render_table_output(response: MealPlanResponse) -> str:
         f"| carbs_g | {payload['carbs_g']} |",
         f"| fat_g | {payload['fat_g']} |",
         "",
-        "| meal | carbs_g | protein_g | fat_g |",
-        "| --- | --- | --- | --- |",
+        "| meal | carbs_g | protein_g | fat_g | kcal |",
+        "| --- | --- | --- | --- | --- |",
     ]
-    meal_by_name = {meal["meal"]: meal for meal in payload["meals"]}
-    for meal_name in CANONICAL_MEAL_ORDER:
-        meal = meal_by_name[meal_name]
+    for meal in payload["meals"]:
+        meal_name = meal["meal"]
         lines.append(
-            f"| {meal_name} | {meal['carbs_g']} | {meal['protein_g']} | {meal['fat_g']} |"
+            f"| {meal_name} | {meal['carbs_g']} | {meal['protein_g']} | "
+            f"{meal['fat_g']} | {meal['kcal']} |"
         )
     return "\n".join(lines)
 

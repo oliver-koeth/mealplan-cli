@@ -59,6 +59,7 @@ class MealPlanCalculationService:
         return self._run_assembly_stage(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
+            training_before_meal=training_session.training_before_meal,
             macro_targets=macro_targets,
             carb_allocation_g_by_meal=carb_allocation_g_by_meal,
         )
@@ -105,6 +106,7 @@ class MealPlanCalculationService:
         *,
         tdee_kcal: float,
         training_carbs_g: float,
+        training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
@@ -112,6 +114,7 @@ class MealPlanCalculationService:
         response_payload = calculate_meal_split_and_response_payload(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
+            training_before_meal=training_before_meal,
             protein_g=macro_targets.protein_g,
             carbs_g=macro_targets.carbs_g,
             fat_g=macro_targets.fat_g,
@@ -126,11 +129,12 @@ def _validated_training_session(request: MealPlanRequest) -> ValidatedTrainingSe
             zones_minutes=dict.fromkeys(range(1, 6), 0),
             training_before_meal=None,
         )
+    training_before_meal = cast(MealName | None, request.training_session.training_before_meal)
     return ValidatedTrainingSession(
         zones_minutes=normalize_training_zones(
             cast(dict[int | str, object], request.training_session.zones_minutes)
         ),
-        training_before_meal=request.training_session.training_before_meal,
+        training_before_meal=training_before_meal,
     )
 
 
@@ -166,15 +170,18 @@ def validate_response_invariants(response: MealPlanResponse) -> None:
         carbs_g=float(response.carbs_g),
         fat_g=float(response.fat_g),
     )
-    meal_allocations = [
-        MealAllocation(
-            meal=allocation.meal,
-            carbs_g=float(allocation.carbs_g),
-            protein_g=float(allocation.protein_g),
-            fat_g=float(allocation.fat_g),
+    meal_allocations: list[MealAllocation] = []
+    for allocation in response.meals:
+        if allocation.meal == "training":
+            continue
+        meal_allocations.append(
+            MealAllocation(
+                meal=cast(MealName, allocation.meal),
+                carbs_g=float(allocation.carbs_g),
+                protein_g=float(allocation.protein_g),
+                fat_g=float(allocation.fat_g),
+            )
         )
-        for allocation in response.meals
-    ]
 
     validate_macro_targets_invariants(macro_targets)
     validate_meal_allocation_invariants(meal_allocations)

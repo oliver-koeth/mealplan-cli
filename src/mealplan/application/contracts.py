@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, model_validator
@@ -11,6 +12,7 @@ from mealplan.domain.model import CANONICAL_MEAL_ORDER
 
 SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtime"]
 TrainingZoneKey = Literal["1", "2", "3", "4", "5"]
+TrainingBeforeMeal = MealName | Literal["training"]
 CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "age": "years",
     "height_cm": "cm",
@@ -21,6 +23,7 @@ CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "protein_g": "g",
     "carbs_g": "g",
     "fat_g": "g",
+    "kcal": "kcal",
 }
 
 
@@ -36,7 +39,7 @@ class TrainingSession(BoundaryModel):
     zones_minutes: dict[TrainingZoneKey, StrictInt] = Field(
         description="Training minutes per zone key ('1'..'5').",
     )
-    training_before_meal: MealName | None = None
+    training_before_meal: TrainingBeforeMeal | None = None
 
 
 class MealPlanRequest(BoundaryModel):
@@ -55,10 +58,11 @@ class MealPlanRequest(BoundaryModel):
 class MealAllocation(BoundaryModel):
     """Canonical per-meal macro allocation in response payloads."""
 
-    meal: MealName
+    meal: MealName | Literal["training"]
     carbs_g: StrictFloat
     protein_g: StrictFloat
     fat_g: StrictFloat
+    kcal: StrictFloat
 
 
 class MealPlanResponse(BoundaryModel):
@@ -78,9 +82,15 @@ class MealPlanResponse(BoundaryModel):
 
     @model_validator(mode="after")
     def _ensure_canonical_meal_order(self) -> MealPlanResponse:
-        """Require serialized output meal list to follow canonical order exactly."""
+        """Require canonical order plus optional single training meal."""
         meal_sequence = [entry.meal for entry in self.meals]
-        if meal_sequence != list(CANONICAL_MEAL_ORDER):
+        counts = Counter(meal_sequence)
+        training_count = counts["training"]
+        if training_count > 1:
+            raise ValueError("meals may include at most one training meal")
+
+        canonical_only_sequence = [meal for meal in meal_sequence if meal != "training"]
+        if canonical_only_sequence != list(CANONICAL_MEAL_ORDER):
             raise ValueError("meals must match canonical meal order exactly")
         return self
 
@@ -94,7 +104,7 @@ class MealPlanResponse(BoundaryModel):
             carbs_g=0.0,
             fat_g=0.0,
             meals=[
-                MealAllocation(meal=meal, carbs_g=0.0, protein_g=0.0, fat_g=0.0)
+                MealAllocation(meal=meal, carbs_g=0.0, protein_g=0.0, fat_g=0.0, kcal=0.0)
                 for meal in CANONICAL_MEAL_ORDER
             ],
         )
