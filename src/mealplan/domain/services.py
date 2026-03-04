@@ -151,6 +151,7 @@ def calculate_meal_split_and_response_payload(
         training_before_meal=training_before_meal,
     )
     _recalculate_meal_kcal_from_macros(meals=meals)
+    _reconcile_displayed_meal_kcal_to_tdee(meals=meals, tdee_kcal=tdee_kcal)
 
     return _assemble_meal_split_response_payload(
         tdee_kcal=tdee_kcal,
@@ -233,6 +234,20 @@ def _recalculate_meal_kcal_from_macros(*, meals: list[MealPayloadRow]) -> None:
 
 def _kcal_from_macros(*, carbs_g: float, protein_g: float, fat_g: float) -> float:
     return round((carbs_g * 4.0) + (protein_g * 4.0) + (fat_g * 9.0), 2)
+
+
+def _reconcile_displayed_meal_kcal_to_tdee(
+    *,
+    meals: list[MealPayloadRow],
+    tdee_kcal: float,
+) -> None:
+    displayed_meal_kcal_total = round(sum(float(meal["kcal"]) for meal in meals), 2)
+    residual = round(tdee_kcal - displayed_meal_kcal_total, 2)
+    if residual == 0.0:
+        return
+
+    evening_snack = _get_evening_snack_meal(meals=meals)
+    evening_snack["kcal"] = round(float(evening_snack["kcal"]) + residual, 2)
 
 
 def _reconcile_rounded_meal_totals(

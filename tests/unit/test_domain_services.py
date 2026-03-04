@@ -202,7 +202,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
     )
 
     payload = calculate_meal_split_and_response_payload(
-        tdee_kcal=2400.0,
+        tdee_kcal=2908.0,
         training_carbs_g=85.0,
         training_before_meal=MealName.LUNCH,
         protein_g=180.0,
@@ -219,7 +219,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
         "fat_g",
         "meals",
     ]
-    assert payload["TDEE"] == 2400.0
+    assert payload["TDEE"] == 2908.0
     assert payload["training_carbs_g"] == 85.0
     assert payload["protein_g"] == 180.0
     assert payload["carbs_g"] == 300.0
@@ -349,7 +349,7 @@ def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equall
     expected_per_meal_fat_g = round(fat_g / float(len(CANONICAL_MEAL_ORDER)), 2)
 
     payload = calculate_meal_split_and_response_payload(
-        tdee_kcal=2400.0,
+        tdee_kcal=2437.0,
         training_carbs_g=0.0,
         training_before_meal=None,
         protein_g=protein_g,
@@ -464,6 +464,25 @@ def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_target
     assert sum(float(entry["carbs_g"]) for entry in meals) == pytest.approx(payload["carbs_g"])
     assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(payload["protein_g"])
     assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(payload["fat_g"])
+
+
+def test_meal_split_reconciles_displayed_kcal_sum_to_tdee_on_evening_snack_only() -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=990.03,
+        training_carbs_g=0.0,
+        training_before_meal=None,
+        protein_g=120.0,
+        carbs_g=60.0,
+        fat_g=30.0,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 10.0),
+    )
+
+    meals = payload["meals"]
+    assert isinstance(meals, list)
+    assert [entry["kcal"] for entry in meals[:-1]] == [165.0, 165.0, 165.0, 165.0, 165.0]
+    assert meals[-1]["meal"] == MealName.EVENING_SNACK
+    assert meals[-1]["kcal"] == 165.03
+    assert sum(float(entry["kcal"]) for entry in meals) == pytest.approx(payload["TDEE"])
 
 
 def test_meal_split_allows_subcent_target_delta_within_reconciliation_tolerance() -> None:

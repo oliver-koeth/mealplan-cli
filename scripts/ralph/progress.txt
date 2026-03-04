@@ -4,7 +4,7 @@ Started: Wed Mar  4 15:29:43 CET 2026
 - Response payloads may include at most one optional `training` meal; keep core canonical-order and macro reconciliation invariants scoped to the six canonical meals only.
 - Insert `training` deterministically before `training_before_meal`; validate response meal order by filtering out `training` then matching canonical meal order.
 - Typer option annotations cannot be unions with multiple non-`None` members; accept `str | None` in CLI and enforce richer value semantics in contract + semantic validation.
-- After macro reconciliation mutates displayed meal grams, recompute each meal `kcal` from displayed grams (`carbs*4 + protein*4 + fat*9`) so meal rows remain internally consistent.
+- For meal energy display, recompute each meal `kcal` from displayed grams first, then apply a display-only evening-snack `kcal` correction so `sum(meals[*].kcal)` exactly matches top-level `TDEE`.
 ---
 ## [2026-03-04 15:35:44 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -102,4 +102,22 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Patterns discovered: meal-level `kcal` should be treated as a derived display field at meal serialization, then refreshed after any reconciliation that mutates displayed meal grams.
   - Gotchas encountered: adding one field to meal rows affects strict contract tests and both application/CLI golden snapshots because fixture key order and complete row shape are asserted.
   - Useful context: `make quality` currently depends on `.venv/bin/uv`; when unavailable locally, run equivalent gates directly via `.venv/bin/ruff check .`, `.venv/bin/mypy --strict src`, and `.venv/bin/pytest`.
+---
+## [2026-03-04 15:54:36 CET] - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented deterministic displayed-kcal reconciliation to enforce `sum(meals[*].kcal) == TDEE` by applying a final residual adjustment to `evening-snack.kcal` only.
+- Kept macro-gram reconciliation unchanged; kcal reconciliation now runs after per-meal kcal is recomputed from displayed macros.
+- Added regression coverage for evening-snack-only kcal correction and updated application golden fixtures impacted by the new displayed-kcal balancing behavior.
+- Files changed:
+  - AGENT.md
+  - src/mealplan/domain/services.py
+  - tests/golden/application/non_periodized_with_training.golden.json
+  - tests/golden/application/periodized_with_training.golden.json
+  - tests/unit/test_domain_services.py
+  - scripts/ralph/prd.json
+  - scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: displayed meal `kcal` is now a two-step boundary field (`4/4/9` derivation, then evening-snack residual correction to `TDEE`).
+  - Gotchas encountered: existing tests that pin specific meal `kcal` values may need `TDEE` fixtures aligned to intended behavior; otherwise evening-snack `kcal` will shift by design.
+  - Useful context: application golden fixtures with optional training meal may change only at `evening-snack.kcal` when reconciling top-level `TDEE`, while meal order/macros remain unchanged.
 ---
