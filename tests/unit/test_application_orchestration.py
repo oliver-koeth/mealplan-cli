@@ -826,20 +826,23 @@ def test_meal_plan_calculation_service_integration_success_matrix(
 
 
 @pytest.mark.parametrize(
-    ("training_before_meal", "expected_strategies"),
+    ("training_before_meal", "training_load_tomorrow", "expected_strategies"),
     [
-        ("dinner", ["low", "low", "low", "low", "high", "low"]),
-        ("evening-snack", ["low", "low", "low", "low", "high", "high"]),
+        ("dinner", "medium", ["low", "low", "low", "low", "high", "low"]),
+        ("dinner", "high", ["low", "low", "low", "low", "high", "low"]),
+        ("evening-snack", "medium", ["low", "low", "low", "low", "low", "high"]),
+        ("evening-snack", "high", ["low", "low", "low", "low", "high", "high"]),
     ],
 )
-def test_meal_plan_calculation_service_integration_periodized_late_day_tomorrow_high_strategies(
+def test_meal_plan_calculation_service_integration_periodized_late_day_strategies(
     meal_plan_request_payload: dict[str, Any],
     training_before_meal: str,
+    training_load_tomorrow: str,
     expected_strategies: list[str],
 ) -> None:
     payload = meal_plan_request_payload
     payload["carb_mode"] = "periodized"
-    payload["training_load_tomorrow"] = "high"
+    payload["training_load_tomorrow"] = training_load_tomorrow
     payload["training_session"] = {
         "zones_minutes": {"1": 0, "2": 40, "3": 0, "4": 0, "5": 0},
         "training_before_meal": training_before_meal,
@@ -850,6 +853,45 @@ def test_meal_plan_calculation_service_integration_periodized_late_day_tomorrow_
 
     canonical_meals = [meal for meal in response.meals if meal.meal != "training"]
     assert [meal.carbs_strategy for meal in canonical_meals] == expected_strategies
+
+
+def test_meal_plan_calculation_service_integration_surfaces_protein_reduction_warnings(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = MealPlanRequest.model_validate(meal_plan_request_payload)
+    service = MealPlanCalculationService()
+
+    monkeypatch.setattr(service, "_run_energy_stage", lambda _: 600.0)
+    monkeypatch.setattr(
+        service,
+        "_run_macro_stage",
+        lambda _, __: MacroTargets(protein_g=180.0, carbs_g=200.0, fat_g=40.0),
+    )
+    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: 0.0)
+    monkeypatch.setattr(service, "_run_training_demand_stage", lambda _: 0.0)
+
+    response = service.calculate(request)
+
+    assert service.warnings == (
+        "meal_assembly.protein_reduction: reduced breakfast protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget",
+        "meal_assembly.protein_reduction: reduced morning-snack protein from 20.00g to 16.67g "
+        "to fit 66.67 kcal budget",
+        "meal_assembly.protein_reduction: reduced lunch protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget",
+        "meal_assembly.protein_reduction: reduced afternoon-snack protein from 20.00g to 16.67g "
+        "to fit 66.67 kcal budget",
+        "meal_assembly.protein_reduction: reduced dinner protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget",
+        "meal_assembly.protein_reduction: reduced evening-snack protein from 20.00g to 16.67g "
+        "to fit 66.67 kcal budget",
+    )
+    assert response.protein_g == pytest.approx(150.0)
+    assert response.carbs_g == pytest.approx(0.0)
+    assert response.fat_g == pytest.approx(0.0)
+    assert all(meal.carbs_g >= 0.0 for meal in response.meals)
+    assert all(meal.fat_g >= 0.0 for meal in response.meals)
 
 
 def test_meal_plan_calculation_service_integration_validation_failure(
