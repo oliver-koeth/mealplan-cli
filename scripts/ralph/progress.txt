@@ -6,6 +6,7 @@ Started: Sat Mar  7 11:33:39 CET 2026
 - When meal-row response fields change, update the response contract, shared response fixtures, CLI renderers, and both application/CLI golden snapshots together because snapshot helpers enforce exact key order.
 - Apply periodized post-training `carbs_strategy` overrides in domain meal assembly; set `training_before_meal` high, upgrade only the next canonical meal, and never wrap `evening-snack` to `breakfast`.
 - In periodized meal assembly, `training_load_tomorrow=high` must force `dinner` to `carbs_strategy=high`, including late-day training cases where the normal second-high-meal upgrade is suppressed.
+- In the calories-first assembler, derive per-meal `carbs_g` and `fat_g` from each canonical meal budget after protein calories using strategy calorie shares (`low=1/4`, `medium=2/3`, `high=3/4` to carbs), and set top-level `carbs_g`/`fat_g` from the emitted meal rows rather than stale macro targets.
 
 ## [2026-03-07 11:42:49 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -111,4 +112,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Patterns discovered: periodized `carbs_strategy` decisions now depend on both `training_before_meal` and `training_load_tomorrow`, so assembly-stage callers and spies must pass both values together.
 - Gotchas encountered: the application golden snapshots encode `carbs_strategy` strings directly, so changing periodized strategy rules requires updating periodized app goldens even when meal macro grams stay untouched.
 - Useful context: `calculate_periodized_carb_allocation(...)` still uses the older carb-gram redistribution logic, so late-day changes in this story intentionally affect emitted `carbs_strategy` only.
+---
+## [2026-03-07 12:16:48 CET] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- Reworked domain meal assembly so canonical meal carbs and fat now come from each meal's calorie budget after protein calories, using the strategy-specific calorie shares for `low`, `medium`, and `high`.
+- Kept canonical meal `kcal` display budgets and training-row insertion behavior intact while recomputing top-level `carbs_g` and `fat_g` from the emitted meal rows.
+- Replaced obsolete domain/application expectations and refreshed the affected application and CLI golden snapshots for the calories-first macro outputs.
+- Files changed:
+- `AGENT.md`
+- `src/mealplan/domain/services.py`
+- `tests/unit/test_domain_services.py`
+- `tests/unit/test_application_orchestration.py`
+- `tests/golden/application/non_periodized_with_training.golden.json`
+- `tests/golden/application/periodized_with_training.golden.json`
+- `tests/golden/application/periodized_without_training.golden.json`
+- `tests/golden/cli/success_default_json.golden.json`
+- `tests/golden/cli/success_text_format.golden.json`
+- `tests/golden/cli/success_table_format.golden.json`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+- Patterns discovered: the calories-first flow now treats `carbs_strategy` as the source of truth for carb-versus-fat calorie shares at meal level, while top-level carb/fat totals must be recomputed from the final emitted meals.
+- Gotchas encountered: application validation still enforces carb reconciliation against emitted meals, so once assembly stops trusting `carb_allocation_g_by_meal`, response top-level totals and success goldens must move with it in the same iteration.
+- Useful context: canonical meal `kcal` remains a display budget reconciled from the normal-meal calorie pool even though meal macro grams are now derived from those budgets rather than the legacy periodization gram allocation.
 ---

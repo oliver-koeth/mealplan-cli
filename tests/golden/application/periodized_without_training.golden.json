@@ -1,58 +1,58 @@
 {
   "TDEE": 1809.0,
-  "carbs_g": 216.0,
-  "fat_g": 57.0,
+  "training_carbs_g": 0.0,
+  "protein_g": 108.0,
+  "carbs_g": 124.31,
+  "fat_g": 97.75,
   "total_kcal": 1809.0,
   "meals": [
     {
-      "carbs_g": 36.0,
-      "carbs_strategy": "low",
-      "fat_g": 9.5,
-      "kcal": 402.0,
       "meal": "breakfast",
-      "protein_g": 24.0
+      "carbs_strategy": "low",
+      "carbs_g": 19.12,
+      "protein_g": 24.0,
+      "fat_g": 25.5,
+      "kcal": 402.0
     },
     {
-      "carbs_g": 36.0,
-      "carbs_strategy": "low",
-      "fat_g": 9.5,
-      "kcal": 201.0,
       "meal": "morning-snack",
-      "protein_g": 12.0
+      "carbs_strategy": "low",
+      "carbs_g": 9.56,
+      "protein_g": 12.0,
+      "fat_g": 12.75,
+      "kcal": 201.0
     },
     {
-      "carbs_g": 36.0,
-      "carbs_strategy": "low",
-      "fat_g": 9.5,
-      "kcal": 402.0,
       "meal": "lunch",
-      "protein_g": 24.0
+      "carbs_strategy": "low",
+      "carbs_g": 19.12,
+      "protein_g": 24.0,
+      "fat_g": 25.5,
+      "kcal": 402.0
     },
     {
-      "carbs_g": 36.0,
-      "carbs_strategy": "low",
-      "fat_g": 9.5,
-      "kcal": 201.0,
       "meal": "afternoon-snack",
-      "protein_g": 12.0
-    },
-    {
-      "carbs_g": 36.0,
-      "carbs_strategy": "high",
-      "fat_g": 9.5,
-      "kcal": 402.0,
-      "meal": "dinner",
-      "protein_g": 24.0
-    },
-    {
-      "carbs_g": 36.0,
       "carbs_strategy": "low",
-      "fat_g": 9.5,
-      "kcal": 201.0,
+      "carbs_g": 9.56,
+      "protein_g": 12.0,
+      "fat_g": 12.75,
+      "kcal": 201.0
+    },
+    {
+      "meal": "dinner",
+      "carbs_strategy": "high",
+      "carbs_g": 57.38,
+      "protein_g": 24.0,
+      "fat_g": 8.5,
+      "kcal": 402.0
+    },
+    {
       "meal": "evening-snack",
-      "protein_g": 12.0
+      "carbs_strategy": "low",
+      "carbs_g": 9.57,
+      "protein_g": 12.0,
+      "fat_g": 12.75,
+      "kcal": 201.0
     }
-  ],
-  "protein_g": 108.0,
-  "training_carbs_g": 0.0
+  ]
 }

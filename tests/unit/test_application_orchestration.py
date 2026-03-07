@@ -948,7 +948,7 @@ def test_meal_plan_calculation_service_integration_success_matrix(
     canonical_meals = [meal for meal in response.meals if meal.meal != "training"]
     training_meals = [meal for meal in response.meals if meal.meal == "training"]
 
-    carbs_total = sum(meal.carbs_g for meal in canonical_meals)
+    carbs_total = sum(meal.carbs_g for meal in response.meals)
     protein_total = sum(meal.protein_g for meal in canonical_meals)
     fat_total = sum(meal.fat_g for meal in canonical_meals)
     assert carbs_total == pytest.approx(response.carbs_g)

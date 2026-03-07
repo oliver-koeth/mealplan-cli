@@ -22,6 +22,11 @@ MEAL_ASSEMBLY_RECONCILIATION_MACRO_ORDER: tuple[MacroField, MacroField, MacroFie
 )
 CANONICAL_MEAL_SHARE_UNITS: tuple[int, int, int, int, int, int] = (2, 1, 2, 1, 2, 1)
 CANONICAL_MEAL_SHARE_TOTAL = sum(CANONICAL_MEAL_SHARE_UNITS)
+CARB_CALORIE_SHARE_BY_STRATEGY: dict[CarbStrategy, float] = {
+    CarbStrategy.LOW: 0.25,
+    CarbStrategy.MEDIUM: 2.0 / 3.0,
+    CarbStrategy.HIGH: 0.75,
+}
 
 
 class MealPayloadRow(TypedDict):
@@ -155,7 +160,7 @@ def calculate_meal_split_and_response_payload(
     )
 
     protein_g_by_meal = _allocate_total_by_canonical_meal_shares(total=protein_g)
-    per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
+    kcal_by_meal = _allocate_total_by_canonical_meal_shares(total=normal_meal_calorie_pool_kcal)
     carbs_strategy_by_meal = _carbs_strategy_by_meal(
         carb_mode=carb_mode,
         training_before_meal=training_before_meal,
@@ -163,11 +168,11 @@ def calculate_meal_split_and_response_payload(
     )
 
     meal_allocations = [
-        MealAllocation(
+        _allocation_from_meal_budget(
             meal=meal,
-            carbs_g=carb_allocation_g_by_meal[meal],
+            kcal_budget=kcal_by_meal[meal],
             protein_g=protein_g_by_meal[meal],
-            fat_g=per_meal_fat_g,
+            carbs_strategy=carbs_strategy_by_meal[meal],
         )
         for meal in CANONICAL_MEAL_ORDER
     ]
@@ -182,9 +187,9 @@ def calculate_meal_split_and_response_payload(
     ]
     _reconcile_rounded_meal_totals(
         meals=meals,
-        carbs_g=carbs_g,
         protein_g=protein_g,
-        fat_g=fat_g,
+        carbs_g=sum(float(meal.carbs_g) for meal in meal_allocations),
+        fat_g=sum(float(meal.fat_g) for meal in meal_allocations),
     )
     _assign_displayed_meal_kcal_shares(
         meals=meals,
@@ -195,14 +200,16 @@ def calculate_meal_split_and_response_payload(
         training_carbs_g=training_carbs_g,
         training_before_meal=training_before_meal,
     )
+    response_carbs_g = round(sum(float(meal["carbs_g"]) for meal in meals), 2)
+    response_fat_g = round(sum(float(meal["fat_g"]) for meal in meals), 2)
     total_kcal = round(sum(float(meal["kcal"]) for meal in meals), 2)
 
     return _assemble_meal_split_response_payload(
         tdee_kcal=tdee_kcal,
         training_carbs_g=training_carbs_g,
         protein_g=protein_g,
-        carbs_g=carbs_g,
-        fat_g=fat_g,
+        carbs_g=response_carbs_g,
+        fat_g=response_fat_g,
         total_kcal=total_kcal,
         meals=meals,
     )
@@ -274,6 +281,26 @@ def _serialize_meal_row_with_kcal(
         "fat_g": fat_g,
         "kcal": _kcal_from_macros(carbs_g=carbs_g, protein_g=protein_g, fat_g=fat_g),
     }
+
+
+def _allocation_from_meal_budget(
+    *,
+    meal: MealName,
+    kcal_budget: float,
+    protein_g: float,
+    carbs_strategy: CarbStrategy,
+) -> MealAllocation:
+    protein_kcal = protein_g * 4.0
+    remaining_kcal = kcal_budget - protein_kcal
+    carb_calorie_share = CARB_CALORIE_SHARE_BY_STRATEGY[carbs_strategy]
+    carbs_g = (remaining_kcal * carb_calorie_share) / 4.0
+    fat_g = (remaining_kcal * (1.0 - carb_calorie_share)) / 9.0
+    return MealAllocation(
+        meal=meal,
+        carbs_g=carbs_g,
+        protein_g=protein_g,
+        fat_g=fat_g,
+    )
 
 
 def _kcal_from_macros(*, carbs_g: float, protein_g: float, fat_g: float) -> float:
