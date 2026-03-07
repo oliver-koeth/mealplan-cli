@@ -127,27 +127,32 @@ Completion criteria:
 ## Phase 7: Meal Split and Response Assembly
 
 Scope:
-- Assemble six ordered meal entries with macro values.
-- Apply deterministic rounding at output boundary.
-- Apply deterministic residual adjustment policy when needed.
+- Assemble six ordered canonical meals from a calories-first normal-meal pool.
+- Budget breakfast/lunch/dinner with `2/9` shares and snacks with `1/9` shares for both meal `kcal` and initial protein.
+- Assign per-meal `carbs_strategy`, including periodized post-training and tomorrow-load overrides.
+- Derive canonical meal carbs/fat from remaining calories after protein, handling protein-overflow reductions with warnings.
+- Recompute response-level protein/carbs/fat totals from emitted meal rows.
+- Apply deterministic display-`kcal` reconciliation after optional training-meal insertion.
 
 Deliverables:
-- Meal allocation assembler.
+- Meal allocation assembler with calories-first budgeting and `carbs_strategy` output.
 - Output DTO population for top-level values and `meals[]`.
+- Warning propagation contract for successful runs without payload shape changes.
 
 Completion criteria:
-- Meal totals reconcile with top-level totals under rounding policy.
+- Meal totals and displayed day energy reconcile under the calories-first model.
 
 ## Phase 8: Application Orchestration
 
 Scope:
 - Implement calculation use case flow:
-  - validate -> calculate energy/macros -> training fuel -> periodization -> assemble response
+  - validate -> calculate energy/macros -> training fuel -> training demand -> assemble response
 - Keep orchestration stateless and deterministic.
 
 Deliverables:
 - `MealPlanCalculationService` (or equivalent).
 - Integration tests with representative scenarios.
+- Preserve standalone periodization helpers for focused domain coverage while keeping emitted meal strategies owned by assembly.
 
 Completion criteria:
 - End-to-end application-layer tests pass without CLI involvement.

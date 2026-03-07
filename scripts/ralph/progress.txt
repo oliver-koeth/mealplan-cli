@@ -9,6 +9,7 @@ Started: Sat Mar  7 11:33:39 CET 2026
 - In the calories-first assembler, derive per-meal `carbs_g` and `fat_g` from each canonical meal budget after protein calories using strategy calorie shares (`low=1/4`, `medium=2/3`, `high=3/4` to carbs), and set top-level `carbs_g`/`fat_g` from the emitted meal rows rather than stale macro targets.
 - Once response totals come from emitted meal rows, drop the legacy per-meal carb-allocation passthrough from application assembly instead of carrying an unused periodization artifact through the service boundary.
 - Keep non-fatal calculation warnings out of response payloads; store them on `MealPlanCalculationService.warnings` and have the CLI emit them to stderr only after a successful render so contract shapes stay unchanged.
+- When meal-allocation behavior changes, update `docs/REQUIREMENTS.md`, `docs/MODEL.md`, `docs/ARCHITECTURE.md`, and `docs/PLAN.md` together so formulas, response semantics, stage ownership, and phase narratives stay synchronized.
 
 ## [2026-03-07 11:42:49 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -201,4 +202,22 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Patterns discovered: the strongest regression point for cross-layer meal-behavior stories is `MealPlanCalculationService().calculate(...)`, because it pins domain assembly plus response validation without needing CLI snapshots.
 - Gotchas encountered: `meal_plan_request_payload` defaults to an in-training periodized scenario, so late-day strategy tests must override both `training_before_meal` and `training_load_tomorrow` explicitly to avoid inheriting unrelated expectations.
 - Useful context: low normal-meal calorie pools can be exercised safely in application tests by monkeypatching `_run_energy_stage`, `_run_macro_stage`, `_run_fueling_stage`, and `_run_training_demand_stage` on the service instance instead of constructing unrealistic contract payloads.
+---
+## [2026-03-07 15:34:59 CET] - US-011
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
+- Updated the canonical docs to describe the live calories-first meal allocator, including six-meal calorie/protein shares, meal-level `carbs_strategy`, periodized override behavior, top-level macro totals derived from emitted meals, and stderr-only warning semantics.
+- Aligned architecture and plan docs with the current application flow where assembly owns emitted meal strategies and the orchestration path uses training demand plus assembly rather than the older carb-allocation passthrough narrative.
+- Added a repo-level agent note to keep `REQUIREMENTS.md`, `MODEL.md`, `ARCHITECTURE.md`, and `PLAN.md` synchronized whenever meal-allocation semantics change.
+- Files changed:
+- `AGENT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/MODEL.md`
+- `docs/PLAN.md`
+- `docs/REQUIREMENTS.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+- Patterns discovered: meal-allocation behavior changes require a four-doc sync across requirements, model, architecture, and plan docs or the codebase quickly drifts into contradictory phase-era narratives.
+- Gotchas encountered: the docs still carried the older Phase 7/8 signatures and "top-level macros stay canonical inputs" language even though the live implementation had moved to assembly-owned `carbs_strategy`, emitted-meal total recomputation, and stderr-only warnings.
+- Useful context: `calculate_periodized_carb_allocation(...)` still exists as a standalone domain helper for focused coverage, but the emitted response meal strategies now come from calories-first assembly, so docs must distinguish helper availability from the canonical runtime flow.
 ---

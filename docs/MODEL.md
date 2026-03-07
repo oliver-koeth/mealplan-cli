@@ -154,15 +154,14 @@ This document defines the canonical domain model for `mealplan`: object structur
   - `protein_g: float`
   - `carbs_g: float`
   - `fat_g: float`
-  - `kcal: float` (derived display field)
 - Invariants:
   - `meal_name` must be unique within a plan
   - `protein_g`, `carbs_g`, `fat_g` each `>= 0`
-  - `kcal` is derived from displayed meal macros (`4/4/9`), with final display-only reconciliation allowed on `evening-snack`.
 
 ### 5.5 `ResponseMealAllocation`
 - Fields:
   - `meal: MealName | "training"`
+  - `carbs_strategy: "low" | "medium" | "high"`
   - `protein_g: float`
   - `carbs_g: float`
   - `fat_g: float`
@@ -170,7 +169,9 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Invariants:
   - At most one `training` row may be present.
   - Canonical-order validation is applied to non-training meals only.
+  - Each canonical non-training meal row has an explicit `carbs_strategy`.
   - If `meal == "training"` then `protein_g = 0`, `fat_g = 0`, and `carbs_g = training_carbs_g`.
+  - If `meal == "training"` then `carbs_strategy = "high"`.
 
 ### 5.6 `MealPlan`
 - Fields:
@@ -247,24 +248,34 @@ This document defines the canonical domain model for `mealplan`: object structur
 
 ### 6.5 Phase 7 Meal Assembly Contract
 - Canonical API:
-  - `calculate_meal_split_and_response_payload(tdee_kcal: float, training_carbs_g: float, training_calorie_demand_kcal: float, training_before_meal: MealName | None, protein_g: float, carbs_g: float, fat_g: float, carb_allocation_g_by_meal: Mapping[MealName, float]) -> dict[str, object]`
+  - `calculate_meal_split_and_response_payload(tdee_kcal: float, training_carbs_g: float, training_calorie_demand_kcal: float, carb_mode: CarbMode, training_before_meal: MealName | None, training_load_tomorrow: TrainingLoadTomorrow, protein_g: float, carbs_g: float, fat_g: float) -> dict[str, object]`
 - Inputs:
-  - Canonical top-level macro/energy values plus a complete six-meal carb allocation map.
+  - Canonical top-level macro/energy values plus carb-mode and training-timing context.
 - Output contract:
   - Returns top-level response fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`) plus response `meals`.
   - `meals` contains exactly six canonical entries plus at most one optional `training` entry.
   - Optional `training` entry is inserted immediately before `training_before_meal` when `training_carbs_g > 0`; no `training` entry is emitted when `training_carbs_g == 0`.
 - Rules:
-  - Protein and fat are split equally across six meals using float arithmetic before output-boundary rounding.
-  - Carbs per meal are sourced from `carb_allocation_g_by_meal` with exact canonical key coverage (no missing/extra keys).
+  - First compute `normal_meal_calorie_pool_kcal = TDEE + training_calorie_demand_kcal - (training_carbs_g * 4)`.
+  - Allocate both non-training meal `kcal` budgets and initial protein targets across the six canonical meals using share units `2, 1, 2, 1, 2, 1`.
+  - Assign baseline `carbs_strategy` from `carb_mode`: `normal -> medium`, `low -> low`, `periodized -> low`.
+  - In `periodized` mode, apply post-training/high-load overrides to emitted meal strategies:
+    - force `training_before_meal` high
+    - force the next chronological canonical meal high when one exists
+    - never wrap `evening-snack` to `breakfast`
+    - if `training_load_tomorrow == high`, force `dinner` high
+  - For each canonical non-training meal, assign protein calories first from meal protein grams, then derive remaining calories into carbs/fat using strategy calorie shares:
+    - `low -> 25% carbs / 75% fat`
+    - `medium -> 66.666...% carbs / 33.333...% fat`
+    - `high -> 75% carbs / 25% fat`
+  - If meal protein calories exceed the meal calorie budget, reduce that meal's protein until remaining calories are non-negative and record a non-fatal warning.
   - Round per-meal `carbs_g`, `protein_g`, `fat_g` to 2 decimals only at response-boundary serialization.
-  - Each response meal row includes derived `kcal`.
-  - Top-level values remain canonical inputs and are not recomputed from rounded meal rows.
+  - Each response meal row includes explicit `carbs_strategy` and displayed `kcal`.
+  - Top-level `protein_g`, `carbs_g`, and `fat_g` are recomputed from the final emitted meal rows.
   - `total_kcal` is computed at output boundary as `sum(meals[*].kcal)` after kcal reconciliation.
-  - Apply deterministic residual adjustment only to `evening-snack` and in fixed macro order: `carbs_g`, `protein_g`, `fat_g`.
-  - Non-training meals target displayed kcal sum is `TDEE + training_calorie_demand_kcal - (training_carbs_g * 4)`.
-  - After macro reconciliation and row-level `kcal` derivation, apply a display-only residual adjustment to `evening-snack.kcal` so `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)` exactly.
-  - If post-adjustment meal totals still mismatch top-level targets, raise `DomainRuleError` prefixed `meal_assembly.reconciliation`.
+  - Non-training meals target displayed kcal sum is `normal_meal_calorie_pool_kcal`.
+  - After displayed row-level `kcal` assignment, total displayed day energy must satisfy `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)` exactly.
+  - Warnings are out-of-band assembly metadata and are not added to response payload fields.
 
 ### 6.6 Phase 8 Application Boundary Contract
 - Canonical API:
@@ -304,7 +315,8 @@ This document defines the canonical domain model for `mealplan`: object structur
 ### 7.3 Output Verification
 - Output top-level fields are present: `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`, `meals`.
 - `meals` length is `6` or `7` (with at most one `training` row) and canonical ordering is preserved for non-training meals.
-- Meal macro totals reconcile to top-level totals under configured rounding policy.
+- Every emitted meal row includes `carbs_strategy`.
+- Meal macro totals reconcile to top-level totals because top-level `protein_g`, `carbs_g`, and `fat_g` are derived from the final emitted meal rows.
 - Every meal row includes `kcal`, and displayed meal energy reconciles exactly: `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)`.
 
 ## 8. Units, Precision, and Rounding
@@ -318,11 +330,10 @@ This document defines the canonical domain model for `mealplan`: object structur
   - No rounding inside `calculate_periodized_carb_allocation`; preserve full float outputs for deterministic reconciliation checks.
 - Output precision policy (recommended):
   - Phase 7 meal payloads round each meal macro field (`carbs_g`, `protein_g`, `fat_g`) to 2 decimals at boundary serialization only.
-  - Per-meal `kcal` is derived from displayed macro grams after macro reconciliation.
+  - Per-meal `kcal` is a displayed budget derived from the calories-first normal-meal pool rather than re-derived from the rounded macro grams.
 - Reconciliation policy:
-  - If boundary rounding creates drift, apply residual correction only to canonical last meal (`evening-snack`).
-  - Apply residual correction in deterministic macro order: `carbs_g`, then `protein_g`, then `fat_g`.
-  - After macro reconciliation, apply a display-only residual correction to `evening-snack.kcal` to enforce `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)`.
+  - Top-level `protein_g`, `carbs_g`, and `fat_g` come from the final emitted meal rows after rounding/reconciliation.
+  - Apply displayed `kcal` reconciliation after the six canonical meal budgets are allocated and the optional `training` row is inserted, so `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)`.
 
 ## 9. Example Specifications
 

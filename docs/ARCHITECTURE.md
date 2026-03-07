@@ -171,16 +171,19 @@ mealplan/
   - High meals fixed at 30% each of total carbs.
   - Remaining carbs split evenly over non-high meals.
 - Phase 7 meal assembly boundary:
-  - Canonical domain API: `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, training_calorie_demand_kcal, training_before_meal, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal) -> dict[str, object]`.
+  - Canonical domain API: `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, training_calorie_demand_kcal, carb_mode, training_before_meal, training_load_tomorrow, protein_g, carbs_g, fat_g) -> dict[str, object]`.
   - Domain API builds top-level response fields plus `meals[]`; no Phase 7 application-layer wrapper.
   - Build `MealAllocation` rows and validate canonical order/coverage before payload serialization.
   - Response `meals[]` always includes the six canonical meals and may include one optional `training` row inserted before `training_before_meal` when `training_carbs_g > 0`.
-  - `training` row is carbs-only (`protein_g=0`, `fat_g=0`) and carries derived `kcal`.
+  - Canonical breakfast/lunch/dinner use `2/9` shares and snacks use `1/9` shares for both non-training meal `kcal` budgets and initial protein allocation.
+  - Meal assembly, not the application layer, derives per-meal `carbs_strategy` from `carb_mode`, `training_before_meal`, and `training_load_tomorrow`.
+  - Canonical non-training meal carbs/fat come from remaining meal calories after protein, using strategy calorie shares (`low=1/4`, `medium=2/3`, `high=3/4` to carbs).
+  - `training` row is carbs-only (`protein_g=0`, `fat_g=0`), carries `carbs_strategy=high`, and contributes `training_carbs_g * 4` kcal.
   - Round meal macro fields (`carbs_g`, `protein_g`, `fat_g`) to 2 decimals at serialization boundary only.
-  - Reconcile rounding drift deterministically by adjusting only canonical last meal (`evening-snack`) in fixed macro order: `carbs_g`, `protein_g`, `fat_g`.
-  - Non-training meals target displayed kcal is `TDEE + training_calorie_demand_kcal - (training_carbs_g * 4)`.
-  - Recompute displayed row-level `kcal` from displayed macro grams, then apply display-only residual adjustment to `evening-snack.kcal` so `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)`.
-  - If totals still mismatch after residual adjustment, raise `DomainRuleError` with prefix `meal_assembly.reconciliation`.
+  - Top-level `protein_g`, `carbs_g`, and `fat_g` are recomputed from the emitted meal rows instead of trusting pre-assembly macro targets.
+  - Non-training meal displayed `kcal` is budgeted from `TDEE + training_calorie_demand_kcal - (training_carbs_g * 4)`.
+  - Apply displayed `kcal` reconciliation after optional training-row insertion so `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)`.
+  - Non-fatal assembly warnings remain out-of-band on `MealPlanCalculationService.warnings`; the CLI writes them to stderr after successful rendering.
 - Precedence and deterministic ordering:
   - Meal order fixed: breakfast -> morning-snack -> lunch -> afternoon-snack -> dinner -> evening-snack.
   - Apply precedence from PRD section 8.5 exactly: non-periodized bypass -> post-training highs -> next-day high override unless conflict -> reconciliation check.
@@ -211,7 +214,7 @@ mealplan/
 - Output schema:
   - Canonical response DTO module path: `src/mealplan/application/contracts.py` (`MealPlanResponse`, `MealAllocation`).
   - `MealPlanResponse` exact top-level fields: `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`, `meals`.
-  - `MealAllocation` exact fields: `meal`, `carbs_g`, `protein_g`, `fat_g`, `kcal`.
+  - `MealAllocation` exact fields: `meal`, `carbs_strategy`, `carbs_g`, `protein_g`, `fat_g`, `kcal`.
   - `meals[]` preserves canonical order for base meals and allows at most one optional `training` row.
 - Canonical meal order:
   - Single source: `src/mealplan/domain/model.py` `CANONICAL_MEAL_ORDER`.

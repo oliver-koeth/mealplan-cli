@@ -114,6 +114,7 @@ When in doubt, update those source docs instead of expanding this file.
 84. In the calories-first assembler, derive each canonical meal's `carbs_g` and `fat_g` from that meal's calorie budget after protein calories, using strategy calorie shares (`low=1/4 carbs`, `medium=2/3 carbs`, `high=3/4 carbs`), then recompute top-level `carbs_g`/`fat_g` from the emitted meals.
 85. When assembly output becomes the source of truth for response totals, remove legacy stage passthrough parameters from `MealPlanCalculationService.calculate(...)` and `_run_assembly_stage(...)` rather than carrying unused domain artifacts through the application boundary.
 86. For non-fatal calculation warnings, keep response payloads unchanged and surface them through `MealPlanCalculationService.warnings`; the CLI should print them to stderr only after a successful response so JSON/text/table outputs remain contract-stable.
+87. When meal-allocation semantics change, update `docs/REQUIREMENTS.md`, `docs/MODEL.md`, `docs/ARCHITECTURE.md`, and `docs/PLAN.md` together so formulas, response fields, stage ownership, and phase narratives do not drift.
 
 ## Ralph Runner
 
