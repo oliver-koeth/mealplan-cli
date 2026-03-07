@@ -112,7 +112,10 @@ def calculate_command(
         request_payload["training_session"] = training_session
 
     request = parse_contract(MealPlanRequest, request_payload)
-    response = MealPlanCalculationService().calculate(request)
+    service = MealPlanCalculationService()
+    response = service.calculate(request)
+    for warning in getattr(service, "warnings", ()):
+        typer.echo(f"Warning: {warning}", err=True)
     typer.echo(_render_output(response=response, output_format=output_format))
 
 

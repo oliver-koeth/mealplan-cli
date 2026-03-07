@@ -30,6 +30,7 @@ from mealplan.domain.services import (
     _validate_carb_reconciliation,
     calculate_macro_targets,
     calculate_meal_split_and_response_payload,
+    calculate_meal_split_and_response_payload_with_warnings,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
 )
@@ -746,6 +747,46 @@ def test_calculate_meal_split_and_response_payload_periodized_tomorrow_high_forc
         if entry["carbs_strategy"] is CarbStrategy.HIGH
     }
     assert high_meals == expected_high_meals
+
+
+def test_meal_split_reduces_protein_when_meal_budget_cannot_fit_assigned_protein() -> None:
+    expected_warnings = (
+        "meal_assembly.protein_reduction: reduced breakfast protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget",
+        "meal_assembly.protein_reduction: reduced morning-snack protein from 20.00g to 16.67g "
+        "to fit 66.67 kcal budget",
+        "meal_assembly.protein_reduction: reduced lunch protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget",
+        "meal_assembly.protein_reduction: reduced afternoon-snack protein from 20.00g to 16.67g "
+        "to fit 66.67 kcal budget",
+        "meal_assembly.protein_reduction: reduced dinner protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget",
+        "meal_assembly.protein_reduction: reduced evening-snack protein from 20.00g to 16.67g "
+        "to fit 66.67 kcal budget",
+    )
+
+    assembly_result = calculate_meal_split_and_response_payload_with_warnings(
+        tdee_kcal=600.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.NORMAL,
+        training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+        protein_g=180.0,
+        carbs_g=200.0,
+        fat_g=40.0,
+    )
+
+    payload = assembly_result["payload"]
+    meals = cast(list[dict[str, object]], payload["meals"])
+
+    assert payload["protein_g"] == 150.0
+    assert payload["carbs_g"] == 0.0
+    assert payload["fat_g"] == 0.0
+    assert [entry["protein_g"] for entry in meals] == [33.33, 16.67, 33.33, 16.67, 33.33, 16.67]
+    assert [entry["carbs_g"] for entry in meals] == [0.0] * 6
+    assert [entry["fat_g"] for entry in meals] == [0.0] * 6
+    assert assembly_result["warnings"] == expected_warnings
 
 
 def test_calculate_periodized_carb_allocation_marks_two_post_training_meals_high() -> None:

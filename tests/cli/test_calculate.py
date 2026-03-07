@@ -99,6 +99,32 @@ def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
     assert json.loads(result.stdout) == expected.model_dump(mode="json")
 
 
+def test_calculate_command_emits_non_fatal_warnings_to_stderr(monkeypatch) -> None:
+    warning = (
+        "meal_assembly.protein_reduction: reduced breakfast protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget"
+    )
+
+    class FakeCalculationService:
+        def __init__(self) -> None:
+            self.warnings = (warning,)
+
+        def calculate(self, request: object) -> MealPlanResponse:
+            _ = request
+            return MealPlanResponse.placeholder()
+
+    monkeypatch.setattr(
+        "mealplan.cli.main.MealPlanCalculationService",
+        FakeCalculationService,
+    )
+
+    result = runner.invoke(app, _required_calculate_args())
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == MealPlanResponse.placeholder().model_dump(mode="json")
+    assert result.stderr == f"Warning: {warning}\n"
+
+
 def test_calculate_command_runs_with_canonical_flags() -> None:
     result = subprocess.run(
         [

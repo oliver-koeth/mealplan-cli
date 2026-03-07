@@ -49,6 +49,55 @@ def test_meal_plan_calculation_service_calculate_is_deterministic(
     assert first == second
 
 
+def test_meal_plan_calculation_service_resets_warnings_between_runs(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = MealPlanRequest.model_validate(meal_plan_request_payload)
+    service = MealPlanCalculationService()
+
+    monkeypatch.setattr(service, "_run_energy_stage", lambda _: 2400.0)
+    monkeypatch.setattr(
+        service,
+        "_run_macro_stage",
+        lambda _, __: MacroTargets(protein_g=120.0, carbs_g=240.0, fat_g=60.0),
+    )
+    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: 0.0)
+    monkeypatch.setattr(service, "_run_training_demand_stage", lambda _: 0.0)
+
+    warnings_by_run = iter([("first warning",), ()])
+
+    def track_assembly(
+        *,
+        tdee_kcal: float,
+        training_carbs_g: float,
+        training_calorie_demand_kcal: float,
+        carb_mode: CarbMode,
+        training_before_meal: MealName | None,
+        training_load_tomorrow: TrainingLoadTomorrow,
+        macro_targets: MacroTargets,
+    ) -> MealPlanResponse:
+        _ = (
+            tdee_kcal,
+            training_carbs_g,
+            training_calorie_demand_kcal,
+            carb_mode,
+            training_before_meal,
+            training_load_tomorrow,
+            macro_targets,
+        )
+        service.warnings = next(warnings_by_run)
+        return MealPlanResponse.placeholder()
+
+    monkeypatch.setattr(service, "_run_assembly_stage", track_assembly)
+
+    service.calculate(request)
+    assert service.warnings == ("first warning",)
+
+    service.calculate(request)
+    assert service.warnings == ()
+
+
 def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
     meal_plan_request_payload: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
@@ -367,7 +416,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
     macro_targets = MacroTargets(protein_g=155.5, carbs_g=266.6, fat_g=77.7)
     captured: dict[str, object] = {}
 
-    def fake_calculate_meal_split_and_response_payload(
+    def fake_calculate_meal_split_and_response_payload_with_warnings(
         *,
         tdee_kcal: float,
         training_carbs_g: float,
@@ -388,11 +437,11 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         captured["protein_g"] = protein_g
         captured["carbs_g"] = carbs_g
         captured["fat_g"] = fat_g
-        return meal_plan_response_payload
+        return {"payload": meal_plan_response_payload, "warnings": ("warning",)}
 
     monkeypatch.setattr(
-        "mealplan.application.orchestration.calculate_meal_split_and_response_payload",
-        fake_calculate_meal_split_and_response_payload,
+        "mealplan.application.orchestration.calculate_meal_split_and_response_payload_with_warnings",
+        fake_calculate_meal_split_and_response_payload_with_warnings,
     )
 
     response = service._run_assembly_stage(
@@ -417,6 +466,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         "carbs_g": 266.6,
         "fat_g": 77.7,
     }
+    assert service.warnings == ("warning",)
 
 
 def test_meal_plan_calculation_service_calls_fueling_service_once_with_canonical_zones(

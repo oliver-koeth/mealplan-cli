@@ -12,7 +12,7 @@ from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.services import (
     calculate_macro_targets,
-    calculate_meal_split_and_response_payload,
+    calculate_meal_split_and_response_payload_with_warnings,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
     calculate_training_calorie_demand_kcal,
@@ -41,8 +41,12 @@ class MealPlanCalculationService:
     - Subsequent Phase 8 stories wire stage composition behind this stable contract.
     """
 
+    def __init__(self) -> None:
+        self.warnings: tuple[str, ...] = ()
+
     def calculate(self, request: MealPlanRequest) -> MealPlanResponse:
         """Run deterministic meal-plan calculation for a validated request."""
+        self.warnings = ()
         validated_request = validate_meal_plan_flow(
             request_payload=request,
             response=MealPlanResponse.placeholder(),
@@ -117,7 +121,7 @@ class MealPlanCalculationService:
         macro_targets: MacroTargets,
     ) -> MealPlanResponse:
         """Return validated response model from canonical meal assembly payload."""
-        response_payload = calculate_meal_split_and_response_payload(
+        assembly_result = calculate_meal_split_and_response_payload_with_warnings(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
             training_calorie_demand_kcal=training_calorie_demand_kcal,
@@ -128,7 +132,8 @@ class MealPlanCalculationService:
             carbs_g=macro_targets.carbs_g,
             fat_g=macro_targets.fat_g,
         )
-        return MealPlanResponse.model_validate(response_payload)
+        self.warnings = assembly_result["warnings"]
+        return MealPlanResponse.model_validate(assembly_result["payload"])
 
 
 def _validated_training_session(request: MealPlanRequest) -> ValidatedTrainingSession:

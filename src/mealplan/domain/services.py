@@ -38,6 +38,11 @@ class MealPayloadRow(TypedDict):
     kcal: float
 
 
+class MealAssemblyResult(TypedDict):
+    payload: dict[str, object]
+    warnings: tuple[str, ...]
+
+
 def calculate_tdee_kcal(profile: UserProfile) -> float:
     """Return canonical daily energy expenditure for a typed user profile."""
     return tdee_kcal_per_day_for(profile)
@@ -151,6 +156,32 @@ def calculate_meal_split_and_response_payload(
     fat_g: float,
 ) -> dict[str, object]:
     """Return canonical response payload from top-level targets and meal budgets."""
+    assembly_result = calculate_meal_split_and_response_payload_with_warnings(
+        tdee_kcal=tdee_kcal,
+        training_carbs_g=training_carbs_g,
+        training_calorie_demand_kcal=training_calorie_demand_kcal,
+        carb_mode=carb_mode,
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=training_load_tomorrow,
+        protein_g=protein_g,
+        carbs_g=carbs_g,
+        fat_g=fat_g,
+    )
+    return assembly_result["payload"]
+
+
+def calculate_meal_split_and_response_payload_with_warnings(
+    tdee_kcal: float,
+    training_carbs_g: float,
+    training_calorie_demand_kcal: float,
+    carb_mode: CarbMode,
+    training_before_meal: MealName | None,
+    training_load_tomorrow: TrainingLoadTomorrow,
+    protein_g: float,
+    carbs_g: float,
+    fat_g: float,
+) -> MealAssemblyResult:
+    """Return canonical response payload plus non-fatal assembly warnings."""
     normal_meal_calorie_pool_kcal = calculate_normal_meal_calorie_pool_kcal(
         tdee_kcal=tdee_kcal,
         training_calorie_demand_kcal=training_calorie_demand_kcal,
@@ -165,12 +196,14 @@ def calculate_meal_split_and_response_payload(
         training_load_tomorrow=training_load_tomorrow,
     )
 
+    warnings: list[str] = []
     meal_allocations = [
         _allocation_from_meal_budget(
             meal=meal,
             kcal_budget=kcal_by_meal[meal],
             protein_g=protein_g_by_meal[meal],
             carbs_strategy=carbs_strategy_by_meal[meal],
+            warnings=warnings,
         )
         for meal in CANONICAL_MEAL_ORDER
     ]
@@ -183,9 +216,10 @@ def calculate_meal_split_and_response_payload(
         )
         for allocation in meal_allocations
     ]
+    final_protein_g = sum(float(meal.protein_g) for meal in meal_allocations)
     _reconcile_rounded_meal_totals(
         meals=meals,
-        protein_g=protein_g,
+        protein_g=final_protein_g,
         carbs_g=sum(float(meal.carbs_g) for meal in meal_allocations),
         fat_g=sum(float(meal.fat_g) for meal in meal_allocations),
     )
@@ -202,15 +236,16 @@ def calculate_meal_split_and_response_payload(
     response_fat_g = round(sum(float(meal["fat_g"]) for meal in meals), 2)
     total_kcal = round(sum(float(meal["kcal"]) for meal in meals), 2)
 
-    return _assemble_meal_split_response_payload(
+    payload = _assemble_meal_split_response_payload(
         tdee_kcal=tdee_kcal,
         training_carbs_g=training_carbs_g,
-        protein_g=protein_g,
+        protein_g=round(sum(float(meal["protein_g"]) for meal in meals), 2),
         carbs_g=response_carbs_g,
         fat_g=response_fat_g,
         total_kcal=total_kcal,
         meals=meals,
     )
+    return {"payload": payload, "warnings": tuple(warnings)}
 
 
 def _insert_training_meal_if_needed(
@@ -287,16 +322,27 @@ def _allocation_from_meal_budget(
     kcal_budget: float,
     protein_g: float,
     carbs_strategy: CarbStrategy,
+    warnings: list[str],
 ) -> MealAllocation:
-    protein_kcal = protein_g * 4.0
+    allocated_protein_g = protein_g
+    protein_kcal = allocated_protein_g * 4.0
     remaining_kcal = kcal_budget - protein_kcal
+    if remaining_kcal < 0.0:
+        allocated_protein_g = kcal_budget / 4.0
+        warnings.append(
+            "meal_assembly.protein_reduction: "
+            f"reduced {meal.value} protein from {protein_g:.2f}g to {allocated_protein_g:.2f}g "
+            f"to fit {kcal_budget:.2f} kcal budget"
+        )
+        protein_kcal = allocated_protein_g * 4.0
+        remaining_kcal = max(kcal_budget - protein_kcal, 0.0)
     carb_calorie_share = CARB_CALORIE_SHARE_BY_STRATEGY[carbs_strategy]
     carbs_g = (remaining_kcal * carb_calorie_share) / 4.0
     fat_g = (remaining_kcal * (1.0 - carb_calorie_share)) / 9.0
     return MealAllocation(
         meal=meal,
         carbs_g=carbs_g,
-        protein_g=protein_g,
+        protein_g=allocated_protein_g,
         fat_g=fat_g,
     )
 
