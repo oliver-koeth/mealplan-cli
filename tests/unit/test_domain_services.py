@@ -436,6 +436,27 @@ def test_calculate_meal_split_and_response_payload_uses_canonical_protein_and_kc
     assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(payload["fat_g"])
 
 
+def test_calculate_meal_split_and_response_payload_uses_2_1_2_1_2_1_shares_for_kcal_and_protein(
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=900.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.NORMAL,
+        training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+        protein_g=90.0,
+        carbs_g=180.0,
+        fat_g=40.0,
+    )
+
+    meals = cast(list[dict[str, object]], payload["meals"])
+
+    assert [entry["meal"] for entry in meals] == list(CANONICAL_MEAL_ORDER)
+    assert [entry["kcal"] for entry in meals] == [200.0, 100.0, 200.0, 100.0, 200.0, 100.0]
+    assert [entry["protein_g"] for entry in meals] == [20.0, 10.0, 20.0, 10.0, 20.0, 10.0]
+
+
 def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> None:
     protein_g = 100.0
     fat_g = 50.0

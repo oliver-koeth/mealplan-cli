@@ -878,3 +878,32 @@ def test_meal_plan_calculation_service_integration_meal_assembly_reconciliation_
 
     fat_total = sum(meal.fat_g for meal in response.meals)
     assert abs(fat_total - response.fat_g) <= 1e-2
+
+
+@pytest.mark.parametrize(
+    ("carb_mode", "expected_canonical_strategies"),
+    [
+        ("normal", ["medium"] * 6),
+        ("low", ["low"] * 6),
+        ("periodized", ["low"] * 6),
+    ],
+)
+def test_meal_plan_calculation_service_integration_uses_emitted_meal_totals_and_baseline_strategies(
+    meal_plan_request_payload: dict[str, Any],
+    carb_mode: str,
+    expected_canonical_strategies: list[str],
+) -> None:
+    payload = meal_plan_request_payload
+    payload["carb_mode"] = carb_mode
+    payload["training_load_tomorrow"] = "medium"
+    payload["training_session"] = None
+
+    request = MealPlanRequest.model_validate(payload)
+    response = MealPlanCalculationService().calculate(request)
+
+    canonical_meals = [meal for meal in response.meals if meal.meal != "training"]
+
+    assert [meal.carbs_strategy for meal in canonical_meals] == expected_canonical_strategies
+    assert response.training_carbs_g == 0.0
+    assert response.carbs_g == pytest.approx(sum(meal.carbs_g for meal in canonical_meals))
+    assert response.fat_g == pytest.approx(sum(meal.fat_g for meal in canonical_meals))

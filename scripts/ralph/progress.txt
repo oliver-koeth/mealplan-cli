@@ -175,3 +175,17 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Gotchas encountered: CLI tests often replace `MealPlanCalculationService` with lightweight fakes, so warning emission code should tolerate missing `.warnings` attributes or those fakes need updating.
 - Useful context: when protein is clamped to a meal budget, the assembler should still run the existing rounding reconciliation against the reduced protein total rather than the original daily target.
 ---
+## [2026-03-07 12:32:01 CET] - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
+- Added focused regression coverage for the canonical `2/9, 1/9, 2/9, 1/9, 2/9, 1/9` calorie and protein meal-share split in the domain meal-assembly tests.
+- Added application integration coverage to assert top-level `carbs_g` and `fat_g` are derived from emitted meal rows and that baseline `carbs_strategy` assignment stays stable for `normal`, `low`, and no-training `periodized` runs.
+- Files changed:
+- `tests/unit/test_domain_services.py`
+- `tests/unit/test_application_orchestration.py`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+- Patterns discovered: coverage for the calories-first model is clearest when domain tests pin the canonical six-meal share sequence directly and application tests separately pin response totals against emitted meal rows.
+- Gotchas encountered: `meal_plan_request_payload` defaults to a periodized training scenario, so baseline carb-strategy tests must explicitly clear `training_session` and reset `training_load_tomorrow` to avoid periodized overrides.
+- Useful context: the existing success matrix already checks meal ordering and training insertion, so story-specific regression tests can stay narrowly focused on shares, totals, and baseline strategies.
+---
