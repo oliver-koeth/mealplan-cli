@@ -66,6 +66,17 @@ def calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float:
     return float(total_minutes)
 
 
+def calculate_training_calorie_demand_kcal(zones_minutes: Mapping[int, int]) -> float:
+    """Return training calorie demand from total minutes across zones 1..5.
+
+    Business rule:
+    - All zone minutes contribute to demand, including zone 1.
+    - Demand uses a fixed conversion of 4 kcal per minute-equivalent unit.
+    """
+    total_minutes = sum(zones_minutes.values())
+    return round(float(total_minutes) * 4.0, 2)
+
+
 def calculate_periodized_carb_allocation(
     carb_mode: CarbMode,
     daily_carbs_g: float,
@@ -112,6 +123,7 @@ def calculate_periodized_carb_allocation(
 def calculate_meal_split_and_response_payload(
     tdee_kcal: float,
     training_carbs_g: float,
+    training_calorie_demand_kcal: float,
     training_before_meal: MealName | None,
     protein_g: float,
     carbs_g: float,
@@ -151,7 +163,12 @@ def calculate_meal_split_and_response_payload(
         training_before_meal=training_before_meal,
     )
     _recalculate_meal_kcal_from_macros(meals=meals)
-    _reconcile_displayed_meal_kcal_to_tdee(meals=meals, tdee_kcal=tdee_kcal)
+    _reconcile_displayed_meal_kcal_to_total_day_kcal(
+        meals=meals,
+        tdee_kcal=tdee_kcal,
+        training_calorie_demand_kcal=training_calorie_demand_kcal,
+    )
+    total_kcal = round(sum(float(meal["kcal"]) for meal in meals), 2)
 
     return _assemble_meal_split_response_payload(
         tdee_kcal=tdee_kcal,
@@ -159,6 +176,7 @@ def calculate_meal_split_and_response_payload(
         protein_g=protein_g,
         carbs_g=carbs_g,
         fat_g=fat_g,
+        total_kcal=total_kcal,
         meals=meals,
     )
 
@@ -198,6 +216,7 @@ def _assemble_meal_split_response_payload(
     protein_g: float,
     carbs_g: float,
     fat_g: float,
+    total_kcal: float,
     meals: list[MealPayloadRow],
 ) -> dict[str, object]:
     return {
@@ -206,6 +225,7 @@ def _assemble_meal_split_response_payload(
         "protein_g": protein_g,
         "carbs_g": carbs_g,
         "fat_g": fat_g,
+        "total_kcal": total_kcal,
         "meals": meals,
     }
 
@@ -236,13 +256,15 @@ def _kcal_from_macros(*, carbs_g: float, protein_g: float, fat_g: float) -> floa
     return round((carbs_g * 4.0) + (protein_g * 4.0) + (fat_g * 9.0), 2)
 
 
-def _reconcile_displayed_meal_kcal_to_tdee(
+def _reconcile_displayed_meal_kcal_to_total_day_kcal(
     *,
     meals: list[MealPayloadRow],
     tdee_kcal: float,
+    training_calorie_demand_kcal: float,
 ) -> None:
+    total_day_kcal_target = round(tdee_kcal + training_calorie_demand_kcal, 2)
     displayed_meal_kcal_total = round(sum(float(meal["kcal"]) for meal in meals), 2)
-    residual = round(tdee_kcal - displayed_meal_kcal_total, 2)
+    residual = round(total_day_kcal_target - displayed_meal_kcal_total, 2)
     if residual == 0.0:
         return
 

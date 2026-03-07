@@ -90,12 +90,23 @@ TDEE = BMR × activity_factor
 
 ------------------------------------------------------------------------
 
-## 5. Training Fueling
+## 5. Training Demand and Fueling
+
+### 5.1 Training Calorie Demand
+
+-   Training calorie demand is derived from total minutes across zones `1..5`.
+-   Zone 1 minutes contribute to calorie demand.
+
+training_calorie_demand_kcal = sum(zone_1..zone_5 minutes) × 4
+
+### 5.2 Training Fueling
 
 -   If ALL training is Z1 → 0g carbs
 -   If ANY zone ≥ Z2 → 60g carbs per hour
 
 training_carbs_g = duration_minutes × (60 / 60)
+
+training_calorie_supply_kcal = training_carbs_g × 4
 
 Fueling carbs are separate from meal carb allocations.
 
@@ -215,23 +226,27 @@ Phase 6 contract clarification:
 JSON structure:
 
 { "TDEE": number, "training_carbs_g": number, "protein_g": number,
-"carbs_g": number, "fat_g": number, "meals": \[
+"carbs_g": number, "fat_g": number, "total_kcal": number, "meals": \[
 {"meal":"breakfast","carbs_g":x,"protein_g":y,"fat_g":z,"kcal":k} \] }
 
 ### 9.1 Phase 7 Assembly and Rounding Contract
 
 -   Canonical meal-assembly API is domain-only in Phase 7:
-    `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal)`.
+    `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, training_calorie_demand_kcal, training_before_meal, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal)`.
 -   Response `meals` must include six canonical entries in this order:
     `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`, with at most one optional `training` entry.
 -   If `training_carbs_g > 0`, insert exactly one `training` meal before `training_before_meal` (append only when no target exists); if `training_carbs_g == 0`, insert none.
 -   Training meal composition is carbs-only: `carbs_g = training_carbs_g`, `protein_g = 0`, `fat_g = 0`.
 -   Per-meal `carbs_g`, `protein_g`, and `fat_g` values are rounded to 2 decimals at output boundary only, and each meal row includes derived `kcal`.
--   Top-level fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) remain canonical inputs and are not re-derived from rounded meal rows.
+-   Top-level target fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) remain canonical inputs and are not re-derived from rounded meal rows.
+-   Top-level `total_kcal` is output-only and equals the sum of displayed meal `kcal` values.
 -   If rounded meal totals drift from top-level targets, residual correction is applied only to `evening-snack`.
 -   Residual macro correction order is deterministic and fixed:
     `carbs_g`, then `protein_g`, then `fat_g`.
--   After meal-level `kcal` is derived from displayed meal macros, apply a display-only residual correction to `evening-snack.kcal` so `sum(meals[*].kcal) == TDEE` exactly.
+-   For non-training meals only, target displayed kcal sum is:
+    `TDEE + training_calorie_demand_kcal - training_calorie_supply_kcal`.
+-   After meal-level `kcal` is derived from displayed meal macros, apply a display-only residual correction to `evening-snack.kcal` so total day displayed kcal satisfies:
+    `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)`.
 
 ### 9.2 Phase 8 Application Orchestration Flow
 

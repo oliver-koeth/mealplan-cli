@@ -9,7 +9,7 @@ from typing import cast
 import pytest
 
 from mealplan.application.contracts import MealPlanResponse
-from mealplan.domain import calculate_training_carbs_g
+from mealplan.domain import calculate_training_calorie_demand_kcal, calculate_training_carbs_g
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.domain.services import (
@@ -94,6 +94,12 @@ def test_calculate_training_carbs_g_returns_zero_for_zero_total_minutes() -> Non
     zones_minutes: Mapping[int, int] = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
 
     assert calculate_training_carbs_g(zones_minutes) == 0.0
+
+
+def test_calculate_training_calorie_demand_kcal_counts_all_zone_minutes() -> None:
+    zones_minutes: Mapping[int, int] = {1: 30, 2: 0, 3: 0, 4: 0, 5: 0}
+
+    assert calculate_training_calorie_demand_kcal(zones_minutes) == 120.0
 
 
 @pytest.mark.parametrize(
@@ -186,7 +192,8 @@ def test_calculate_meal_split_and_response_payload_has_stable_orchestration_sign
     signature = inspect.signature(calculate_meal_split_and_response_payload)
 
     assert str(signature) == (
-        "(tdee_kcal: 'float', training_carbs_g: 'float', training_before_meal: 'MealName | None', "
+        "(tdee_kcal: 'float', training_carbs_g: 'float', training_calorie_demand_kcal: 'float', "
+        "training_before_meal: 'MealName | None', "
         "protein_g: 'float', carbs_g: 'float', fat_g: 'float', "
         "carb_allocation_g_by_meal: 'Mapping[MealName, float]') -> 'dict[str, object]'"
     )
@@ -204,6 +211,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2908.0,
         training_carbs_g=85.0,
+        training_calorie_demand_kcal=340.0,
         training_before_meal=MealName.LUNCH,
         protein_g=180.0,
         carbs_g=300.0,
@@ -217,6 +225,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
         "protein_g",
         "carbs_g",
         "fat_g",
+        "total_kcal",
         "meals",
     ]
     assert payload["TDEE"] == 2908.0
@@ -224,6 +233,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
     assert payload["protein_g"] == 180.0
     assert payload["carbs_g"] == 300.0
     assert payload["fat_g"] == 72.0
+    assert payload["total_kcal"] == 3248.0
 
     meals = payload["meals"]
     assert isinstance(meals, list)
@@ -255,7 +265,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
         588.0,
         388.0,
         468.0,
-        268.0,
+        608.0,
     ]
 
 
@@ -266,6 +276,7 @@ def test_calculate_meal_split_and_response_payload_deterministically_inserts_bef
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2400.0,
         training_carbs_g=60.0,
+        training_calorie_demand_kcal=240.0,
         training_before_meal=training_before_meal,
         protein_g=180.0,
         carbs_g=300.0,
@@ -297,6 +308,7 @@ def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meal
         protein_g=120.0,
         carbs_g=200.0,
         fat_g=60.0,
+        total_kcal=990.0,
         meals=meals,
     )
 
@@ -306,6 +318,7 @@ def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meal
         "protein_g",
         "carbs_g",
         "fat_g",
+        "total_kcal",
         "meals",
     ]
     assert payload["TDEE"] == 2300.0
@@ -313,6 +326,7 @@ def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meal
     assert payload["protein_g"] == 120.0
     assert payload["carbs_g"] == 200.0
     assert payload["fat_g"] == 60.0
+    assert payload["total_kcal"] == 990.0
     assert payload["meals"] == meals
 
 
@@ -320,6 +334,7 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2400.0,
         training_carbs_g=85.0,
+        training_calorie_demand_kcal=340.0,
         training_before_meal=MealName.LUNCH,
         protein_g=180.0,
         carbs_g=300.0,
@@ -351,6 +366,7 @@ def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equall
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2437.0,
         training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
         training_before_meal=None,
         protein_g=protein_g,
         carbs_g=300.0,
@@ -392,6 +408,7 @@ def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> No
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2100.0,
         training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
         training_before_meal=None,
         protein_g=protein_g,
         carbs_g=240.0,
@@ -419,6 +436,7 @@ def test_meal_split_applies_residual_adjustment_to_evening_snack_only() -> None:
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
         training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
         training_before_meal=None,
         protein_g=100.0,
         carbs_g=60.03,
@@ -448,6 +466,7 @@ def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_target
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
         training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
         training_before_meal=None,
         protein_g=120.0,
         carbs_g=60.0,
@@ -470,6 +489,7 @@ def test_meal_split_reconciles_displayed_kcal_sum_to_tdee_on_evening_snack_only(
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=990.03,
         training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
         training_before_meal=None,
         protein_g=120.0,
         carbs_g=60.0,
@@ -492,6 +512,7 @@ def test_meal_split_kcal_reconciliation_is_display_only_with_training_meal() -> 
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=1230.03,
         training_carbs_g=60.0,
+        training_calorie_demand_kcal=240.0,
         training_before_meal=MealName.LUNCH,
         protein_g=120.0,
         carbs_g=60.0,
@@ -513,7 +534,7 @@ def test_meal_split_kcal_reconciliation_is_display_only_with_training_meal() -> 
     assert evening_snack["carbs_g"] == 10.0
     assert evening_snack["protein_g"] == 20.0
     assert evening_snack["fat_g"] == 5.0
-    assert evening_snack["kcal"] == 165.03
+    assert evening_snack["kcal"] == 405.03
 
     for entry in meals:
         if entry["meal"] is MealName.EVENING_SNACK:
@@ -524,13 +545,16 @@ def test_meal_split_kcal_reconciliation_is_display_only_with_training_meal() -> 
             + (float(entry["fat_g"]) * 9.0),
             2,
         )
-    assert sum(float(entry["kcal"]) for entry in meals) == pytest.approx(payload["TDEE"])
+    assert sum(float(entry["kcal"]) for entry in meals) == pytest.approx(
+        payload["TDEE"] + 240.0
+    )
 
 
 def test_meal_split_allows_subcent_target_delta_within_reconciliation_tolerance() -> None:
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
         training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
         training_before_meal=None,
         protein_g=100.0,
         carbs_g=60.035,
@@ -547,6 +571,7 @@ def test_calculate_meal_split_and_response_payload_omits_training_meal_when_zero
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2400.0,
         training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
         training_before_meal=None,
         protein_g=180.0,
         carbs_g=300.0,
@@ -572,6 +597,7 @@ def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:
         calculate_meal_split_and_response_payload(
             tdee_kcal=2400.0,
             training_carbs_g=70.0,
+            training_calorie_demand_kcal=280.0,
             training_before_meal=MealName.LUNCH,
             protein_g=180.0,
             carbs_g=300.0,
@@ -593,6 +619,7 @@ def test_meal_split_raises_for_extra_carb_allocation_meals() -> None:
         calculate_meal_split_and_response_payload(
             tdee_kcal=2400.0,
             training_carbs_g=70.0,
+            training_calorie_demand_kcal=280.0,
             training_before_meal=MealName.LUNCH,
             protein_g=180.0,
             carbs_g=300.0,

@@ -23,6 +23,7 @@ CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "protein_g": "g",
     "carbs_g": "g",
     "fat_g": "g",
+    "total_kcal": "kcal",
     "kcal": "kcal",
 }
 
@@ -78,6 +79,9 @@ class MealPlanResponse(BoundaryModel):
     protein_g: StrictFloat
     carbs_g: StrictFloat
     fat_g: StrictFloat
+    total_kcal: StrictFloat = Field(
+        description="Sum of displayed meal kcal values for the planned day.",
+    )
     meals: list[MealAllocation]
 
     @model_validator(mode="after")
@@ -94,6 +98,13 @@ class MealPlanResponse(BoundaryModel):
             raise ValueError("meals must match canonical meal order exactly")
         return self
 
+    @model_validator(mode="after")
+    def _ensure_total_kcal_matches_meal_sum(self) -> MealPlanResponse:
+        displayed_total = round(sum(entry.kcal for entry in self.meals), 2)
+        if round(self.total_kcal, 2) != displayed_total:
+            raise ValueError("total_kcal must equal sum(meals[*].kcal)")
+        return self
+
     @classmethod
     def placeholder(cls) -> MealPlanResponse:
         """Build a zeroed response shape usable before calculation phases are implemented."""
@@ -103,6 +114,7 @@ class MealPlanResponse(BoundaryModel):
             protein_g=0.0,
             carbs_g=0.0,
             fat_g=0.0,
+            total_kcal=0.0,
             meals=[
                 MealAllocation(meal=meal, carbs_g=0.0, protein_g=0.0, fat_g=0.0, kcal=0.0)
                 for meal in CANONICAL_MEAL_ORDER

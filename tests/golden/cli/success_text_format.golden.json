@@ -1,5 +1,5 @@
 {
   "exit_code": 0,
   "stderr": "",
-  "stdout": "TDEE: 2310.0\ntraining_carbs_g: 0.0\nprotein_g: 150.0\ncarbs_g: 225.0\nfat_g: 90.0\nmeals:\n- breakfast: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- morning-snack: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- lunch: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- afternoon-snack: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- dinner: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- evening-snack: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n"
+  "stdout": "TDEE: 2310.0\ntraining_carbs_g: 0.0\nprotein_g: 150.0\ncarbs_g: 225.0\nfat_g: 90.0\ntotal_kcal: 2310.0\nmeals:\n- breakfast: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- morning-snack: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- lunch: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- afternoon-snack: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- dinner: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n- evening-snack: carbs_g=37.5 protein_g=25.0 fat_g=15.0 kcal=385.0\n"
 }

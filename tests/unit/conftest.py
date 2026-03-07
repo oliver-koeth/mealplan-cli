@@ -34,6 +34,7 @@ def meal_plan_response_payload() -> dict[str, Any]:
         "protein_g": 150.0,
         "carbs_g": 280.0,
         "fat_g": 80.0,
+        "total_kcal": 2440.0,
         "meals": [
             {
                 "meal": "breakfast",

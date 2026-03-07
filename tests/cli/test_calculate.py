@@ -68,6 +68,7 @@ def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
             "protein_g": 160.0,
             "carbs_g": 210.0,
             "fat_g": 77.0,
+            "total_kcal": 2160.18,
             "meals": [
                 {
                     "meal": meal,
@@ -139,6 +140,7 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
         "protein_g",
         "carbs_g",
         "fat_g",
+        "total_kcal",
         "meals",
     }
     assert [meal["meal"] for meal in response["meals"]] == [
@@ -193,6 +195,7 @@ def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
     assert "protein_g:" in text_output
     assert "carbs_g:" in text_output
     assert "fat_g:" in text_output
+    assert "total_kcal:" in text_output
     assert "kcal=" in text_output
 
     meal_lines = [
@@ -223,6 +226,7 @@ def test_calculate_table_format_outputs_top_level_and_canonical_meals() -> None:
     assert "| protein_g |" in table_output
     assert "| carbs_g |" in table_output
     assert "| fat_g |" in table_output
+    assert "| total_kcal |" in table_output
     assert "| meal | carbs_g | protein_g | fat_g | kcal |" in table_output
 
     meal_rows = [

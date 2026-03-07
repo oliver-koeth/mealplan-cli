@@ -139,7 +139,7 @@ mealplan/
   - Stateless runtime; no persisted mutable session state.
 - DTOs:
   - Request DTO mirrors CLI schema.
-  - Response DTO mirrors PRD JSON contract (`TDEE`, `training_carbs_g`, macros, `meals[]`).
+  - Response DTO mirrors PRD JSON contract (`TDEE`, `training_carbs_g`, macros, `total_kcal`, `meals[]`).
 
 ## 7. Domain Model
 - Canonical specification lives in [MODEL.md](/Users/Oliver.Koeth/work/mealplan-cli/docs/MODEL.md).
@@ -158,6 +158,8 @@ mealplan/
   - Carbs by mode: low `3g/kg`, normal `5g/kg`, periodized baseline `4g/kg`.
   - Fat as calorie remainder; reject negative fat.
 - Training fueling:
+  - Training calorie demand uses all zone minutes (including zone 1): `training_calorie_demand_kcal = sum(zone minutes) * 4`.
+  - Phase 5 domain API boundary for demand is `calculate_training_calorie_demand_kcal(zones_minutes: Mapping[int, int]) -> float`.
   - All Z1 => `0g`; any zone >=2 => `60g/hour` over total duration.
   - Phase 5 domain API boundary is `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float` and assumes canonical normalized zone keys `1..5`.
   - Malformed `zones_minutes` payload rejection (invalid keys, negative minutes, non-integer minutes) remains a Phase 3 concern in application-layer normalization/semantic validation.
@@ -169,14 +171,15 @@ mealplan/
   - High meals fixed at 30% each of total carbs.
   - Remaining carbs split evenly over non-high meals.
 - Phase 7 meal assembly boundary:
-  - Canonical domain API: `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal) -> dict[str, object]`.
+  - Canonical domain API: `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, training_calorie_demand_kcal, training_before_meal, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal) -> dict[str, object]`.
   - Domain API builds top-level response fields plus `meals[]`; no Phase 7 application-layer wrapper.
   - Build `MealAllocation` rows and validate canonical order/coverage before payload serialization.
   - Response `meals[]` always includes the six canonical meals and may include one optional `training` row inserted before `training_before_meal` when `training_carbs_g > 0`.
   - `training` row is carbs-only (`protein_g=0`, `fat_g=0`) and carries derived `kcal`.
   - Round meal macro fields (`carbs_g`, `protein_g`, `fat_g`) to 2 decimals at serialization boundary only.
   - Reconcile rounding drift deterministically by adjusting only canonical last meal (`evening-snack`) in fixed macro order: `carbs_g`, `protein_g`, `fat_g`.
-  - Recompute displayed row-level `kcal` from displayed macro grams, then apply display-only residual adjustment to `evening-snack.kcal` so `sum(meals[*].kcal) == TDEE`.
+  - Non-training meals target displayed kcal is `TDEE + training_calorie_demand_kcal - (training_carbs_g * 4)`.
+  - Recompute displayed row-level `kcal` from displayed macro grams, then apply display-only residual adjustment to `evening-snack.kcal` so `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)`.
   - If totals still mismatch after residual adjustment, raise `DomainRuleError` with prefix `meal_assembly.reconciliation`.
 - Precedence and deterministic ordering:
   - Meal order fixed: breakfast -> morning-snack -> lunch -> afternoon-snack -> dinner -> evening-snack.
@@ -207,7 +210,7 @@ mealplan/
   - Unknown fields are forbidden at every nesting level.
 - Output schema:
   - Canonical response DTO module path: `src/mealplan/application/contracts.py` (`MealPlanResponse`, `MealAllocation`).
-  - `MealPlanResponse` exact top-level fields: `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `meals`.
+  - `MealPlanResponse` exact top-level fields: `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`, `meals`.
   - `MealAllocation` exact fields: `meal`, `carbs_g`, `protein_g`, `fat_g`, `kcal`.
   - `meals[]` preserves canonical order for base meals and allows at most one optional `training` row.
 - Canonical meal order:
@@ -274,6 +277,7 @@ mealplan/
   "protein_g": 145.0,
   "carbs_g": 290.0,
   "fat_g": 70.0,
+  "total_kcal": 2740.0,
   "meals": [
     {"meal": "breakfast", "carbs_g": 40.0, "protein_g": 24.0, "fat_g": 12.0, "kcal": 364.0},
     {"meal": "morning-snack", "carbs_g": 35.0, "protein_g": 20.0, "fat_g": 10.0, "kcal": 310.0},

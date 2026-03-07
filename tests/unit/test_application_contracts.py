@@ -196,6 +196,7 @@ def test_meal_plan_response_allows_optional_training_meal_between_canonical_meal
         {"meal": "training", "carbs_g": 60.0, "protein_g": 0.0, "fat_g": 0.0, "kcal": 240.0},
         *payload["meals"][2:],
     ]
+    payload["total_kcal"] = 2680.0
 
     response = MealPlanResponse.model_validate(payload)
 
@@ -238,7 +239,7 @@ def test_meal_plan_response_rejects_duplicate_training_meals(
 
 @pytest.mark.parametrize(
     "missing_field",
-    ["TDEE", "training_carbs_g", "protein_g", "carbs_g", "fat_g", "meals"],
+    ["TDEE", "training_carbs_g", "protein_g", "carbs_g", "fat_g", "total_kcal", "meals"],
 )
 def test_meal_plan_response_rejects_missing_required_fields(
     meal_plan_response_payload: dict[str, Any],
@@ -335,6 +336,7 @@ def test_contract_units_policy_covers_request_and_response_units() -> None:
         "protein_g": "g",
         "carbs_g": "g",
         "fat_g": "g",
+        "total_kcal": "kcal",
         "kcal": "kcal",
     }
 

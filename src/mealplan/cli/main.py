@@ -157,6 +157,7 @@ def _render_text_output(response: MealPlanResponse) -> str:
         f"protein_g: {payload['protein_g']}",
         f"carbs_g: {payload['carbs_g']}",
         f"fat_g: {payload['fat_g']}",
+        f"total_kcal: {payload['total_kcal']}",
         "meals:",
     ]
     for meal in payload["meals"]:
@@ -178,6 +179,7 @@ def _render_table_output(response: MealPlanResponse) -> str:
         f"| protein_g | {payload['protein_g']} |",
         f"| carbs_g | {payload['carbs_g']} |",
         f"| fat_g | {payload['fat_g']} |",
+        f"| total_kcal | {payload['total_kcal']} |",
         "",
         "| meal | carbs_g | protein_g | fat_g | kcal |",
         "| --- | --- | --- | --- | --- |",

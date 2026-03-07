@@ -2,6 +2,7 @@
   "TDEE": 1809.0,
   "carbs_g": 216.0,
   "fat_g": 57.0,
+  "total_kcal": 1929.0,
   "meals": [
     {
       "carbs_g": 7.2,
@@ -48,7 +49,7 @@
     {
       "carbs_g": 7.2,
       "fat_g": 9.5,
-      "kcal": 66.3,
+      "kcal": 186.3,
       "meal": "evening-snack",
       "protein_g": 18.0
     }
