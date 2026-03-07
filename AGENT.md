@@ -112,6 +112,7 @@ When in doubt, update those source docs instead of expanding this file.
 82. When adding or changing meal-row response fields, update `application/contracts.py` `MealAllocation`, `tests/unit/conftest.py` response fixtures, CLI renderers, and both application/CLI golden snapshots in the same iteration so contract ordering stays deterministic.
 83. Apply periodized post-training `carbs_strategy` overrides during meal assembly, not in CLI/application formatting: mark `training_before_meal` as `high`, upgrade only the next canonical meal, never wrap `evening-snack` to `breakfast`, and force `dinner` to `high` whenever `training_load_tomorrow` is `high`.
 84. In the calories-first assembler, derive each canonical meal's `carbs_g` and `fat_g` from that meal's calorie budget after protein calories, using strategy calorie shares (`low=1/4 carbs`, `medium=2/3 carbs`, `high=3/4 carbs`), then recompute top-level `carbs_g`/`fat_g` from the emitted meals.
+85. When assembly output becomes the source of truth for response totals, remove legacy stage passthrough parameters from `MealPlanCalculationService.calculate(...)` and `_run_assembly_stage(...)` rather than carrying unused domain artifacts through the application boundary.
 
 ## Ralph Runner
 

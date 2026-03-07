@@ -7,6 +7,7 @@ Started: Sat Mar  7 11:33:39 CET 2026
 - Apply periodized post-training `carbs_strategy` overrides in domain meal assembly; set `training_before_meal` high, upgrade only the next canonical meal, and never wrap `evening-snack` to `breakfast`.
 - In periodized meal assembly, `training_load_tomorrow=high` must force `dinner` to `carbs_strategy=high`, including late-day training cases where the normal second-high-meal upgrade is suppressed.
 - In the calories-first assembler, derive per-meal `carbs_g` and `fat_g` from each canonical meal budget after protein calories using strategy calorie shares (`low=1/4`, `medium=2/3`, `high=3/4` to carbs), and set top-level `carbs_g`/`fat_g` from the emitted meal rows rather than stale macro targets.
+- Once response totals come from emitted meal rows, drop the legacy per-meal carb-allocation passthrough from application assembly instead of carrying an unused periodization artifact through the service boundary.
 
 ## [2026-03-07 11:42:49 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -135,4 +136,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Patterns discovered: the calories-first flow now treats `carbs_strategy` as the source of truth for carb-versus-fat calorie shares at meal level, while top-level carb/fat totals must be recomputed from the final emitted meals.
 - Gotchas encountered: application validation still enforces carb reconciliation against emitted meals, so once assembly stops trusting `carb_allocation_g_by_meal`, response top-level totals and success goldens must move with it in the same iteration.
 - Useful context: canonical meal `kcal` remains a display budget reconciled from the normal-meal calorie pool even though meal macro grams are now derived from those budgets rather than the legacy periodization gram allocation.
+---
+## [2026-03-07 12:24:01 CET] - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
+- Removed the stale `carb_allocation_g_by_meal` assembly dependency so the application flow now relies on emitted meal rows, canonical meal strategies, and meal budgets as the sole source of top-level carb/fat totals.
+- Updated domain and orchestration signature tests to pin the slimmer assembly contract while preserving direct coverage for the standalone periodization helper.
+- Files changed:
+- `AGENT.md`
+- `src/mealplan/application/orchestration.py`
+- `src/mealplan/domain/services.py`
+- `tests/unit/test_application_orchestration.py`
+- `tests/unit/test_domain_services.py`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+- Patterns discovered: once top-level response totals are derived from emitted meal rows, the application layer should stop threading unused per-meal allocation artifacts into assembly.
+- Gotchas encountered: several orchestration tests monkeypatch `_run_assembly_stage`, so removing an assembly parameter requires updating those spy signatures and stage-order expectations in the same iteration.
+- Useful context: the standalone `_run_periodization_stage` and `calculate_periodized_carb_allocation(...)` tests still matter for legacy domain coverage, even though `MealPlanCalculationService.calculate(...)` no longer feeds that allocation into meal assembly.
 ---

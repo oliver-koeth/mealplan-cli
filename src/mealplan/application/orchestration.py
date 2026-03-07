@@ -53,11 +53,6 @@ class MealPlanCalculationService:
         macro_targets = self._run_macro_stage(validated_request, tdee_kcal)
         training_carbs_g = self._run_fueling_stage(training_session)
         training_calorie_demand_kcal = self._run_training_demand_stage(training_session)
-        carb_allocation_g_by_meal = self._run_periodization_stage(
-            validated_request,
-            training_session,
-            macro_targets,
-        )
         return self._run_assembly_stage(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
@@ -66,7 +61,6 @@ class MealPlanCalculationService:
             training_before_meal=training_session.training_before_meal,
             training_load_tomorrow=validated_request.training_load_tomorrow,
             macro_targets=macro_targets,
-            carb_allocation_g_by_meal=carb_allocation_g_by_meal,
         )
 
     def _run_energy_stage(self, request: MealPlanRequest) -> float:
@@ -121,7 +115,6 @@ class MealPlanCalculationService:
         training_before_meal: MealName | None,
         training_load_tomorrow: TrainingLoadTomorrow,
         macro_targets: MacroTargets,
-        carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
         """Return validated response model from canonical meal assembly payload."""
         response_payload = calculate_meal_split_and_response_payload(
@@ -134,7 +127,6 @@ class MealPlanCalculationService:
             protein_g=macro_targets.protein_g,
             carbs_g=macro_targets.carbs_g,
             fat_g=macro_targets.fat_g,
-            carb_allocation_g_by_meal=carb_allocation_g_by_meal,
         )
         return MealPlanResponse.model_validate(response_payload)
 
