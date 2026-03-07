@@ -8,7 +8,7 @@ from typing import cast
 from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
 from mealplan.application.parsing import parse_contract
 from mealplan.application.validation import normalize_training_zones, validate_semantic_input
-from mealplan.domain.enums import CarbMode, MealName
+from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.services import (
     calculate_macro_targets,
@@ -64,6 +64,7 @@ class MealPlanCalculationService:
             training_calorie_demand_kcal=training_calorie_demand_kcal,
             carb_mode=validated_request.carb_mode,
             training_before_meal=training_session.training_before_meal,
+            training_load_tomorrow=validated_request.training_load_tomorrow,
             macro_targets=macro_targets,
             carb_allocation_g_by_meal=carb_allocation_g_by_meal,
         )
@@ -118,6 +119,7 @@ class MealPlanCalculationService:
         training_calorie_demand_kcal: float,
         carb_mode: CarbMode,
         training_before_meal: MealName | None,
+        training_load_tomorrow: TrainingLoadTomorrow,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
@@ -128,6 +130,7 @@ class MealPlanCalculationService:
             training_calorie_demand_kcal=training_calorie_demand_kcal,
             carb_mode=carb_mode,
             training_before_meal=training_before_meal,
+            training_load_tomorrow=training_load_tomorrow,
             protein_g=macro_targets.protein_g,
             carbs_g=macro_targets.carbs_g,
             fat_g=macro_targets.fat_g,

@@ -14,7 +14,7 @@ from mealplan.application.orchestration import (
     _validated_training_session,
     validate_meal_plan_flow,
 )
-from mealplan.domain.enums import CarbMode, MealName
+from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.shared.errors import DomainRuleError, ValidationError
 from mealplan.shared.exit_codes import ExitCode, map_exception_to_exit_code
@@ -100,6 +100,7 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
         training_calorie_demand_kcal: float,
         carb_mode: CarbMode,
         training_before_meal: MealName | None,
+        training_load_tomorrow: TrainingLoadTomorrow,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
@@ -109,6 +110,7 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
         assert training_calorie_demand_kcal == 0.0
         assert carb_mode is request.carb_mode
         assert training_before_meal == MealName.LUNCH
+        assert training_load_tomorrow is request.training_load_tomorrow
         assert macro_targets == MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0)
         assert carb_allocation_g_by_meal == dict.fromkeys(CANONICAL_MEAL_ORDER, 1.0)
         return MealPlanResponse.placeholder()
@@ -168,6 +170,7 @@ def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
         training_calorie_demand_kcal: float,
         carb_mode: CarbMode,
         training_before_meal: MealName | None,
+        training_load_tomorrow: TrainingLoadTomorrow,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
@@ -242,6 +245,7 @@ def test_meal_plan_calculation_service_uses_normalized_training_for_fueling_and_
         training_calorie_demand_kcal,
         carb_mode,
         training_before_meal,
+        training_load_tomorrow,
         macro_targets,
         carb_allocation_g_by_meal: (
             MealPlanResponse.placeholder()
@@ -302,6 +306,7 @@ def test_meal_plan_calculation_service_builds_user_profile_and_calls_energy_macr
         training_calorie_demand_kcal,
         carb_mode,
         training_before_meal,
+        training_load_tomorrow,
         macro_targets,
         carb_allocation_g_by_meal: (
             MealPlanResponse.placeholder()
@@ -358,6 +363,7 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
         training_calorie_demand_kcal: float,
         carb_mode: CarbMode,
         training_before_meal: MealName | None,
+        training_load_tomorrow: TrainingLoadTomorrow,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
@@ -366,6 +372,7 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
         captured["assembly_training_demand_kcal"] = training_calorie_demand_kcal
         captured["assembly_carb_mode"] = carb_mode
         captured["assembly_training_before"] = training_before_meal
+        captured["assembly_training_load_tomorrow"] = training_load_tomorrow
         captured["assembly_macro"] = macro_targets
         captured["assembly_carb_allocation"] = carb_allocation_g_by_meal
         return MealPlanResponse.placeholder()
@@ -381,6 +388,7 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
     assert captured["assembly_training_demand_kcal"] == 0.0
     assert captured["assembly_carb_mode"] is request.carb_mode
     assert captured["assembly_training_before"] == MealName.LUNCH
+    assert captured["assembly_training_load_tomorrow"] is request.training_load_tomorrow
     assert captured["assembly_macro"] == macro_value
     assert captured["assembly_carb_allocation"] == dict.fromkeys(CANONICAL_MEAL_ORDER, 11.0)
 
@@ -440,6 +448,7 @@ def test_meal_plan_calculation_service_calls_periodization_with_canonical_argume
         training_calorie_demand_kcal,
         carb_mode,
         training_before_meal,
+        training_load_tomorrow,
         macro_targets,
         carb_allocation_g_by_meal: (
             MealPlanResponse.placeholder()
@@ -500,6 +509,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         training_calorie_demand_kcal: float,
         carb_mode: CarbMode,
         training_before_meal: MealName | None,
+        training_load_tomorrow: TrainingLoadTomorrow,
         protein_g: float,
         carbs_g: float,
         fat_g: float,
@@ -510,6 +520,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         captured["training_calorie_demand_kcal"] = training_calorie_demand_kcal
         captured["carb_mode"] = carb_mode
         captured["training_before_meal"] = training_before_meal
+        captured["training_load_tomorrow"] = training_load_tomorrow
         captured["protein_g"] = protein_g
         captured["carbs_g"] = carbs_g
         captured["fat_g"] = fat_g
@@ -527,6 +538,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         training_calorie_demand_kcal=244.0,
         carb_mode=CarbMode.PERIODIZED,
         training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.HIGH,
         macro_targets=macro_targets,
         carb_allocation_g_by_meal=carb_allocation,
     )
@@ -538,6 +550,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         "training_calorie_demand_kcal": 244.0,
         "carb_mode": CarbMode.PERIODIZED,
         "training_before_meal": MealName.LUNCH,
+        "training_load_tomorrow": TrainingLoadTomorrow.HIGH,
         "protein_g": 155.5,
         "carbs_g": 266.6,
         "fat_g": 77.7,
@@ -572,6 +585,7 @@ def test_meal_plan_calculation_service_calculate_passes_periodization_allocation
         training_calorie_demand_kcal: float,
         carb_mode: CarbMode,
         training_before_meal: MealName | None,
+        training_load_tomorrow: TrainingLoadTomorrow,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
@@ -580,6 +594,7 @@ def test_meal_plan_calculation_service_calculate_passes_periodization_allocation
         captured["training_calorie_demand_kcal"] = training_calorie_demand_kcal
         captured["carb_mode"] = carb_mode
         captured["training_before_meal"] = training_before_meal
+        captured["training_load_tomorrow"] = training_load_tomorrow
         captured["macro_targets"] = macro_targets
         captured["carb_allocation"] = carb_allocation_g_by_meal
         return MealPlanResponse.placeholder()
@@ -594,6 +609,7 @@ def test_meal_plan_calculation_service_calculate_passes_periodization_allocation
         "training_calorie_demand_kcal": 120.0,
         "carb_mode": request.carb_mode,
         "training_before_meal": MealName.LUNCH,
+        "training_load_tomorrow": request.training_load_tomorrow,
         "macro_targets": MacroTargets(protein_g=2.0, carbs_g=3.0, fat_g=4.0),
         "carb_allocation": expected_allocation,
     }
@@ -955,6 +971,8 @@ def test_meal_plan_calculation_service_integration_success_matrix(
         expected_canonical_strategies[training_before_idx] = "high"
         if training_before_meal not in {MealName.DINNER, MealName.EVENING_SNACK}:
             expected_canonical_strategies[training_before_idx + 1] = "high"
+        if request.training_load_tomorrow == "high":
+            expected_canonical_strategies[CANONICAL_MEAL_ORDER.index(MealName.DINNER)] = "high"
 
     assert [meal.carbs_strategy for meal in canonical_meals] == expected_canonical_strategies
 
@@ -969,6 +987,33 @@ def test_meal_plan_calculation_service_integration_success_matrix(
     assert sum(meal.kcal for meal in response.meals) == pytest.approx(
         response.TDEE + expected_training_calorie_demand
     )
+
+
+@pytest.mark.parametrize(
+    ("training_before_meal", "expected_strategies"),
+    [
+        ("dinner", ["low", "low", "low", "low", "high", "low"]),
+        ("evening-snack", ["low", "low", "low", "low", "high", "high"]),
+    ],
+)
+def test_meal_plan_calculation_service_integration_periodized_late_day_tomorrow_high_strategies(
+    meal_plan_request_payload: dict[str, Any],
+    training_before_meal: str,
+    expected_strategies: list[str],
+) -> None:
+    payload = meal_plan_request_payload
+    payload["carb_mode"] = "periodized"
+    payload["training_load_tomorrow"] = "high"
+    payload["training_session"] = {
+        "zones_minutes": {"1": 0, "2": 40, "3": 0, "4": 0, "5": 0},
+        "training_before_meal": training_before_meal,
+    }
+
+    request = MealPlanRequest.model_validate(payload)
+    response = MealPlanCalculationService().calculate(request)
+
+    canonical_meals = [meal for meal in response.meals if meal.meal != "training"]
+    assert [meal.carbs_strategy for meal in canonical_meals] == expected_strategies
 
 
 def test_meal_plan_calculation_service_integration_validation_failure(

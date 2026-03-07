@@ -110,7 +110,7 @@ When in doubt, update those source docs instead of expanding this file.
 80. For calories-first allocation work, reconcile the six canonical non-training meal `kcal` values against an explicit normal-meal calorie pool before inserting the optional `training` row; this keeps training-fuel energy (`training_carbs_g * 4`) isolated from normal-meal budgeting.
 81. For calories-first canonical meal budgeting, use the fixed breakfast/snack share sequence `2/9, 1/9, 2/9, 1/9, 2/9, 1/9` for both six-meal calorie budgets and normal-meal protein allocation.
 82. When adding or changing meal-row response fields, update `application/contracts.py` `MealAllocation`, `tests/unit/conftest.py` response fixtures, CLI renderers, and both application/CLI golden snapshots in the same iteration so contract ordering stays deterministic.
-83. Apply periodized post-training `carbs_strategy` overrides during meal assembly, not in CLI/application formatting: mark `training_before_meal` as `high`, upgrade only the next canonical meal, and never wrap `evening-snack` to `breakfast`.
+83. Apply periodized post-training `carbs_strategy` overrides during meal assembly, not in CLI/application formatting: mark `training_before_meal` as `high`, upgrade only the next canonical meal, never wrap `evening-snack` to `breakfast`, and force `dinner` to `high` whenever `training_load_tomorrow` is `high`.
 
 ## Ralph Runner
 

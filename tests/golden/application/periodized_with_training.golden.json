@@ -46,7 +46,7 @@
     },
     {
       "carbs_g": 64.8,
-      "carbs_strategy": "low",
+      "carbs_strategy": "high",
       "fat_g": 9.5,
       "kcal": 402.0,
       "meal": "dinner",

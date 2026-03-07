@@ -218,6 +218,7 @@ def test_calculate_meal_split_and_response_payload_has_stable_orchestration_sign
         "(tdee_kcal: 'float', training_carbs_g: 'float', training_calorie_demand_kcal: 'float', "
         "carb_mode: 'CarbMode', "
         "training_before_meal: 'MealName | None', "
+        "training_load_tomorrow: 'TrainingLoadTomorrow', "
         "protein_g: 'float', carbs_g: 'float', fat_g: 'float', "
         "carb_allocation_g_by_meal: 'Mapping[MealName, float]') -> 'dict[str, object]'"
     )
@@ -238,6 +239,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
         training_calorie_demand_kcal=340.0,
         carb_mode=CarbMode.NORMAL,
         training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
@@ -310,6 +312,7 @@ def test_calculate_meal_split_and_response_payload_deterministically_inserts_bef
         training_calorie_demand_kcal=240.0,
         carb_mode=CarbMode.LOW,
         training_before_meal=training_before_meal,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
@@ -376,6 +379,7 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
         training_calorie_demand_kcal=340.0,
         carb_mode=CarbMode.LOW,
         training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
@@ -411,6 +415,7 @@ def test_calculate_meal_split_and_response_payload_uses_canonical_protein_and_kc
         training_calorie_demand_kcal=0.0,
         carb_mode=CarbMode.LOW,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=protein_g,
         carbs_g=300.0,
         fat_g=fat_g,
@@ -446,6 +451,7 @@ def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> No
         training_calorie_demand_kcal=0.0,
         carb_mode=CarbMode.NORMAL,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=protein_g,
         carbs_g=240.0,
         fat_g=fat_g,
@@ -473,6 +479,7 @@ def test_meal_split_applies_residual_adjustment_to_evening_snack_only() -> None:
         training_calorie_demand_kcal=0.0,
         carb_mode=CarbMode.PERIODIZED,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=100.0,
         carbs_g=60.03,
         fat_g=10.0,
@@ -505,6 +512,7 @@ def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_target
         training_calorie_demand_kcal=0.0,
         carb_mode=CarbMode.NORMAL,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=120.0,
         carbs_g=60.0,
         fat_g=30.0,
@@ -530,6 +538,7 @@ def test_meal_split_reconciles_displayed_kcal_sum_to_tdee_on_evening_snack_only(
         training_calorie_demand_kcal=0.0,
         carb_mode=CarbMode.NORMAL,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=120.0,
         carbs_g=60.0,
         fat_g=30.0,
@@ -555,6 +564,7 @@ def test_meal_split_kcal_reconciliation_is_display_only_with_training_meal() -> 
         training_calorie_demand_kcal=240.0,
         carb_mode=CarbMode.PERIODIZED,
         training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=120.0,
         carbs_g=60.0,
         fat_g=30.0,
@@ -606,6 +616,7 @@ def test_meal_split_allows_subcent_target_delta_within_reconciliation_tolerance(
         training_calorie_demand_kcal=0.0,
         carb_mode=CarbMode.LOW,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=100.0,
         carbs_g=60.035,
         fat_g=10.0,
@@ -624,6 +635,7 @@ def test_calculate_meal_split_and_response_payload_omits_training_meal_when_zero
         training_calorie_demand_kcal=0.0,
         carb_mode=CarbMode.LOW,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
@@ -651,6 +663,7 @@ def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:
             training_calorie_demand_kcal=280.0,
             carb_mode=CarbMode.NORMAL,
             training_before_meal=MealName.LUNCH,
+            training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
             protein_g=180.0,
             carbs_g=300.0,
             fat_g=70.0,
@@ -674,6 +687,7 @@ def test_meal_split_raises_for_extra_carb_allocation_meals() -> None:
             training_calorie_demand_kcal=280.0,
             carb_mode=CarbMode.NORMAL,
             training_before_meal=MealName.LUNCH,
+            training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
             protein_g=180.0,
             carbs_g=300.0,
             fat_g=70.0,
@@ -699,6 +713,7 @@ def test_calculate_meal_split_and_response_payload_assigns_baseline_carb_strateg
         training_calorie_demand_kcal=0.0,
         carb_mode=carb_mode,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
@@ -718,6 +733,7 @@ def test_calculate_meal_split_and_response_payload_marks_two_post_training_perio
         training_calorie_demand_kcal=0.0,
         carb_mode=CarbMode.PERIODIZED,
         training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
@@ -752,6 +768,40 @@ def test_calculate_meal_split_and_response_payload_periodized_does_not_wrap_high
         training_calorie_demand_kcal=0.0,
         carb_mode=CarbMode.PERIODIZED,
         training_before_meal=training_before_meal,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
+    )
+
+    meals = cast(list[dict[str, object]], payload["meals"])
+    high_meals = {
+        cast(MealName, entry["meal"])
+        for entry in meals
+        if entry["carbs_strategy"] is CarbStrategy.HIGH
+    }
+    assert high_meals == expected_high_meals
+
+
+@pytest.mark.parametrize(
+    ("training_before_meal", "expected_high_meals"),
+    [
+        (MealName.DINNER, {MealName.DINNER}),
+        (MealName.EVENING_SNACK, {MealName.DINNER, MealName.EVENING_SNACK}),
+    ],
+)
+def test_calculate_meal_split_and_response_payload_periodized_tomorrow_high_forces_dinner(
+    training_before_meal: MealName,
+    expected_high_meals: set[MealName],
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.PERIODIZED,
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=TrainingLoadTomorrow.HIGH,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,

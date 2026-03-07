@@ -140,6 +140,7 @@ def calculate_meal_split_and_response_payload(
     training_calorie_demand_kcal: float,
     carb_mode: CarbMode,
     training_before_meal: MealName | None,
+    training_load_tomorrow: TrainingLoadTomorrow,
     protein_g: float,
     carbs_g: float,
     fat_g: float,
@@ -158,6 +159,7 @@ def calculate_meal_split_and_response_payload(
     carbs_strategy_by_meal = _carbs_strategy_by_meal(
         carb_mode=carb_mode,
         training_before_meal=training_before_meal,
+        training_load_tomorrow=training_load_tomorrow,
     )
 
     meal_allocations = [
@@ -390,18 +392,38 @@ def _carbs_strategy_by_meal(
     *,
     carb_mode: CarbMode,
     training_before_meal: MealName | None,
+    training_load_tomorrow: TrainingLoadTomorrow,
 ) -> dict[MealName, CarbStrategy]:
     strategy_by_meal = _baseline_carb_strategy_by_meal(carb_mode=carb_mode)
     if carb_mode is not CarbMode.PERIODIZED or training_before_meal is None:
+        if carb_mode is CarbMode.PERIODIZED and training_load_tomorrow is TrainingLoadTomorrow.HIGH:
+            strategy_by_meal[MealName.DINNER] = CarbStrategy.HIGH
         return strategy_by_meal
 
-    strategy_by_meal[training_before_meal] = CarbStrategy.HIGH
-
-    next_high_meal = _next_periodized_high_meal(training_before_meal=training_before_meal)
-    if next_high_meal is not None:
-        strategy_by_meal[next_high_meal] = CarbStrategy.HIGH
+    high_meals = _periodized_strategy_high_meals(
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=training_load_tomorrow,
+    )
+    for meal in high_meals:
+        strategy_by_meal[meal] = CarbStrategy.HIGH
 
     return strategy_by_meal
+
+
+def _periodized_strategy_high_meals(
+    *,
+    training_before_meal: MealName,
+    training_load_tomorrow: TrainingLoadTomorrow,
+) -> set[MealName]:
+    high_meals = {training_before_meal}
+    next_high_meal = _next_periodized_high_meal(training_before_meal=training_before_meal)
+    if next_high_meal is not None:
+        high_meals.add(next_high_meal)
+
+    if training_load_tomorrow is TrainingLoadTomorrow.HIGH:
+        high_meals.add(MealName.DINNER)
+
+    return high_meals
 
 
 def _next_periodized_high_meal(*, training_before_meal: MealName) -> MealName | None:
