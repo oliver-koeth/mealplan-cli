@@ -4,6 +4,7 @@ Started: Sat Mar  7 11:33:39 CET 2026
 - Reconcile canonical non-training meal `kcal` totals against an explicit normal-meal calorie pool before inserting the optional `training` row; training-fuel energy remains `training_carbs_g * 4`.
 - In the calories-first flow, canonical breakfast/lunch/dinner use `2/9` shares and snacks use `1/9` shares for both six-meal `kcal` budgets and normal-meal protein allocation.
 - When meal-row response fields change, update the response contract, shared response fixtures, CLI renderers, and both application/CLI golden snapshots together because snapshot helpers enforce exact key order.
+- Apply periodized post-training `carbs_strategy` overrides in domain meal assembly; set `training_before_meal` high, upgrade only the next canonical meal, and never wrap `evening-snack` to `breakfast`.
 
 ## [2026-03-07 11:42:49 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -73,4 +74,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Patterns discovered: meal-row shape changes ripple through contract validation, CLI output, shared fixtures, and exact-order golden snapshots, so those surfaces must be updated together.
 - Gotchas encountered: orchestration tests often monkeypatch `_run_assembly_stage`, so any new assembly parameter needs corresponding spy/lambda signature updates or tests fail before domain assertions run.
 - Useful context: the baseline `periodized` strategy is intentionally all-`low` for now; post-training `high` overrides are reserved for the next stories.
+---
+## [2026-03-07 11:59:57 CET] - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented periodized meal-assembly strategy overrides so the emitted canonical meal rows mark `training_before_meal` as `high`, upgrade only the next canonical meal, and never wrap from `evening-snack` to `breakfast`.
+- Updated regression coverage across domain assembly and application integration tests, plus the periodized application golden snapshot, to assert the new post-training `carbs_strategy` output.
+- Files changed:
+- `AGENT.md`
+- `src/mealplan/domain/services.py`
+- `tests/unit/test_domain_services.py`
+- `tests/unit/test_application_orchestration.py`
+- `tests/golden/application/periodized_with_training.golden.json`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+- Patterns discovered: post-training periodization now lives in `calculate_meal_split_and_response_payload(...)`, so future `carbs_strategy` changes should be made in domain assembly rather than output formatters.
+- Gotchas encountered: integration and golden tests still encoded the older "all low in periodized mode" assumption, so they must be updated whenever strategy override rules change.
+- Useful context: this story only changes emitted `carbs_strategy`; the older `calculate_periodized_carb_allocation(...)` carb-gram redistribution logic is still in place for later migration stories.
 ---

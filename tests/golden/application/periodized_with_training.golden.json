@@ -30,7 +30,7 @@
     },
     {
       "carbs_g": 64.8,
-      "carbs_strategy": "low",
+      "carbs_strategy": "high",
       "fat_g": 9.5,
       "kcal": 402.0,
       "meal": "lunch",
@@ -38,7 +38,7 @@
     },
     {
       "carbs_g": 64.8,
-      "carbs_strategy": "low",
+      "carbs_strategy": "high",
       "fat_g": 9.5,
       "kcal": 201.0,
       "meal": "afternoon-snack",

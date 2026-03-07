@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, get_type_hints
+from typing import Any, cast, get_type_hints
 
 import pytest
 
@@ -948,8 +948,15 @@ def test_meal_plan_calculation_service_integration_success_matrix(
     else:
         assert training_meals == []
 
-    expected_canonical_strategy = "medium" if request.carb_mode == "normal" else "low"
-    assert [meal.carbs_strategy for meal in canonical_meals] == [expected_canonical_strategy] * 6
+    expected_canonical_strategies = ["medium"] * 6 if request.carb_mode == "normal" else ["low"] * 6
+    if request.carb_mode == "periodized" and request.training_session is not None:
+        training_before_meal = cast(MealName, request.training_session.training_before_meal)
+        training_before_idx = CANONICAL_MEAL_ORDER.index(training_before_meal)
+        expected_canonical_strategies[training_before_idx] = "high"
+        if training_before_meal not in {MealName.DINNER, MealName.EVENING_SNACK}:
+            expected_canonical_strategies[training_before_idx + 1] = "high"
+
+    assert [meal.carbs_strategy for meal in canonical_meals] == expected_canonical_strategies
 
     for meal in response.meals:
         assert isinstance(meal.kcal, float)

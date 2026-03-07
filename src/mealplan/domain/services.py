@@ -155,7 +155,10 @@ def calculate_meal_split_and_response_payload(
 
     protein_g_by_meal = _allocate_total_by_canonical_meal_shares(total=protein_g)
     per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
-    carbs_strategy_by_meal = _baseline_carb_strategy_by_meal(carb_mode=carb_mode)
+    carbs_strategy_by_meal = _carbs_strategy_by_meal(
+        carb_mode=carb_mode,
+        training_before_meal=training_before_meal,
+    )
 
     meal_allocations = [
         MealAllocation(
@@ -381,6 +384,32 @@ def _equal_split_allocation(*, daily_carbs_g: float) -> dict[MealName, float]:
 def _baseline_carb_strategy_by_meal(*, carb_mode: CarbMode) -> dict[MealName, CarbStrategy]:
     strategy = CarbStrategy.MEDIUM if carb_mode is CarbMode.NORMAL else CarbStrategy.LOW
     return dict.fromkeys(CANONICAL_MEAL_ORDER, strategy)
+
+
+def _carbs_strategy_by_meal(
+    *,
+    carb_mode: CarbMode,
+    training_before_meal: MealName | None,
+) -> dict[MealName, CarbStrategy]:
+    strategy_by_meal = _baseline_carb_strategy_by_meal(carb_mode=carb_mode)
+    if carb_mode is not CarbMode.PERIODIZED or training_before_meal is None:
+        return strategy_by_meal
+
+    strategy_by_meal[training_before_meal] = CarbStrategy.HIGH
+
+    next_high_meal = _next_periodized_high_meal(training_before_meal=training_before_meal)
+    if next_high_meal is not None:
+        strategy_by_meal[next_high_meal] = CarbStrategy.HIGH
+
+    return strategy_by_meal
+
+
+def _next_periodized_high_meal(*, training_before_meal: MealName) -> MealName | None:
+    if training_before_meal in {MealName.DINNER, MealName.EVENING_SNACK}:
+        return None
+
+    current_meal_idx = CANONICAL_MEAL_ORDER.index(training_before_meal)
+    return CANONICAL_MEAL_ORDER[current_meal_idx + 1]
 
 
 def _post_training_high_meals(*, training_before_meal: MealName) -> set[MealName]:

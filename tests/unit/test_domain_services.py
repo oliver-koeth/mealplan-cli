@@ -574,8 +574,13 @@ def test_meal_split_kcal_reconciliation_is_display_only_with_training_meal() -> 
 
     evening_snack = next(entry for entry in meals if entry["meal"] == MealName.EVENING_SNACK)
     assert [entry["carbs_strategy"] for entry in meals if entry["meal"] != "training"] == [
-        CarbStrategy.LOW
-    ] * 6
+        CarbStrategy.LOW,
+        CarbStrategy.LOW,
+        CarbStrategy.HIGH,
+        CarbStrategy.HIGH,
+        CarbStrategy.LOW,
+        CarbStrategy.LOW,
+    ]
     assert evening_snack["carbs_g"] == 10.0
     assert evening_snack["protein_g"] == 13.33
     assert evening_snack["fat_g"] == 5.0
@@ -703,6 +708,63 @@ def test_calculate_meal_split_and_response_payload_assigns_baseline_carb_strateg
     meals = payload["meals"]
     assert isinstance(meals, list)
     assert [entry["carbs_strategy"] for entry in meals] == [expected_strategy] * 6
+
+
+def test_calculate_meal_split_and_response_payload_marks_two_post_training_periodized_meals_high(
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.PERIODIZED,
+        training_before_meal=MealName.LUNCH,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
+    )
+
+    meals = cast(list[dict[str, object]], payload["meals"])
+    assert [entry["carbs_strategy"] for entry in meals] == [
+        CarbStrategy.LOW,
+        CarbStrategy.LOW,
+        CarbStrategy.HIGH,
+        CarbStrategy.HIGH,
+        CarbStrategy.LOW,
+        CarbStrategy.LOW,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("training_before_meal", "expected_high_meals"),
+    [
+        (MealName.DINNER, {MealName.DINNER}),
+        (MealName.EVENING_SNACK, {MealName.EVENING_SNACK}),
+    ],
+)
+def test_calculate_meal_split_and_response_payload_periodized_does_not_wrap_high_strategy(
+    training_before_meal: MealName,
+    expected_high_meals: set[MealName],
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.PERIODIZED,
+        training_before_meal=training_before_meal,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
+        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
+    )
+
+    meals = cast(list[dict[str, object]], payload["meals"])
+    high_meals = {
+        cast(MealName, entry["meal"])
+        for entry in meals
+        if entry["carbs_strategy"] is CarbStrategy.HIGH
+    }
+    assert high_meals == expected_high_meals
 
 
 def test_calculate_periodized_carb_allocation_marks_two_post_training_meals_high() -> None:
