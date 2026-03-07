@@ -38,6 +38,7 @@ def meal_plan_response_payload() -> dict[str, Any]:
         "meals": [
             {
                 "meal": "breakfast",
+                "carbs_strategy": "low",
                 "carbs_g": 50.0,
                 "protein_g": 25.0,
                 "fat_g": 15.0,
@@ -45,6 +46,7 @@ def meal_plan_response_payload() -> dict[str, Any]:
             },
             {
                 "meal": "morning-snack",
+                "carbs_strategy": "low",
                 "carbs_g": 30.0,
                 "protein_g": 15.0,
                 "fat_g": 10.0,
@@ -52,6 +54,7 @@ def meal_plan_response_payload() -> dict[str, Any]:
             },
             {
                 "meal": "lunch",
+                "carbs_strategy": "high",
                 "carbs_g": 70.0,
                 "protein_g": 35.0,
                 "fat_g": 20.0,
@@ -59,6 +62,7 @@ def meal_plan_response_payload() -> dict[str, Any]:
             },
             {
                 "meal": "afternoon-snack",
+                "carbs_strategy": "high",
                 "carbs_g": 35.0,
                 "protein_g": 15.0,
                 "fat_g": 10.0,
@@ -66,6 +70,7 @@ def meal_plan_response_payload() -> dict[str, Any]:
             },
             {
                 "meal": "dinner",
+                "carbs_strategy": "high",
                 "carbs_g": 65.0,
                 "protein_g": 40.0,
                 "fat_g": 20.0,
@@ -73,6 +78,7 @@ def meal_plan_response_payload() -> dict[str, Any]:
             },
             {
                 "meal": "evening-snack",
+                "carbs_strategy": "low",
                 "carbs_g": 30.0,
                 "protein_g": 20.0,
                 "fat_g": 5.0,

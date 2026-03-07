@@ -9,6 +9,7 @@ from mealplan.domain.energy import (
 from mealplan.domain.enums import (
     ActivityLevel,
     CarbMode,
+    CarbStrategy,
     Gender,
     MealName,
     TrainingLoadTomorrow,
@@ -46,6 +47,7 @@ __all__ = [
     "CARBS_FACTOR_BY_MODE",
     "CANONICAL_MEAL_ORDER",
     "CarbMode",
+    "CarbStrategy",
     "Gender",
     "MacroTargets",
     "MealAllocation",

@@ -98,6 +98,7 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
         tdee_kcal: float,
         training_carbs_g: float,
         training_calorie_demand_kcal: float,
+        carb_mode: CarbMode,
         training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
@@ -106,6 +107,7 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
         assert tdee_kcal == 1.0
         assert training_carbs_g == 4.0
         assert training_calorie_demand_kcal == 0.0
+        assert carb_mode is request.carb_mode
         assert training_before_meal == MealName.LUNCH
         assert macro_targets == MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0)
         assert carb_allocation_g_by_meal == dict.fromkeys(CANONICAL_MEAL_ORDER, 1.0)
@@ -164,6 +166,7 @@ def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
         tdee_kcal: float,
         training_carbs_g: float,
         training_calorie_demand_kcal: float,
+        carb_mode: CarbMode,
         training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
@@ -173,6 +176,7 @@ def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
             tdee_kcal,
             training_carbs_g,
             training_calorie_demand_kcal,
+            carb_mode,
             training_before_meal,
             macro_targets,
             carb_allocation_g_by_meal,
@@ -236,6 +240,7 @@ def test_meal_plan_calculation_service_uses_normalized_training_for_fueling_and_
         tdee_kcal,
         training_carbs_g,
         training_calorie_demand_kcal,
+        carb_mode,
         training_before_meal,
         macro_targets,
         carb_allocation_g_by_meal: (
@@ -295,6 +300,7 @@ def test_meal_plan_calculation_service_builds_user_profile_and_calls_energy_macr
         tdee_kcal,
         training_carbs_g,
         training_calorie_demand_kcal,
+        carb_mode,
         training_before_meal,
         macro_targets,
         carb_allocation_g_by_meal: (
@@ -350,6 +356,7 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
         tdee_kcal: float,
         training_carbs_g: float,
         training_calorie_demand_kcal: float,
+        carb_mode: CarbMode,
         training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
@@ -357,6 +364,7 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
         captured["assembly_tdee"] = tdee_kcal
         captured["assembly_training_carbs"] = training_carbs_g
         captured["assembly_training_demand_kcal"] = training_calorie_demand_kcal
+        captured["assembly_carb_mode"] = carb_mode
         captured["assembly_training_before"] = training_before_meal
         captured["assembly_macro"] = macro_targets
         captured["assembly_carb_allocation"] = carb_allocation_g_by_meal
@@ -371,6 +379,7 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
     assert captured["assembly_tdee"] == tdee_value
     assert captured["assembly_training_carbs"] == 0.0
     assert captured["assembly_training_demand_kcal"] == 0.0
+    assert captured["assembly_carb_mode"] is request.carb_mode
     assert captured["assembly_training_before"] == MealName.LUNCH
     assert captured["assembly_macro"] == macro_value
     assert captured["assembly_carb_allocation"] == dict.fromkeys(CANONICAL_MEAL_ORDER, 11.0)
@@ -429,6 +438,7 @@ def test_meal_plan_calculation_service_calls_periodization_with_canonical_argume
         tdee_kcal,
         training_carbs_g,
         training_calorie_demand_kcal,
+        carb_mode,
         training_before_meal,
         macro_targets,
         carb_allocation_g_by_meal: (
@@ -488,6 +498,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         tdee_kcal: float,
         training_carbs_g: float,
         training_calorie_demand_kcal: float,
+        carb_mode: CarbMode,
         training_before_meal: MealName | None,
         protein_g: float,
         carbs_g: float,
@@ -497,6 +508,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         captured["tdee_kcal"] = tdee_kcal
         captured["training_carbs_g"] = training_carbs_g
         captured["training_calorie_demand_kcal"] = training_calorie_demand_kcal
+        captured["carb_mode"] = carb_mode
         captured["training_before_meal"] = training_before_meal
         captured["protein_g"] = protein_g
         captured["carbs_g"] = carbs_g
@@ -513,6 +525,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         tdee_kcal=2555.123,
         training_carbs_g=61.0,
         training_calorie_demand_kcal=244.0,
+        carb_mode=CarbMode.PERIODIZED,
         training_before_meal=MealName.LUNCH,
         macro_targets=macro_targets,
         carb_allocation_g_by_meal=carb_allocation,
@@ -523,6 +536,7 @@ def test_meal_plan_calculation_service_assembly_stage_calls_domain_meal_split_se
         "tdee_kcal": 2555.123,
         "training_carbs_g": 61.0,
         "training_calorie_demand_kcal": 244.0,
+        "carb_mode": CarbMode.PERIODIZED,
         "training_before_meal": MealName.LUNCH,
         "protein_g": 155.5,
         "carbs_g": 266.6,
@@ -556,6 +570,7 @@ def test_meal_plan_calculation_service_calculate_passes_periodization_allocation
         tdee_kcal: float,
         training_carbs_g: float,
         training_calorie_demand_kcal: float,
+        carb_mode: CarbMode,
         training_before_meal: MealName | None,
         macro_targets: MacroTargets,
         carb_allocation_g_by_meal: dict[MealName, float],
@@ -563,6 +578,7 @@ def test_meal_plan_calculation_service_calculate_passes_periodization_allocation
         captured["tdee_kcal"] = tdee_kcal
         captured["training_carbs_g"] = training_carbs_g
         captured["training_calorie_demand_kcal"] = training_calorie_demand_kcal
+        captured["carb_mode"] = carb_mode
         captured["training_before_meal"] = training_before_meal
         captured["macro_targets"] = macro_targets
         captured["carb_allocation"] = carb_allocation_g_by_meal
@@ -576,6 +592,7 @@ def test_meal_plan_calculation_service_calculate_passes_periodization_allocation
         "tdee_kcal": 1.0,
         "training_carbs_g": 5.0,
         "training_calorie_demand_kcal": 120.0,
+        "carb_mode": request.carb_mode,
         "training_before_meal": MealName.LUNCH,
         "macro_targets": MacroTargets(protein_g=2.0, carbs_g=3.0, fat_g=4.0),
         "carb_allocation": expected_allocation,
@@ -923,12 +940,16 @@ def test_meal_plan_calculation_service_integration_success_matrix(
     assert fat_total == pytest.approx(response.fat_g)
     if expected_training_carbs_g > 0.0:
         assert len(training_meals) == 1
+        assert training_meals[0].carbs_strategy == "high"
         assert training_meals[0].carbs_g == pytest.approx(expected_training_carbs_g)
         assert training_meals[0].protein_g == 0.0
         assert training_meals[0].fat_g == 0.0
         assert training_meals[0].kcal == round(expected_training_carbs_g * 4.0, 2)
     else:
         assert training_meals == []
+
+    expected_canonical_strategy = "medium" if request.carb_mode == "normal" else "low"
+    assert [meal.carbs_strategy for meal in canonical_meals] == [expected_canonical_strategy] * 6
 
     for meal in response.meals:
         assert isinstance(meal.kcal, float)

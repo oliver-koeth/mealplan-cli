@@ -6,6 +6,7 @@
   "meals": [
     {
       "carbs_g": 36.0,
+      "carbs_strategy": "low",
       "fat_g": 9.5,
       "kcal": 402.0,
       "meal": "breakfast",
@@ -13,6 +14,7 @@
     },
     {
       "carbs_g": 36.0,
+      "carbs_strategy": "low",
       "fat_g": 9.5,
       "kcal": 201.0,
       "meal": "morning-snack",
@@ -20,6 +22,7 @@
     },
     {
       "carbs_g": 36.0,
+      "carbs_strategy": "low",
       "fat_g": 9.5,
       "kcal": 402.0,
       "meal": "lunch",
@@ -27,6 +30,7 @@
     },
     {
       "carbs_g": 36.0,
+      "carbs_strategy": "low",
       "fat_g": 9.5,
       "kcal": 201.0,
       "meal": "afternoon-snack",
@@ -34,6 +38,7 @@
     },
     {
       "carbs_g": 36.0,
+      "carbs_strategy": "low",
       "fat_g": 9.5,
       "kcal": 402.0,
       "meal": "dinner",
@@ -41,6 +46,7 @@
     },
     {
       "carbs_g": 36.0,
+      "carbs_strategy": "low",
       "fat_g": 9.5,
       "kcal": 201.0,
       "meal": "evening-snack",

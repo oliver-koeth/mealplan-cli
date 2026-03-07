@@ -7,7 +7,14 @@ from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, model_validator
 
-from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
+from mealplan.domain.enums import (
+    ActivityLevel,
+    CarbMode,
+    CarbStrategy,
+    Gender,
+    MealName,
+    TrainingLoadTomorrow,
+)
 from mealplan.domain.model import CANONICAL_MEAL_ORDER
 
 SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtime"]
@@ -60,6 +67,7 @@ class MealAllocation(BoundaryModel):
     """Canonical per-meal macro allocation in response payloads."""
 
     meal: MealName | Literal["training"]
+    carbs_strategy: CarbStrategy
     carbs_g: StrictFloat
     protein_g: StrictFloat
     fat_g: StrictFloat
@@ -116,7 +124,14 @@ class MealPlanResponse(BoundaryModel):
             fat_g=0.0,
             total_kcal=0.0,
             meals=[
-                MealAllocation(meal=meal, carbs_g=0.0, protein_g=0.0, fat_g=0.0, kcal=0.0)
+                MealAllocation(
+                    meal=meal,
+                    carbs_strategy=CarbStrategy.LOW,
+                    carbs_g=0.0,
+                    protein_g=0.0,
+                    fat_g=0.0,
+                    kcal=0.0,
+                )
                 for meal in CANONICAL_MEAL_ORDER
             ],
         )
