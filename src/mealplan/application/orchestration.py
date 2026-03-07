@@ -12,10 +12,10 @@ from mealplan.domain.enums import MealName
 from mealplan.domain.model import MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.services import (
     calculate_macro_targets,
-    calculate_training_calorie_demand_kcal,
     calculate_meal_split_and_response_payload,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
+    calculate_training_calorie_demand_kcal,
     calculate_training_carbs_g,
 )
 from mealplan.domain.validation import (

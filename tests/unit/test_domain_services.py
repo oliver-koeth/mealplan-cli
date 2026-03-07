@@ -9,7 +9,11 @@ from typing import cast
 import pytest
 
 from mealplan.application.contracts import MealPlanResponse
-from mealplan.domain import calculate_training_calorie_demand_kcal, calculate_training_carbs_g
+from mealplan.domain import (
+    calculate_normal_meal_calorie_pool_kcal,
+    calculate_training_calorie_demand_kcal,
+    calculate_training_carbs_g,
+)
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.domain.services import (
@@ -100,6 +104,18 @@ def test_calculate_training_calorie_demand_kcal_counts_all_zone_minutes() -> Non
     zones_minutes: Mapping[int, int] = {1: 30, 2: 0, 3: 0, 4: 0, 5: 0}
 
     assert calculate_training_calorie_demand_kcal(zones_minutes) == 120.0
+
+
+def test_calculate_normal_meal_calorie_pool_kcal_subtracts_training_supply_from_day_energy(
+) -> None:
+    assert (
+        calculate_normal_meal_calorie_pool_kcal(
+            tdee_kcal=2310.0,
+            training_calorie_demand_kcal=320.0,
+            training_carbs_g=80.0,
+        )
+        == 2310.0
+    )
 
 
 @pytest.mark.parametrize(
@@ -258,6 +274,10 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
     canonical_meals = [entry for entry in meals if entry["meal"] != "training"]
     assert [entry["carbs_g"] for entry in canonical_meals] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
     assert [entry["protein_g"] for entry in canonical_meals] == [30.0] * len(CANONICAL_MEAL_ORDER)
+    assert round(sum(float(entry["kcal"]) for entry in canonical_meals), 2) == 2908.0
+    assert payload["total_kcal"] == pytest.approx(
+        2908.0 + calculate_training_calorie_demand_kcal({1: 0, 2: 85, 3: 0, 4: 0, 5: 0}),
+    )
     assert [entry["fat_g"] for entry in canonical_meals] == [12.0] * len(CANONICAL_MEAL_ORDER)
     assert [entry["kcal"] for entry in canonical_meals] == [
         508.0,

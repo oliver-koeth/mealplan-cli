@@ -1,167 +1,22 @@
 # Ralph Progress Log
-Started: Wed Mar  4 15:29:43 CET 2026
+Started: Sat Mar  7 11:33:39 CET 2026
 ## Codebase Patterns
-- Response payloads may include at most one optional `training` meal; keep core canonical-order and macro reconciliation invariants scoped to the six canonical meals only.
-- Insert `training` deterministically before `training_before_meal`; validate response meal order by filtering out `training` then matching canonical meal order.
-- Typer option annotations cannot be unions with multiple non-`None` members; accept `str | None` in CLI and enforce richer value semantics in contract + semantic validation.
-- For meal energy display, recompute each meal `kcal` from displayed grams first, then apply a display-only evening-snack `kcal` correction so `sum(meals[*].kcal)` exactly matches top-level `TDEE`.
-- For display-only kcal reconciliation regressions, assert evening-snack macro grams stay unchanged and include a training-meal-present case to prove only displayed `kcal` is adjusted.
-- Keep application integration success matrices asserting every meal includes `kcal` and exact `sum(meals[*].kcal) == TDEE` to catch cross-layer reconciliation regressions.
-- For contract-evolution stories, synchronize docs by concern in one iteration: functional behavior in `docs/REQUIREMENTS.md`, data shape/invariants in `docs/MODEL.md`, and layer ownership/boundaries in `docs/ARCHITECTURE.md`.
----
-## [2026-03-04 15:35:44 CET] - US-001
+- Reconcile canonical non-training meal `kcal` totals against an explicit normal-meal calorie pool before inserting the optional `training` row; training-fuel energy remains `training_carbs_g * 4`.
+
+## [2026-03-07 11:42:49 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
-- Implemented conditional training-meal emission so output now appends exactly one carbs-only `training` meal when `training_carbs_g > 0`, and emits no training meal when `training_carbs_g == 0`.
-- Extended response-contract validation to allow at most one trailing `training` meal while preserving canonical ordering for the six base meals.
-- Updated CLI renderers, unit/integration tests, and application golden snapshots for training-meal scenarios.
+- Implemented an explicit `calculate_normal_meal_calorie_pool_kcal(...)` domain helper using `TDEE + training_calorie_demand_kcal - (training_carbs_g * 4)`.
+- Updated meal assembly so the six canonical meals reconcile their displayed `kcal` to that normal-meal calorie pool before the optional `training` row is inserted.
+- Added regression coverage for the new calorie-pool helper and for canonical-meal versus full-day kcal totals when training fuel is present.
 - Files changed:
-  - AGENT.md
-  - src/mealplan/application/contracts.py
-  - src/mealplan/application/orchestration.py
-  - src/mealplan/cli/main.py
-  - src/mealplan/domain/services.py
-  - tests/cli/test_calculate.py
-  - tests/golden/application/non_periodized_with_training.golden.json
-  - tests/golden/application/periodized_with_training.golden.json
-  - tests/unit/test_application_contracts.py
-  - tests/unit/test_application_orchestration.py
-  - tests/unit/test_domain_services.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
+- `AGENT.md`
+- `src/mealplan/domain/__init__.py`
+- `src/mealplan/domain/services.py`
+- `tests/unit/test_domain_services.py`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
 - **Learnings for future iterations:**
-  - Patterns discovered: training meal support is treated as response-layer augmentation; canonical six-meal domain invariants remain unchanged and should exclude `training` rows.
-  - Gotchas encountered: strict tests and golden fixtures assume exact meal-list length/order, so introducing optional output rows requires coordinated updates across domain, orchestration, and golden snapshots.
-  - Useful context: text/table CLI rendering should iterate emitted `payload["meals"]` directly so optional non-canonical rows are displayed consistently with JSON output.
----
-## [2026-03-04 15:41:21 CET] - US-002
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
-- Implemented deterministic training-meal insertion before the selected `training_before_meal` target instead of always appending at the end.
-- Threaded `training_before_meal` through application assembly orchestration into domain payload construction.
-- Updated response contract validation to allow one optional `training` row at any position while enforcing canonical order of non-training meals.
-- Added/updated regression coverage for insertion-before-target behavior across all supported meal targets, orchestration integration expectations, CLI order assertion, and application golden fixtures.
-- Files changed:
-  - AGENT.md
-  - src/mealplan/application/contracts.py
-  - src/mealplan/application/orchestration.py
-  - src/mealplan/domain/services.py
-  - tests/cli/test_calculate.py
-  - tests/golden/application/non_periodized_with_training.golden.json
-  - tests/golden/application/periodized_with_training.golden.json
-  - tests/unit/test_application_contracts.py
-  - tests/unit/test_application_orchestration.py
-  - tests/unit/test_domain_services.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: training-meal ordering is enforced at assembly time by index insertion against canonical meals and should remain deterministic for every `MealName`.
-  - Gotchas encountered: integration and golden tests often encode explicit meal order lists; when insertion semantics change, update both expected ordering logic and fixture payloads together.
-- Useful context: response DTO validation should ignore the optional `training` row when checking canonical order to keep domain invariants and response flexibility compatible.
----
-## [2026-03-04 15:45:17 CET] - US-003
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
-- Implemented semantic runtime rejection for `--training-before=training` while keeping the value parseable through CLI and request contract parsing.
-- Expanded request contract typing so `training_before_meal` accepts `"training"` syntactically, then enforced deterministic semantic validation error `training_session.training_before_meal: must not be 'training'`.
-- Added regression coverage in semantic validation matrix and CLI integration to ensure parseable input is rejected at runtime with validation exit code.
-- Files changed:
-  - AGENT.md
-  - src/mealplan/application/contracts.py
-  - src/mealplan/application/orchestration.py
-  - src/mealplan/application/validation.py
-  - src/mealplan/cli/main.py
-  - tests/cli/test_calculate.py
-  - tests/unit/test_validation_matrices.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: to make a CLI value syntactically parseable but semantically invalid, accept broad CLI typing (`str`) and push strict interpretation into contract + semantic validation.
-  - Gotchas encountered: Typer asserts on option unions containing multiple non-`None` types, which can break all commands at startup if used in function annotations.
-  - Useful context: keep semantic validation errors field-prefixed (`training_session.training_before_meal: ...`) so exit-code mapping and existing CLI/error tests stay stable.
----
-## [2026-03-04 15:51:11 CET] - US-004
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
-- Implemented per-meal `kcal` output across response contracts, domain assembly payloads, and CLI renderers (json/text/table).
-- Added deterministic macro-derived kcal computation (`4/4/9`) for all emitted meals, including optional `training` rows.
-- Ensured `kcal` is recomputed after macro reconciliation so displayed kcal always matches final displayed meal grams.
-- Updated unit/CLI/golden fixtures and assertions to include `kcal` in canonical meal payloads.
-- Files changed:
-  - AGENT.md
-  - src/mealplan/application/contracts.py
-  - src/mealplan/cli/main.py
-  - src/mealplan/domain/services.py
-  - tests/cli/test_calculate.py
-  - tests/golden/application/non_periodized_with_training.golden.json
-  - tests/golden/application/periodized_with_training.golden.json
-  - tests/golden/application/periodized_without_training.golden.json
-  - tests/golden/cli/success_default_json.golden.json
-  - tests/golden/cli/success_table_format.golden.json
-  - tests/golden/cli/success_text_format.golden.json
-  - tests/golden/helpers.py
-  - tests/unit/conftest.py
-  - tests/unit/test_application_contracts.py
-  - tests/unit/test_domain_services.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: meal-level `kcal` should be treated as a derived display field at meal serialization, then refreshed after any reconciliation that mutates displayed meal grams.
-  - Gotchas encountered: adding one field to meal rows affects strict contract tests and both application/CLI golden snapshots because fixture key order and complete row shape are asserted.
-  - Useful context: `make quality` currently depends on `.venv/bin/uv`; when unavailable locally, run equivalent gates directly via `.venv/bin/ruff check .`, `.venv/bin/mypy --strict src`, and `.venv/bin/pytest`.
----
-## [2026-03-04 15:54:36 CET] - US-005
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
-- Implemented deterministic displayed-kcal reconciliation to enforce `sum(meals[*].kcal) == TDEE` by applying a final residual adjustment to `evening-snack.kcal` only.
-- Kept macro-gram reconciliation unchanged; kcal reconciliation now runs after per-meal kcal is recomputed from displayed macros.
-- Added regression coverage for evening-snack-only kcal correction and updated application golden fixtures impacted by the new displayed-kcal balancing behavior.
-- Files changed:
-  - AGENT.md
-  - src/mealplan/domain/services.py
-  - tests/golden/application/non_periodized_with_training.golden.json
-  - tests/golden/application/periodized_with_training.golden.json
-  - tests/unit/test_domain_services.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: displayed meal `kcal` is now a two-step boundary field (`4/4/9` derivation, then evening-snack residual correction to `TDEE`).
-  - Gotchas encountered: existing tests that pin specific meal `kcal` values may need `TDEE` fixtures aligned to intended behavior; otherwise evening-snack `kcal` will shift by design.
-  - Useful context: application golden fixtures with optional training meal may change only at `evening-snack.kcal` when reconciling top-level `TDEE`, while meal order/macros remain unchanged.
----
-## [2026-03-04 15:57:21 CET] - US-006
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
-- Added explicit regression assertions that displayed-kcal reconciliation keeps `evening-snack` macro grams unchanged while adjusting only `evening-snack.kcal` to close the residual to top-level `TDEE`.
-- Added a training-meal-present reconciliation test to prove display-only behavior still holds when optional `training` is inserted (training meal macros/kcal remain macro-derived and unmodified).
-- Files changed:
-  - tests/unit/test_domain_services.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: reconciliation assertions should verify macro invariance explicitly (`carbs_g`, `protein_g`, `fat_g`) rather than inferring from kcal totals alone.
-  - Gotchas encountered: top-level `carbs_g` excludes optional `training_carbs_g`, so training-row checks should validate row-local invariants instead of summing training carbs into canonical meal carb targets.
-  - Useful context: a deterministic residual fixture (`TDEE` off by `0.03`) is enough to exercise display-only evening-snack `kcal` correction without perturbing macro reconciliation logic.
----
-## [2026-03-04 16:00:13 CET] - US-007
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
-- Strengthened end-to-end regression coverage in application integration success scenarios by asserting training-meal kcal composition, presence of `kcal` on every emitted meal, and exact `sum(meals[*].kcal) == TDEE`.
-- This closes the remaining cross-layer gap for insertion/validation/kcal-balancing regression protection while keeping existing semantic-validation and insertion matrix tests intact.
-- Files changed:
-  - tests/unit/test_application_orchestration.py
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: application-level integration tests should pin both macro invariants and displayed-energy invariants so domain reconciliation changes cannot silently drift at the service boundary.
-  - Gotchas encountered: kcal reconciliation expectations should use exact equality in these fixtures to enforce deterministic display totals and avoid overly permissive assertions.
-  - Useful context: the existing `test_meal_plan_calculation_service_integration_success_matrix` already spans periodized, non-periodized, and omitted-training inputs, so it is the highest-leverage place for cross-layer regression assertions.
----
-## [2026-03-04 16:03:47 CET] - US-008
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
-- Updated canonical docs for the output-contract changes: conditional optional `training` meal behavior, parseable-but-semantically-invalid `--training-before=training`, per-meal `kcal`, and deterministic display-only `evening-snack.kcal` reconciliation to enforce `sum(meals[*].kcal) == TDEE`.
-- Ran quality checks successfully via virtualenv binaries because `make quality` hardcodes a missing `.venv/bin/uv` path in this workspace.
-- Files changed:
-  - docs/REQUIREMENTS.md
-  - docs/MODEL.md
-  - docs/ARCHITECTURE.md
-  - scripts/ralph/prd.json
-  - scripts/ralph/progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: contract updates stay clear and maintainable when docs are split by concern (`REQUIREMENTS` behavior, `MODEL` shape/invariants, `ARCHITECTURE` layer boundaries/examples) and updated together.
-  - Gotchas encountered: architecture response examples should include both optional `training` row and `kcal` fields when that contract is active, otherwise docs drift from DTO validation rules.
-  - Useful context: this repo’s effective local quality gate in this environment is `.venv/bin/ruff check . && .venv/bin/mypy --strict src && .venv/bin/pytest -q`.
+- Patterns discovered: the calories-first migration can be introduced safely by making the non-training meal energy budget explicit while leaving TDEE, training demand, and training fueling formulas untouched.
+- Gotchas encountered: `make quality` is not usable in this workspace because it hardcodes `.venv/bin/uv`; run `uv run ruff check . && uv run mypy --strict src && uv run pytest` instead.
+- Useful context: overall `total_kcal` still equals `TDEE + training_calorie_demand_kcal` because the optional training row contributes exactly `training_carbs_g * 4` kcal after the six-meal pool is reconciled.
 ---

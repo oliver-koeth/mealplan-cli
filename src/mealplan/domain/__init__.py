@@ -26,11 +26,12 @@ from mealplan.domain.model import (
     UserProfile,
 )
 from mealplan.domain.services import (
-    calculate_training_calorie_demand_kcal,
     calculate_macro_targets,
     calculate_meal_split_and_response_payload,
+    calculate_normal_meal_calorie_pool_kcal,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
+    calculate_training_calorie_demand_kcal,
     calculate_training_carbs_g,
 )
 from mealplan.domain.validation import (
@@ -55,6 +56,7 @@ __all__ = [
     "bmr_kcal_per_day_for",
     "calculate_meal_split_and_response_payload",
     "calculate_macro_targets",
+    "calculate_normal_meal_calorie_pool_kcal",
     "calculate_periodized_carb_allocation",
     "calculate_tdee_kcal",
     "calculate_training_carbs_g",

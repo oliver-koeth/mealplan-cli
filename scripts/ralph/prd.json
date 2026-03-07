@@ -1,17 +1,16 @@
 {
   "project": "mealplan",
-  "branchName": "ralph/enhance-001-training-carb-meal-and-kcal-breakdown",
-  "description": "Enhance meal-plan output by conditionally inserting one training meal (before any meal target), adding per-meal kcal, and reconciling displayed meal kcal to top-level TDEE via deterministic evening-snack display-only correction.",
+  "branchName": "ralph/enhance-002-calories-first-meal-macro-allocation",
+  "description": "Replace carb-target-first normal-meal allocation with a calories-first model that budgets the six canonical meals from daily energy, assigns per-meal carb strategies, derives meal carbs and fat from remaining calories after protein, and preserves existing training fueling behavior.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Insert one conditional training meal",
-      "description": "As a user following training-day guidance, I want exactly one training meal to appear when training carbs are prescribed so the plan maps directly to workout fueling.",
+      "title": "Compute the six-meal calorie pool",
+      "description": "As a user, I want the six normal meals to be budgeted from day energy and training fueling so meal planning follows the new calories-first model.",
       "acceptanceCriteria": [
-        "When training_carbs_g > 0, output includes exactly one training meal.",
-        "When training_carbs_g = 0, output includes no training meal.",
-        "Training meal carbs equal training_carbs_g.",
-        "Training meal macros are carbs-only: protein_g=0 and fat_g=0.",
+        "Calculate the six normal-meal calorie pool as TDEE + training_calorie_demand_kcal - training_calorie_supply_kcal.",
+        "Keep training_calorie_supply_kcal equal to training_carbs_g * 4.",
+        "Existing TDEE, training calorie demand, and training fueling calculations remain unchanged.",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -21,109 +20,158 @@
     },
     {
       "id": "US-002",
-      "title": "Place training meal before any meal target",
-      "description": "As a user, I want training meal placement to follow --training-before before any meal target so ordering is predictable.",
+      "title": "Apply canonical calorie and protein meal shares",
+      "description": "As a user, I want normal-meal calories and protein distributed predictably across the six canonical meals so the plan stays easy to follow.",
       "acceptanceCriteria": [
-        "Training meal insertion position follows --training-before semantics.",
-        "Insertion before each supported meal target is deterministic.",
-        "At most one training meal appears in output.",
+        "Distribute the six normal-meal calorie pool across breakfast, morning-snack, lunch, afternoon-snack, dinner, and evening-snack using shares 2/9, 1/9, 2/9, 1/9, 2/9, 1/9.",
+        "Keep the daily protein target at 2 * weight_kg.",
+        "Distribute daily protein across the same six canonical meals using the same 2/9, 1/9, 2/9, 1/9, 2/9, 1/9 shares.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Handle training-before-training as semantic runtime error",
-      "description": "As a maintainer, I want --training-before=training to be parseable but rejected semantically so recursive placement is prevented with deterministic runtime validation.",
+      "title": "Assign baseline meal carb strategies",
+      "description": "As a user, I want each canonical meal to have an explicit carb strategy derived from the selected carbs mode so meal composition is inspectable and deterministic.",
       "acceptanceCriteria": [
-        "Input path can parse training as a syntactic --training-before value.",
-        "--training-before=training fails semantic runtime validation deterministically.",
-        "Error messaging follows existing validation/runtime conventions.",
+        "For --carbs normal, assign carbs_strategy=medium to all six canonical meals.",
+        "For --carbs low, assign carbs_strategy=low to all six canonical meals.",
+        "For --carbs periodized, assign baseline carbs_strategy=low to all six canonical meals before overrides.",
+        "Each canonical normal meal row includes carbs_strategy with one of low, medium, or high.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Add per-meal kcal field",
-      "description": "As a user, I want each meal to display kcal in addition to macros so I can track per-meal energy intake.",
+      "title": "Apply periodized post-training overrides",
+      "description": "As a user on periodized carbs, I want the correct post-training meals upgraded to high-carb status so the plan matches the specified timing rules.",
       "acceptanceCriteria": [
-        "Each emitted meal includes kcal alongside carbs_g, protein_g, and fat_g.",
-        "Per-meal kcal values are macro-derived using existing conversion rules.",
-        "Output structure remains deterministic across runs.",
+        "For --carbs periodized, mark the meal at --training-before as the first post-training high-carb meal.",
+        "Mark the next chronological meal as the second high-carb meal except where explicit dinner and evening-snack exceptions apply.",
+        "Do not wrap from evening-snack to breakfast when assigning a second high-carb meal.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Reconcile displayed meal kcal totals to TDEE",
-      "description": "As a user, I want the sum of displayed meal kcal to match top-level TDEE exactly so reported totals are trustworthy.",
+      "title": "Apply dinner and next-day periodization exceptions",
+      "description": "As a user, I want dinner and evening-snack edge cases handled exactly so periodized outputs are stable in late-day training scenarios.",
       "acceptanceCriteria": [
-        "After rounding and reconciliation, sum(displayed meal kcal) equals top-level TDEE.",
-        "Any small rounding delta is corrected by adjusting evening-snack displayed kcal only.",
-        "Reconciliation is deterministic and does not change meal ordering.",
+        "If --training-before=dinner, only dinner is forced high and evening-snack remains low unless another rule overrides it.",
+        "If --training-before=evening-snack, only evening-snack is forced high and no wrap-to-breakfast high meal occurs.",
+        "If --training-tomorrow=high, dinner is always high in periodized mode, including when this overrides the dinner or evening-snack exception outcomes.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Keep reconciliation display-only for kcal",
-      "description": "As a maintainer, I want evening-snack reconciliation to adjust displayed kcal only so macro gram allocations remain unchanged.",
+      "title": "Derive meal carbs and fat from remaining calories",
+      "description": "As a user, I want each normal meal's carbs and fat derived from remaining calories after protein so the meal plan follows the calories-first model.",
       "acceptanceCriteria": [
-        "Reconciliation mutates displayed evening-snack kcal only.",
-        "Displayed carbs_g, protein_g, and fat_g are unchanged by reconciliation.",
-        "Behavior is covered by explicit tests or contract assertions.",
+        "For each canonical normal meal, assign protein calories first from the meal protein grams.",
+        "Compute remaining meal calories after subtracting protein calories from the meal calorie budget.",
+        "For low strategy, convert 1/4 of remaining meal calories to carbs and 3/4 to fat.",
+        "For medium strategy, convert 2/3 of remaining meal calories to carbs and 1/3 to fat.",
+        "For high strategy, convert 3/4 of remaining meal calories to carbs and 1/4 to fat.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Add regression tests for insertion, validation, and kcal balancing",
-      "description": "As a maintainer, I want focused regression tests for training insertion, semantic validation, and kcal reconciliation so future changes do not regress this enhancement.",
+      "title": "Recompute top-level carb and fat totals from meals",
+      "description": "As a user, I want top-level carbs and fat to reflect the final emitted meal allocations so day totals match the new allocation logic.",
       "acceptanceCriteria": [
-        "Tests cover training meal present and absent behavior for training_carbs_g > 0 and = 0.",
-        "Tests cover deterministic insertion ordering for supported --training-before targets.",
-        "Tests cover semantic runtime rejection for --training-before=training.",
-        "Tests cover training meal carbs-only composition.",
-        "Tests cover per-meal kcal emission and exact summed meal-kcal-to-TDEE equality.",
+        "Derive top-level carbs_g as the sum of final emitted meal carbs under the new allocation model.",
+        "Derive top-level fat_g as the sum of final emitted meal fat under the new allocation model.",
+        "Training meal carbs_strategy is always high.",
+        "Keep current training meal behavior and ordering unchanged apart from the new carbs_strategy field.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Update canonical docs for contract changes",
-      "description": "As a maintainer, I want canonical docs updated so the new training-meal and kcal output contract is documented and stable.",
+      "title": "Handle protein-overflow meals with warnings",
+      "description": "As a user, I want the planner to stay valid when a meal cannot fit its assigned protein so failures degrade predictably and visibly.",
       "acceptanceCriteria": [
-        "Update docs/REQUIREMENTS.md with training-meal insertion rules and semantic rejection of --training-before=training.",
-        "Update docs/MODEL.md with output shape changes including optional training meal and per-meal kcal.",
-        "Update docs/ARCHITECTURE.md with display-only evening-snack kcal reconciliation targeting TDEE.",
+        "If assigned protein calories exceed a meal's calorie budget, reduce that meal's protein allocation until remaining calories are 0 or greater.",
+        "If protein reduction occurs, top-level protein_g equals the sum of final emitted meal protein.",
+        "Do not derive carbs or fat from negative remaining meal calories.",
+        "Emit protein-reduction warnings to stderr only on otherwise successful runs.",
+        "Do not add warning fields to JSON, text, or table payloads.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 8,
-      "passes": true,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Add regression coverage for calorie shares and totals",
+      "description": "As a maintainer, I want automated coverage for the new calorie and macro allocation rules so core calculations do not silently regress.",
+      "acceptanceCriteria": [
+        "Tests cover the six-meal calorie split and protein split using shares 2/9, 1/9, 2/9, 1/9, 2/9, 1/9.",
+        "Tests cover top-level carbs_g and fat_g being derived bottom-up from final meal allocations.",
+        "Tests cover normal, low, and baseline periodized carbs_strategy assignment.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add regression coverage for periodized and warning edge cases",
+      "description": "As a maintainer, I want focused tests for late-day periodization and protein-reduction handling so edge-case behavior remains deterministic.",
+      "acceptanceCriteria": [
+        "Tests cover periodized edge cases for --training-before=dinner and --training-before=evening-snack.",
+        "Tests cover --training-tomorrow=high forcing dinner to high in periodized mode.",
+        "Tests cover protein-reduction warning emission and non-negative remaining-calorie handling.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Update canonical docs for calories-first meal allocation",
+      "description": "As a maintainer, I want canonical docs updated so the new allocation model and output semantics are documented and stable.",
+      "acceptanceCriteria": [
+        "Update docs/REQUIREMENTS.md with the calories-first meal allocation rules and periodized override behavior.",
+        "Update docs/MODEL.md with carbs_strategy output and top-level carb and fat totals being derived from final meal allocations.",
+        "Update docs/ARCHITECTURE.md and docs/PLAN.md with the new engine responsibilities and canonical enhancement plan.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 11,
+      "passes": false,
       "notes": ""
     }
   ]
