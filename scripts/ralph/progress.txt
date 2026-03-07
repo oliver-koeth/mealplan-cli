@@ -2,6 +2,7 @@
 Started: Sat Mar  7 11:33:39 CET 2026
 ## Codebase Patterns
 - Reconcile canonical non-training meal `kcal` totals against an explicit normal-meal calorie pool before inserting the optional `training` row; training-fuel energy remains `training_carbs_g * 4`.
+- In the calories-first flow, canonical breakfast/lunch/dinner use `2/9` shares and snacks use `1/9` shares for both six-meal `kcal` budgets and normal-meal protein allocation.
 
 ## [2026-03-07 11:42:49 CET] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
@@ -19,4 +20,25 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Patterns discovered: the calories-first migration can be introduced safely by making the non-training meal energy budget explicit while leaving TDEE, training demand, and training fueling formulas untouched.
 - Gotchas encountered: `make quality` is not usable in this workspace because it hardcodes `.venv/bin/uv`; run `uv run ruff check . && uv run mypy --strict src && uv run pytest` instead.
 - Useful context: overall `total_kcal` still equals `TDEE + training_calorie_demand_kcal` because the optional training row contributes exactly `training_carbs_g * 4` kcal after the six-meal pool is reconciled.
+---
+## [2026-03-07 11:49:34 CET] - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Applied canonical `2/9, 1/9, 2/9, 1/9, 2/9, 1/9` shares to the six non-training meals for both protein grams and displayed calorie budgets.
+- Replaced equal-share protein assertions with canonical-share regression coverage and updated application/CLI golden snapshots to the new meal outputs.
+- Files changed:
+- `AGENT.md`
+- `src/mealplan/domain/services.py`
+- `tests/unit/test_domain_services.py`
+- `tests/golden/application/non_periodized_with_training.golden.json`
+- `tests/golden/application/periodized_with_training.golden.json`
+- `tests/golden/application/periodized_without_training.golden.json`
+- `tests/golden/cli/success_default_json.golden.json`
+- `tests/golden/cli/success_text_format.golden.json`
+- `tests/golden/cli/success_table_format.golden.json`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+- Patterns discovered: keep the canonical meal-share sequence centralized in one domain helper so later carb-strategy and remaining-calorie stories can reuse the same breakfast/snack weighting.
+- Gotchas encountered: once displayed `kcal` becomes an explicit meal budget, golden snapshots and tests must stop assuming canonical-meal `kcal` is derived from that row’s current macros.
+- Useful context: training-row behavior is unchanged; only the six canonical non-training meals receive the new share-based protein and `kcal` budgets.
 ---

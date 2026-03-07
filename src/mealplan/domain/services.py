@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, cast
 
 from mealplan.domain.energy import tdee_kcal_per_day_for
 from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
@@ -20,6 +20,8 @@ MEAL_ASSEMBLY_RECONCILIATION_MACRO_ORDER: tuple[MacroField, MacroField, MacroFie
     "protein_g",
     "fat_g",
 )
+CANONICAL_MEAL_SHARE_UNITS: tuple[int, int, int, int, int, int] = (2, 1, 2, 1, 2, 1)
+CANONICAL_MEAL_SHARE_TOTAL = sum(CANONICAL_MEAL_SHARE_UNITS)
 
 
 class MealPayloadRow(TypedDict):
@@ -149,14 +151,14 @@ def calculate_meal_split_and_response_payload(
         training_carbs_g=training_carbs_g,
     )
 
-    per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
+    protein_g_by_meal = _allocate_total_by_canonical_meal_shares(total=protein_g)
     per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
 
     meal_allocations = [
         MealAllocation(
             meal=meal,
             carbs_g=carb_allocation_g_by_meal[meal],
-            protein_g=per_meal_protein_g,
+            protein_g=protein_g_by_meal[meal],
             fat_g=per_meal_fat_g,
         )
         for meal in CANONICAL_MEAL_ORDER
@@ -173,8 +175,7 @@ def calculate_meal_split_and_response_payload(
         protein_g=protein_g,
         fat_g=fat_g,
     )
-    _recalculate_meal_kcal_from_macros(meals=meals)
-    _reconcile_displayed_meal_kcal_to_normal_meal_pool(
+    _assign_displayed_meal_kcal_shares(
         meals=meals,
         normal_meal_calorie_pool_kcal=normal_meal_calorie_pool_kcal,
     )
@@ -258,24 +259,22 @@ def _serialize_meal_row_with_kcal(allocation: MealAllocation) -> MealPayloadRow:
     }
 
 
-def _recalculate_meal_kcal_from_macros(*, meals: list[MealPayloadRow]) -> None:
-    for meal in meals:
-        meal["kcal"] = _kcal_from_macros(
-            carbs_g=float(meal["carbs_g"]),
-            protein_g=float(meal["protein_g"]),
-            fat_g=float(meal["fat_g"]),
-        )
-
-
 def _kcal_from_macros(*, carbs_g: float, protein_g: float, fat_g: float) -> float:
     return round((carbs_g * 4.0) + (protein_g * 4.0) + (fat_g * 9.0), 2)
 
 
-def _reconcile_displayed_meal_kcal_to_normal_meal_pool(
+def _assign_displayed_meal_kcal_shares(
     *,
     meals: list[MealPayloadRow],
     normal_meal_calorie_pool_kcal: float,
 ) -> None:
+    kcal_by_meal = _allocate_total_by_canonical_meal_shares(total=normal_meal_calorie_pool_kcal)
+    for meal in meals:
+        meal_name = meal["meal"]
+        if meal_name == "training":
+            continue
+        meal["kcal"] = round(kcal_by_meal[cast(MealName, meal_name)], 2)
+
     displayed_meal_kcal_total = round(sum(float(meal["kcal"]) for meal in meals), 2)
     residual = round(normal_meal_calorie_pool_kcal - displayed_meal_kcal_total, 2)
     if residual == 0.0:
@@ -353,6 +352,13 @@ def _meal_key_label(meal_key: object) -> str:
     if isinstance(meal_key, MealName):
         return meal_key.value
     return repr(meal_key)
+
+
+def _allocate_total_by_canonical_meal_shares(*, total: float) -> dict[MealName, float]:
+    return {
+        meal: total * (share_units / float(CANONICAL_MEAL_SHARE_TOTAL))
+        for meal, share_units in zip(CANONICAL_MEAL_ORDER, CANONICAL_MEAL_SHARE_UNITS, strict=True)
+    }
 
 
 def _equal_split_allocation(*, daily_carbs_g: float) -> dict[MealName, float]:

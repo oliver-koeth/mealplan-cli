@@ -273,19 +273,19 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
     }
     canonical_meals = [entry for entry in meals if entry["meal"] != "training"]
     assert [entry["carbs_g"] for entry in canonical_meals] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
-    assert [entry["protein_g"] for entry in canonical_meals] == [30.0] * len(CANONICAL_MEAL_ORDER)
+    assert [entry["protein_g"] for entry in canonical_meals] == [40.0, 20.0, 40.0, 20.0, 40.0, 20.0]
     assert round(sum(float(entry["kcal"]) for entry in canonical_meals), 2) == 2908.0
     assert payload["total_kcal"] == pytest.approx(
         2908.0 + calculate_training_calorie_demand_kcal({1: 0, 2: 85, 3: 0, 4: 0, 5: 0}),
     )
     assert [entry["fat_g"] for entry in canonical_meals] == [12.0] * len(CANONICAL_MEAL_ORDER)
     assert [entry["kcal"] for entry in canonical_meals] == [
-        508.0,
-        348.0,
-        588.0,
-        388.0,
-        468.0,
-        608.0,
+        646.22,
+        323.11,
+        646.22,
+        323.11,
+        646.22,
+        323.12,
     ]
 
 
@@ -377,11 +377,12 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
     assert training_meal.kcal == 340.0
 
 
-def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equally() -> None:
+def test_calculate_meal_split_and_response_payload_uses_canonical_protein_and_kcal_shares() -> None:
     protein_g = 145.0
     fat_g = 73.0
-    expected_per_meal_protein_g = round(protein_g / float(len(CANONICAL_MEAL_ORDER)), 2)
     expected_per_meal_fat_g = round(fat_g / float(len(CANONICAL_MEAL_ORDER)), 2)
+    expected_protein_g = [32.22, 16.11, 32.22, 16.11, 32.22, 16.12]
+    expected_kcal = [541.56, 270.78, 541.56, 270.78, 541.56, 270.76]
 
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2437.0,
@@ -396,26 +397,17 @@ def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equall
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert [entry["protein_g"] for entry in meals[:-1]] == [expected_per_meal_protein_g] * 5
+    assert [entry["protein_g"] for entry in meals] == expected_protein_g
     assert [entry["fat_g"] for entry in meals[:-1]] == [expected_per_meal_fat_g] * 5
-    assert meals[-1]["protein_g"] == 24.15
     assert meals[-1]["fat_g"] == 12.15
-    assert meals[-1]["kcal"] == 405.95
+    assert [entry["kcal"] for entry in meals] == expected_kcal
     assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(protein_g)
     assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(fat_g)
-    for meal in meals:
-        assert meal["kcal"] == round(
-            (float(meal["carbs_g"]) * 4.0)
-            + (float(meal["protein_g"]) * 4.0)
-            + (float(meal["fat_g"]) * 9.0),
-            2,
-        )
 
 
 def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> None:
     protein_g = 100.0
     fat_g = 50.0
-    expected_per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
     expected_per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
     carb_allocation_g_by_meal = dict(
         zip(
@@ -438,11 +430,8 @@ def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> No
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert [entry["protein_g"] for entry in meals[:-1]] == [
-        round(expected_per_meal_protein_g, 2)
-    ] * 5
+    assert [entry["protein_g"] for entry in meals] == [22.22, 11.11, 22.22, 11.11, 22.22, 11.12]
     assert [entry["fat_g"] for entry in meals[:-1]] == [round(expected_per_meal_fat_g, 2)] * 5
-    assert meals[-1]["protein_g"] == 16.65
     assert meals[-1]["fat_g"] == 8.35
     assert [entry["carbs_g"] for entry in meals] == [20.0, 30.0, 40.01, 50.01, 60.44, 39.54]
     assert payload["protein_g"] == protein_g
@@ -468,13 +457,13 @@ def test_meal_split_applies_residual_adjustment_to_evening_snack_only() -> None:
     assert isinstance(meals, list)
 
     assert [entry["carbs_g"] for entry in meals[:-1]] == [10.01, 10.01, 10.01, 10.01, 10.01]
-    assert [entry["protein_g"] for entry in meals[:-1]] == [16.67, 16.67, 16.67, 16.67, 16.67]
+    assert [entry["protein_g"] for entry in meals[:-1]] == [22.22, 11.11, 22.22, 11.11, 22.22]
     assert [entry["fat_g"] for entry in meals[:-1]] == [1.67, 1.67, 1.67, 1.67, 1.67]
 
     evening_snack = meals[-1]
     assert evening_snack["meal"] == MealName.EVENING_SNACK
     assert evening_snack["carbs_g"] == 9.98
-    assert evening_snack["protein_g"] == 16.65
+    assert evening_snack["protein_g"] == 11.12
     assert evening_snack["fat_g"] == 1.65
 
     assert sum(float(entry["carbs_g"]) for entry in meals) == pytest.approx(payload["carbs_g"])
@@ -498,7 +487,7 @@ def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_target
     assert isinstance(meals, list)
     assert meals[-1]["meal"] == MealName.EVENING_SNACK
     assert meals[-1]["carbs_g"] == 10.0
-    assert meals[-1]["protein_g"] == 20.0
+    assert meals[-1]["protein_g"] == 13.33
     assert meals[-1]["fat_g"] == 5.0
     assert sum(float(entry["carbs_g"]) for entry in meals) == pytest.approx(payload["carbs_g"])
     assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(payload["protein_g"])
@@ -519,12 +508,12 @@ def test_meal_split_reconciles_displayed_kcal_sum_to_tdee_on_evening_snack_only(
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert [entry["kcal"] for entry in meals[:-1]] == [165.0, 165.0, 165.0, 165.0, 165.0]
+    assert [entry["kcal"] for entry in meals[:-1]] == [220.01, 110.0, 220.01, 110.0, 220.01]
     assert meals[-1]["meal"] == MealName.EVENING_SNACK
     assert meals[-1]["carbs_g"] == 10.0
-    assert meals[-1]["protein_g"] == 20.0
+    assert meals[-1]["protein_g"] == 13.33
     assert meals[-1]["fat_g"] == 5.0
-    assert meals[-1]["kcal"] == 165.03
+    assert meals[-1]["kcal"] == 110.0
     assert sum(float(entry["kcal"]) for entry in meals) == pytest.approx(payload["TDEE"])
 
 
@@ -552,19 +541,18 @@ def test_meal_split_kcal_reconciliation_is_display_only_with_training_meal() -> 
 
     evening_snack = next(entry for entry in meals if entry["meal"] == MealName.EVENING_SNACK)
     assert evening_snack["carbs_g"] == 10.0
-    assert evening_snack["protein_g"] == 20.0
+    assert evening_snack["protein_g"] == 13.33
     assert evening_snack["fat_g"] == 5.0
-    assert evening_snack["kcal"] == 405.03
+    assert evening_snack["kcal"] == 136.67
 
-    for entry in meals:
-        if entry["meal"] is MealName.EVENING_SNACK:
-            continue
-        assert entry["kcal"] == round(
-            (float(entry["carbs_g"]) * 4.0)
-            + (float(entry["protein_g"]) * 4.0)
-            + (float(entry["fat_g"]) * 9.0),
-            2,
-        )
+    assert [entry["kcal"] for entry in meals if entry["meal"] != "training"] == [
+        273.34,
+        136.67,
+        273.34,
+        136.67,
+        273.34,
+        136.67,
+    ]
     assert sum(float(entry["kcal"]) for entry in meals) == pytest.approx(
         payload["TDEE"] + 240.0
     )

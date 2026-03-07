@@ -108,6 +108,7 @@ When in doubt, update those source docs instead of expanding this file.
 78. For display-only kcal reconciliation tests, include assertions that `evening-snack` macro grams remain unchanged and add at least one case with optional `training` meal present to prove only displayed `kcal` is reconciled.
 79. In application integration success matrices, assert every emitted meal has `kcal` and enforce exact `sum(meals[*].kcal) == TDEE` so cross-layer display-energy regressions are caught outside isolated domain tests.
 80. For calories-first allocation work, reconcile the six canonical non-training meal `kcal` values against an explicit normal-meal calorie pool before inserting the optional `training` row; this keeps training-fuel energy (`training_carbs_g * 4`) isolated from normal-meal budgeting.
+81. For calories-first canonical meal budgeting, use the fixed breakfast/snack share sequence `2/9, 1/9, 2/9, 1/9, 2/9, 1/9` for both six-meal calorie budgets and normal-meal protein allocation.
 
 ## Ralph Runner
 
