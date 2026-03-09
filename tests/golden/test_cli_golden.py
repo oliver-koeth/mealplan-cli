@@ -14,6 +14,9 @@ from tests.golden.helpers import assert_hybrid_snapshot_match, load_golden_json
 
 _GOLDEN_DIR = Path(__file__).parent / "cli"
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_BOX_TOP_RE = re.compile(r"^╭─ Error ─+╮$")
+_BOX_BOTTOM_RE = re.compile(r"^╰─+╯$")
+_BOX_CONTENT_RE = re.compile(r"^│ (?P<content>.*?)(?:\s*)│$")
 
 
 def _required_calculate_args() -> list[str]:
@@ -55,6 +58,33 @@ def _canonicalize_traceback(stderr: str) -> str:
     return "\n".join(canonical_lines) + "\n"
 
 
+def _canonicalize_typer_error_box(stderr: str) -> str:
+    lines = stderr.splitlines()
+    if not lines:
+        return stderr
+
+    canonical_lines: list[str] = []
+    for line in lines:
+        if _BOX_TOP_RE.match(line):
+            canonical_lines.append(
+                "╭─ Error ──────────────────────────────────────────────────────────────────────╮"
+            )
+            continue
+        if _BOX_BOTTOM_RE.match(line):
+            canonical_lines.append(
+                "╰──────────────────────────────────────────────────────────────────────────────╯"
+            )
+            continue
+        content_match = _BOX_CONTENT_RE.match(line)
+        if content_match is not None:
+            content = content_match.group("content").rstrip()
+            canonical_lines.append(f"│ {content} │")
+            continue
+        canonical_lines.append(line)
+
+    return "\n".join(canonical_lines) + ("\n" if stderr.endswith("\n") else "")
+
+
 def _snapshot_payload(
     *,
     exit_code: int,
@@ -64,6 +94,7 @@ def _snapshot_payload(
 ) -> str:
     normalized_stdout = _normalize_text(stdout)
     normalized_stderr = _normalize_text(_ANSI_ESCAPE_RE.sub("", stderr))
+    normalized_stderr = _canonicalize_typer_error_box(normalized_stderr)
     if canonicalize_traceback:
         normalized_stderr = _canonicalize_traceback(normalized_stderr)
     payload = {
@@ -75,8 +106,13 @@ def _snapshot_payload(
 
 
 def _assert_golden_matches(*, fixture_name: str, actual: str) -> None:
-    expected = (_GOLDEN_DIR / fixture_name).read_text(encoding="utf-8")
-    assert actual == expected
+    expected_payload = json.loads((_GOLDEN_DIR / fixture_name).read_text(encoding="utf-8"))
+    actual_payload = json.loads(actual)
+
+    expected_payload["stderr"] = _canonicalize_typer_error_box(expected_payload["stderr"])
+    actual_payload["stderr"] = _canonicalize_typer_error_box(actual_payload["stderr"])
+
+    assert actual_payload == expected_payload
 
 
 def _assert_cli_json_golden_matches(*, fixture_name: str, actual: str) -> None:
