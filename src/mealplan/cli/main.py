@@ -112,7 +112,10 @@ def calculate_command(
         request_payload["training_session"] = training_session
 
     request = parse_contract(MealPlanRequest, request_payload)
-    response = MealPlanCalculationService().calculate(request)
+    service = MealPlanCalculationService()
+    response = service.calculate(request)
+    for warning in getattr(service, "warnings", ()):
+        typer.echo(f"Warning: {warning}", err=True)
     typer.echo(_render_output(response=response, output_format=output_format))
 
 
@@ -163,7 +166,7 @@ def _render_text_output(response: MealPlanResponse) -> str:
     for meal in payload["meals"]:
         meal_name = meal["meal"]
         lines.append(
-            f"- {meal_name}: carbs_g={meal['carbs_g']} "
+            f"- {meal_name}: carbs_strategy={meal['carbs_strategy']} carbs_g={meal['carbs_g']} "
             f"protein_g={meal['protein_g']} fat_g={meal['fat_g']} kcal={meal['kcal']}"
         )
     return "\n".join(lines)
@@ -181,13 +184,13 @@ def _render_table_output(response: MealPlanResponse) -> str:
         f"| fat_g | {payload['fat_g']} |",
         f"| total_kcal | {payload['total_kcal']} |",
         "",
-        "| meal | carbs_g | protein_g | fat_g | kcal |",
-        "| --- | --- | --- | --- | --- |",
+        "| meal | carbs_strategy | carbs_g | protein_g | fat_g | kcal |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for meal in payload["meals"]:
         meal_name = meal["meal"]
         lines.append(
-            f"| {meal_name} | {meal['carbs_g']} | {meal['protein_g']} | "
+            f"| {meal_name} | {meal['carbs_strategy']} | {meal['carbs_g']} | {meal['protein_g']} | "
             f"{meal['fat_g']} | {meal['kcal']} |"
         )
     return "\n".join(lines)

@@ -72,6 +72,7 @@ def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
             "meals": [
                 {
                     "meal": meal,
+                    "carbs_strategy": "low",
                     "carbs_g": 35.0,
                     "protein_g": 26.67,
                     "fat_g": 12.83,
@@ -96,6 +97,32 @@ def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == expected.model_dump(mode="json")
+
+
+def test_calculate_command_emits_non_fatal_warnings_to_stderr(monkeypatch) -> None:
+    warning = (
+        "meal_assembly.protein_reduction: reduced breakfast protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget"
+    )
+
+    class FakeCalculationService:
+        def __init__(self) -> None:
+            self.warnings = (warning,)
+
+        def calculate(self, request: object) -> MealPlanResponse:
+            _ = request
+            return MealPlanResponse.placeholder()
+
+    monkeypatch.setattr(
+        "mealplan.cli.main.MealPlanCalculationService",
+        FakeCalculationService,
+    )
+
+    result = runner.invoke(app, _required_calculate_args())
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == MealPlanResponse.placeholder().model_dump(mode="json")
+    assert result.stderr == f"Warning: {warning}\n"
 
 
 def test_calculate_command_runs_with_canonical_flags() -> None:
@@ -196,6 +223,7 @@ def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
     assert "carbs_g:" in text_output
     assert "fat_g:" in text_output
     assert "total_kcal:" in text_output
+    assert "carbs_strategy=" in text_output
     assert "kcal=" in text_output
 
     meal_lines = [
@@ -227,7 +255,7 @@ def test_calculate_table_format_outputs_top_level_and_canonical_meals() -> None:
     assert "| carbs_g |" in table_output
     assert "| fat_g |" in table_output
     assert "| total_kcal |" in table_output
-    assert "| meal | carbs_g | protein_g | fat_g | kcal |" in table_output
+    assert "| meal | carbs_strategy | carbs_g | protein_g | fat_g | kcal |" in table_output
 
     meal_rows = [
         line

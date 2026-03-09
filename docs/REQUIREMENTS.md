@@ -231,21 +231,39 @@ JSON structure:
 
 ### 9.1 Phase 7 Assembly and Rounding Contract
 
--   Canonical meal-assembly API is domain-only in Phase 7:
-    `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, training_calorie_demand_kcal, training_before_meal, protein_g, carbs_g, fat_g, carb_allocation_g_by_meal)`.
--   Response `meals` must include six canonical entries in this order:
-    `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`, with at most one optional `training` entry.
+-   Canonical meal-assembly API is domain-only:
+    `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, training_calorie_demand_kcal, carb_mode, training_before_meal, training_load_tomorrow, protein_g, carbs_g, fat_g)`.
+-   The six canonical non-training meals are budgeted from a calories-first pool:
+    `normal_meal_calorie_pool_kcal = TDEE + training_calorie_demand_kcal - training_calorie_supply_kcal`.
+-   `training_calorie_supply_kcal` remains `training_carbs_g * 4`.
+-   Distribute both normal-meal `kcal` budgets and initial protein targets across
+    `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`
+    with canonical shares `2/9, 1/9, 2/9, 1/9, 2/9, 1/9`.
+-   Each canonical meal row includes `carbs_strategy` with one of `low`, `medium`, or `high`.
+-   Strategy assignment rules:
+    - `--carbs normal` -> all six canonical meals use `medium`
+    - `--carbs low` -> all six canonical meals use `low`
+    - `--carbs periodized` -> baseline all six canonical meals to `low`, then apply post-training overrides
+-   Periodized override rules in meal assembly:
+    - mark `--training-before` meal as the first high-carb meal
+    - mark the next chronological canonical meal as the second high-carb meal
+    - do not wrap from `evening-snack` to `breakfast`
+    - if `--training-before=dinner`, only `dinner` is forced high unless tomorrow-load rule overrides
+    - if `--training-before=evening-snack`, only `evening-snack` is forced high unless tomorrow-load rule overrides
+    - if `--training-tomorrow=high`, force `dinner` to `high` in periodized mode
+-   For each canonical non-training meal, assign protein calories first, then derive remaining calories into carbs and fat by strategy:
+    - `low`: `1/4` of remaining calories to carbs, `3/4` to fat
+    - `medium`: `2/3` of remaining calories to carbs, `1/3` to fat
+    - `high`: `3/4` of remaining calories to carbs, `1/4` to fat
+-   If a meal's assigned protein calories exceed its calorie budget, reduce protein for that meal until remaining calories are non-negative and emit a warning to stderr on otherwise successful runs.
+-   Do not add warning fields to JSON, text, or table payloads.
+-   Response `meals` must include the six canonical entries in canonical order, with at most one optional `training` entry.
 -   If `training_carbs_g > 0`, insert exactly one `training` meal before `training_before_meal` (append only when no target exists); if `training_carbs_g == 0`, insert none.
--   Training meal composition is carbs-only: `carbs_g = training_carbs_g`, `protein_g = 0`, `fat_g = 0`.
--   Per-meal `carbs_g`, `protein_g`, and `fat_g` values are rounded to 2 decimals at output boundary only, and each meal row includes derived `kcal`.
--   Top-level target fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`) remain canonical inputs and are not re-derived from rounded meal rows.
+-   Training meal composition is carbs-only with `carbs_strategy=high`: `carbs_g = training_carbs_g`, `protein_g = 0`, `fat_g = 0`.
+-   Per-meal `carbs_g`, `protein_g`, and `fat_g` values are rounded to 2 decimals at output boundary only, and each meal row includes displayed `kcal`.
+-   Top-level `protein_g`, `carbs_g`, and `fat_g` are derived from the final emitted meal rows.
 -   Top-level `total_kcal` is output-only and equals the sum of displayed meal `kcal` values.
--   If rounded meal totals drift from top-level targets, residual correction is applied only to `evening-snack`.
--   Residual macro correction order is deterministic and fixed:
-    `carbs_g`, then `protein_g`, then `fat_g`.
--   For non-training meals only, target displayed kcal sum is:
-    `TDEE + training_calorie_demand_kcal - training_calorie_supply_kcal`.
--   After meal-level `kcal` is derived from displayed meal macros, apply a display-only residual correction to `evening-snack.kcal` so total day displayed kcal satisfies:
+-   After canonical meal `kcal` budgets are allocated, apply display-only `kcal` reconciliation so:
     `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)`.
 
 ### 9.2 Phase 8 Application Orchestration Flow
@@ -258,8 +276,9 @@ JSON structure:
     3. energy calculation
     4. macro target calculation
     5. training fueling calculation
-    6. carb periodization allocation
+    6. training calorie demand calculation
     7. meal assembly and `MealPlanResponse` model validation
+-   Standalone periodization allocation remains available as a pure domain helper, but calories-first response assembly is now the canonical source for emitted meal strategies and meal-level carb/fat allocation.
 -   `training_session` is optional at the request boundary.
 -   If `training_session` is omitted (`null`/`None`), orchestration must treat it as zero training with canonical defaults:
     - `zones_minutes = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}`

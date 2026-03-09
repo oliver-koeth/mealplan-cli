@@ -28,6 +28,14 @@ class CarbMode(StrEnum):
     PERIODIZED = "periodized"
 
 
+class CarbStrategy(StrEnum):
+    """Canonical meal-level carbohydrate strategy labels."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class TrainingLoadTomorrow(StrEnum):
     """Expected next-day workload labels for periodization rules."""
 

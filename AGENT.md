@@ -107,6 +107,14 @@ When in doubt, update those source docs instead of expanding this file.
 77. For meal-level energy display, first recompute each row `kcal` from displayed macros (`4/4/9`), then apply a final display-only `TDEE` reconciliation by adjusting `evening-snack.kcal` so `sum(meals[*].kcal) == TDEE` without mutating meal macros.
 78. For display-only kcal reconciliation tests, include assertions that `evening-snack` macro grams remain unchanged and add at least one case with optional `training` meal present to prove only displayed `kcal` is reconciled.
 79. In application integration success matrices, assert every emitted meal has `kcal` and enforce exact `sum(meals[*].kcal) == TDEE` so cross-layer display-energy regressions are caught outside isolated domain tests.
+80. For calories-first allocation work, reconcile the six canonical non-training meal `kcal` values against an explicit normal-meal calorie pool before inserting the optional `training` row; this keeps training-fuel energy (`training_carbs_g * 4`) isolated from normal-meal budgeting.
+81. For calories-first canonical meal budgeting, use the fixed breakfast/snack share sequence `2/9, 1/9, 2/9, 1/9, 2/9, 1/9` for both six-meal calorie budgets and normal-meal protein allocation.
+82. When adding or changing meal-row response fields, update `application/contracts.py` `MealAllocation`, `tests/unit/conftest.py` response fixtures, CLI renderers, and both application/CLI golden snapshots in the same iteration so contract ordering stays deterministic.
+83. Apply periodized post-training `carbs_strategy` overrides during meal assembly, not in CLI/application formatting: mark `training_before_meal` as `high`, upgrade only the next canonical meal, never wrap `evening-snack` to `breakfast`, and force `dinner` to `high` whenever `training_load_tomorrow` is `high`.
+84. In the calories-first assembler, derive each canonical meal's `carbs_g` and `fat_g` from that meal's calorie budget after protein calories, using strategy calorie shares (`low=1/4 carbs`, `medium=2/3 carbs`, `high=3/4 carbs`), then recompute top-level `carbs_g`/`fat_g` from the emitted meals.
+85. When assembly output becomes the source of truth for response totals, remove legacy stage passthrough parameters from `MealPlanCalculationService.calculate(...)` and `_run_assembly_stage(...)` rather than carrying unused domain artifacts through the application boundary.
+86. For non-fatal calculation warnings, keep response payloads unchanged and surface them through `MealPlanCalculationService.warnings`; the CLI should print them to stderr only after a successful response so JSON/text/table outputs remain contract-stable.
+87. When meal-allocation semantics change, update `docs/REQUIREMENTS.md`, `docs/MODEL.md`, `docs/ARCHITECTURE.md`, and `docs/PLAN.md` together so formulas, response fields, stage ownership, and phase narratives do not drift.
 
 ## Ralph Runner
 

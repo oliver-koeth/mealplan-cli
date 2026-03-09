@@ -1,5 +1,5 @@
 {
   "exit_code": 0,
   "stderr": "",
-  "stdout": "| field | value |\n| --- | --- |\n| TDEE | 2310.0 |\n| training_carbs_g | 0.0 |\n| protein_g | 150.0 |\n| carbs_g | 225.0 |\n| fat_g | 90.0 |\n| total_kcal | 2310.0 |\n\n| meal | carbs_g | protein_g | fat_g | kcal |\n| --- | --- | --- | --- | --- |\n| breakfast | 37.5 | 25.0 | 15.0 | 385.0 |\n| morning-snack | 37.5 | 25.0 | 15.0 | 385.0 |\n| lunch | 37.5 | 25.0 | 15.0 | 385.0 |\n| afternoon-snack | 37.5 | 25.0 | 15.0 | 385.0 |\n| dinner | 37.5 | 25.0 | 15.0 | 385.0 |\n| evening-snack | 37.5 | 25.0 | 15.0 | 385.0 |\n"
+  "stdout": "| field | value |\n| --- | --- |\n| TDEE | 2310.0 |\n| training_carbs_g | 0.0 |\n| protein_g | 150.0 |\n| carbs_g | 106.87 |\n| fat_g | 142.5 |\n| total_kcal | 2310.0 |\n\n| meal | carbs_strategy | carbs_g | protein_g | fat_g | kcal |\n| --- | --- | --- | --- | --- | --- |\n| breakfast | low | 23.75 | 33.33 | 31.67 | 513.33 |\n| morning-snack | low | 11.87 | 16.67 | 15.83 | 256.67 |\n| lunch | low | 23.75 | 33.33 | 31.67 | 513.33 |\n| afternoon-snack | low | 11.87 | 16.67 | 15.83 | 256.67 |\n| dinner | low | 23.75 | 33.33 | 31.67 | 513.33 |\n| evening-snack | low | 11.88 | 16.67 | 15.83 | 256.67 |\n"
 }

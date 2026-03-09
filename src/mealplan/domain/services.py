@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, cast
 
 from mealplan.domain.energy import tdee_kcal_per_day_for
-from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
+from mealplan.domain.enums import CarbMode, CarbStrategy, MealName, TrainingLoadTomorrow
 from mealplan.domain.macros import carbs_target_g_for, fat_target_g_for, protein_target_g_for
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.validation import validate_meal_allocation_invariants
@@ -20,14 +20,27 @@ MEAL_ASSEMBLY_RECONCILIATION_MACRO_ORDER: tuple[MacroField, MacroField, MacroFie
     "protein_g",
     "fat_g",
 )
+CANONICAL_MEAL_SHARE_UNITS: tuple[int, int, int, int, int, int] = (2, 1, 2, 1, 2, 1)
+CANONICAL_MEAL_SHARE_TOTAL = sum(CANONICAL_MEAL_SHARE_UNITS)
+CARB_CALORIE_SHARE_BY_STRATEGY: dict[CarbStrategy, float] = {
+    CarbStrategy.LOW: 0.25,
+    CarbStrategy.MEDIUM: 2.0 / 3.0,
+    CarbStrategy.HIGH: 0.75,
+}
 
 
 class MealPayloadRow(TypedDict):
     meal: MealName | Literal["training"]
+    carbs_strategy: CarbStrategy
     carbs_g: float
     protein_g: float
     fat_g: float
     kcal: float
+
+
+class MealAssemblyResult(TypedDict):
+    payload: dict[str, object]
+    warnings: tuple[str, ...]
 
 
 def calculate_tdee_kcal(profile: UserProfile) -> float:
@@ -77,6 +90,17 @@ def calculate_training_calorie_demand_kcal(zones_minutes: Mapping[int, int]) -> 
     return round(float(total_minutes) * 4.0, 2)
 
 
+def calculate_normal_meal_calorie_pool_kcal(
+    *,
+    tdee_kcal: float,
+    training_calorie_demand_kcal: float,
+    training_carbs_g: float,
+) -> float:
+    """Return calories budgeted across the six canonical non-training meals."""
+    training_calorie_supply_kcal = round(training_carbs_g * 4.0, 2)
+    return round(tdee_kcal + training_calorie_demand_kcal - training_calorie_supply_kcal, 2)
+
+
 def calculate_periodized_carb_allocation(
     carb_mode: CarbMode,
     daily_carbs_g: float,
@@ -124,61 +148,104 @@ def calculate_meal_split_and_response_payload(
     tdee_kcal: float,
     training_carbs_g: float,
     training_calorie_demand_kcal: float,
+    carb_mode: CarbMode,
     training_before_meal: MealName | None,
+    training_load_tomorrow: TrainingLoadTomorrow,
     protein_g: float,
     carbs_g: float,
     fat_g: float,
-    carb_allocation_g_by_meal: Mapping[MealName, float],
 ) -> dict[str, object]:
-    """Return canonical response payload from top-level targets and meal carb allocation."""
-    _validate_carb_allocation_keys(carb_allocation_g_by_meal=carb_allocation_g_by_meal)
+    """Return canonical response payload from top-level targets and meal budgets."""
+    assembly_result = calculate_meal_split_and_response_payload_with_warnings(
+        tdee_kcal=tdee_kcal,
+        training_carbs_g=training_carbs_g,
+        training_calorie_demand_kcal=training_calorie_demand_kcal,
+        carb_mode=carb_mode,
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=training_load_tomorrow,
+        protein_g=protein_g,
+        carbs_g=carbs_g,
+        fat_g=fat_g,
+    )
+    return assembly_result["payload"]
 
-    per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
-    per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
 
+def calculate_meal_split_and_response_payload_with_warnings(
+    tdee_kcal: float,
+    training_carbs_g: float,
+    training_calorie_demand_kcal: float,
+    carb_mode: CarbMode,
+    training_before_meal: MealName | None,
+    training_load_tomorrow: TrainingLoadTomorrow,
+    protein_g: float,
+    carbs_g: float,
+    fat_g: float,
+) -> MealAssemblyResult:
+    """Return canonical response payload plus non-fatal assembly warnings."""
+    normal_meal_calorie_pool_kcal = calculate_normal_meal_calorie_pool_kcal(
+        tdee_kcal=tdee_kcal,
+        training_calorie_demand_kcal=training_calorie_demand_kcal,
+        training_carbs_g=training_carbs_g,
+    )
+
+    protein_g_by_meal = _allocate_total_by_canonical_meal_shares(total=protein_g)
+    kcal_by_meal = _allocate_total_by_canonical_meal_shares(total=normal_meal_calorie_pool_kcal)
+    carbs_strategy_by_meal = _carbs_strategy_by_meal(
+        carb_mode=carb_mode,
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=training_load_tomorrow,
+    )
+
+    warnings: list[str] = []
     meal_allocations = [
-        MealAllocation(
+        _allocation_from_meal_budget(
             meal=meal,
-            carbs_g=carb_allocation_g_by_meal[meal],
-            protein_g=per_meal_protein_g,
-            fat_g=per_meal_fat_g,
+            kcal_budget=kcal_by_meal[meal],
+            protein_g=protein_g_by_meal[meal],
+            carbs_strategy=carbs_strategy_by_meal[meal],
+            warnings=warnings,
         )
         for meal in CANONICAL_MEAL_ORDER
     ]
     validate_meal_allocation_invariants(meal_allocations)
 
     meals: list[MealPayloadRow] = [
-        _serialize_meal_row_with_kcal(allocation)
+        _serialize_meal_row_with_kcal(
+            allocation,
+            carbs_strategy=carbs_strategy_by_meal[allocation.meal],
+        )
         for allocation in meal_allocations
     ]
+    final_protein_g = sum(float(meal.protein_g) for meal in meal_allocations)
     _reconcile_rounded_meal_totals(
         meals=meals,
-        carbs_g=carbs_g,
-        protein_g=protein_g,
-        fat_g=fat_g,
+        protein_g=final_protein_g,
+        carbs_g=sum(float(meal.carbs_g) for meal in meal_allocations),
+        fat_g=sum(float(meal.fat_g) for meal in meal_allocations),
+    )
+    _assign_displayed_meal_kcal_shares(
+        meals=meals,
+        normal_meal_calorie_pool_kcal=normal_meal_calorie_pool_kcal,
     )
     _insert_training_meal_if_needed(
         meals=meals,
         training_carbs_g=training_carbs_g,
         training_before_meal=training_before_meal,
     )
-    _recalculate_meal_kcal_from_macros(meals=meals)
-    _reconcile_displayed_meal_kcal_to_total_day_kcal(
-        meals=meals,
-        tdee_kcal=tdee_kcal,
-        training_calorie_demand_kcal=training_calorie_demand_kcal,
-    )
+    response_carbs_g = round(sum(float(meal["carbs_g"]) for meal in meals), 2)
+    response_fat_g = round(sum(float(meal["fat_g"]) for meal in meals), 2)
     total_kcal = round(sum(float(meal["kcal"]) for meal in meals), 2)
 
-    return _assemble_meal_split_response_payload(
+    payload = _assemble_meal_split_response_payload(
         tdee_kcal=tdee_kcal,
         training_carbs_g=training_carbs_g,
-        protein_g=protein_g,
-        carbs_g=carbs_g,
-        fat_g=fat_g,
+        protein_g=round(sum(float(meal["protein_g"]) for meal in meals), 2),
+        carbs_g=response_carbs_g,
+        fat_g=response_fat_g,
         total_kcal=total_kcal,
         meals=meals,
     )
+    return {"payload": payload, "warnings": tuple(warnings)}
 
 
 def _insert_training_meal_if_needed(
@@ -192,6 +259,7 @@ def _insert_training_meal_if_needed(
 
     training_meal: MealPayloadRow = {
         "meal": "training",
+        "carbs_strategy": CarbStrategy.HIGH,
         "carbs_g": training_carbs_g,
         "protein_g": 0.0,
         "fat_g": 0.0,
@@ -230,12 +298,17 @@ def _assemble_meal_split_response_payload(
     }
 
 
-def _serialize_meal_row_with_kcal(allocation: MealAllocation) -> MealPayloadRow:
+def _serialize_meal_row_with_kcal(
+    allocation: MealAllocation,
+    *,
+    carbs_strategy: CarbStrategy,
+) -> MealPayloadRow:
     carbs_g = round(allocation.carbs_g, 2)
     protein_g = round(allocation.protein_g, 2)
     fat_g = round(allocation.fat_g, 2)
     return {
         "meal": allocation.meal,
+        "carbs_strategy": carbs_strategy,
         "carbs_g": carbs_g,
         "protein_g": protein_g,
         "fat_g": fat_g,
@@ -243,28 +316,55 @@ def _serialize_meal_row_with_kcal(allocation: MealAllocation) -> MealPayloadRow:
     }
 
 
-def _recalculate_meal_kcal_from_macros(*, meals: list[MealPayloadRow]) -> None:
-    for meal in meals:
-        meal["kcal"] = _kcal_from_macros(
-            carbs_g=float(meal["carbs_g"]),
-            protein_g=float(meal["protein_g"]),
-            fat_g=float(meal["fat_g"]),
+def _allocation_from_meal_budget(
+    *,
+    meal: MealName,
+    kcal_budget: float,
+    protein_g: float,
+    carbs_strategy: CarbStrategy,
+    warnings: list[str],
+) -> MealAllocation:
+    allocated_protein_g = protein_g
+    protein_kcal = allocated_protein_g * 4.0
+    remaining_kcal = kcal_budget - protein_kcal
+    if remaining_kcal < 0.0:
+        allocated_protein_g = kcal_budget / 4.0
+        warnings.append(
+            "meal_assembly.protein_reduction: "
+            f"reduced {meal.value} protein from {protein_g:.2f}g to {allocated_protein_g:.2f}g "
+            f"to fit {kcal_budget:.2f} kcal budget"
         )
+        protein_kcal = allocated_protein_g * 4.0
+        remaining_kcal = max(kcal_budget - protein_kcal, 0.0)
+    carb_calorie_share = CARB_CALORIE_SHARE_BY_STRATEGY[carbs_strategy]
+    carbs_g = (remaining_kcal * carb_calorie_share) / 4.0
+    fat_g = (remaining_kcal * (1.0 - carb_calorie_share)) / 9.0
+    return MealAllocation(
+        meal=meal,
+        carbs_g=carbs_g,
+        protein_g=allocated_protein_g,
+        fat_g=fat_g,
+    )
 
 
 def _kcal_from_macros(*, carbs_g: float, protein_g: float, fat_g: float) -> float:
     return round((carbs_g * 4.0) + (protein_g * 4.0) + (fat_g * 9.0), 2)
 
 
-def _reconcile_displayed_meal_kcal_to_total_day_kcal(
+def _assign_displayed_meal_kcal_shares(
     *,
     meals: list[MealPayloadRow],
-    tdee_kcal: float,
-    training_calorie_demand_kcal: float,
+    normal_meal_calorie_pool_kcal: float,
 ) -> None:
-    total_day_kcal_target = round(tdee_kcal + training_calorie_demand_kcal, 2)
+    kcal_by_meal = _allocate_total_by_canonical_meal_shares(total=normal_meal_calorie_pool_kcal)
+    for meal in meals:
+        meal_name = meal["meal"]
+        if meal_name == "training":
+            continue
+        meal["kcal"] = round(kcal_by_meal[cast(MealName, meal_name)], 2)
+
     displayed_meal_kcal_total = round(sum(float(meal["kcal"]) for meal in meals), 2)
-    residual = round(total_day_kcal_target - displayed_meal_kcal_total, 2)
+    residual = round(normal_meal_calorie_pool_kcal - displayed_meal_kcal_total, 2)
     if residual == 0.0:
         return
 
@@ -311,40 +411,67 @@ def _get_evening_snack_meal(*, meals: list[MealPayloadRow]) -> MealPayloadRow:
     raise DomainRuleError("meal_assembly.reconciliation: missing evening-snack meal")
 
 
-def _validate_carb_allocation_keys(
-    *,
-    carb_allocation_g_by_meal: Mapping[MealName, float],
-) -> None:
-    canonical_meal_set = set(CANONICAL_MEAL_ORDER)
-    provided_meal_set = set(carb_allocation_g_by_meal.keys())
-    if provided_meal_set == canonical_meal_set:
-        return
-
-    missing_meals = [
-        canonical_meal.value
-        for canonical_meal in CANONICAL_MEAL_ORDER
-        if canonical_meal not in provided_meal_set
-    ]
-    extra_meals = sorted(
-        _meal_key_label(meal_key)
-        for meal_key in provided_meal_set
-        if meal_key not in canonical_meal_set
-    )
-    raise DomainRuleError(
-        "meal_assembly.carb_allocation: "
-        f"missing={missing_meals}, extra={extra_meals}"
-    )
-
-
-def _meal_key_label(meal_key: object) -> str:
-    if isinstance(meal_key, MealName):
-        return meal_key.value
-    return repr(meal_key)
+def _allocate_total_by_canonical_meal_shares(*, total: float) -> dict[MealName, float]:
+    return {
+        meal: total * (share_units / float(CANONICAL_MEAL_SHARE_TOTAL))
+        for meal, share_units in zip(CANONICAL_MEAL_ORDER, CANONICAL_MEAL_SHARE_UNITS, strict=True)
+    }
 
 
 def _equal_split_allocation(*, daily_carbs_g: float) -> dict[MealName, float]:
     per_meal_carbs_g = daily_carbs_g / float(len(CANONICAL_MEAL_ORDER))
     return dict.fromkeys(CANONICAL_MEAL_ORDER, per_meal_carbs_g)
+
+
+def _baseline_carb_strategy_by_meal(*, carb_mode: CarbMode) -> dict[MealName, CarbStrategy]:
+    strategy = CarbStrategy.MEDIUM if carb_mode is CarbMode.NORMAL else CarbStrategy.LOW
+    return dict.fromkeys(CANONICAL_MEAL_ORDER, strategy)
+
+
+def _carbs_strategy_by_meal(
+    *,
+    carb_mode: CarbMode,
+    training_before_meal: MealName | None,
+    training_load_tomorrow: TrainingLoadTomorrow,
+) -> dict[MealName, CarbStrategy]:
+    strategy_by_meal = _baseline_carb_strategy_by_meal(carb_mode=carb_mode)
+    if carb_mode is not CarbMode.PERIODIZED or training_before_meal is None:
+        if carb_mode is CarbMode.PERIODIZED and training_load_tomorrow is TrainingLoadTomorrow.HIGH:
+            strategy_by_meal[MealName.DINNER] = CarbStrategy.HIGH
+        return strategy_by_meal
+
+    high_meals = _periodized_strategy_high_meals(
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=training_load_tomorrow,
+    )
+    for meal in high_meals:
+        strategy_by_meal[meal] = CarbStrategy.HIGH
+
+    return strategy_by_meal
+
+
+def _periodized_strategy_high_meals(
+    *,
+    training_before_meal: MealName,
+    training_load_tomorrow: TrainingLoadTomorrow,
+) -> set[MealName]:
+    high_meals = {training_before_meal}
+    next_high_meal = _next_periodized_high_meal(training_before_meal=training_before_meal)
+    if next_high_meal is not None:
+        high_meals.add(next_high_meal)
+
+    if training_load_tomorrow is TrainingLoadTomorrow.HIGH:
+        high_meals.add(MealName.DINNER)
+
+    return high_meals
+
+
+def _next_periodized_high_meal(*, training_before_meal: MealName) -> MealName | None:
+    if training_before_meal in {MealName.DINNER, MealName.EVENING_SNACK}:
+        return None
+
+    current_meal_idx = CANONICAL_MEAL_ORDER.index(training_before_meal)
+    return CANONICAL_MEAL_ORDER[current_meal_idx + 1]
 
 
 def _post_training_high_meals(*, training_before_meal: MealName) -> set[MealName]:

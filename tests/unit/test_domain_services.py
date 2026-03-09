@@ -9,8 +9,19 @@ from typing import cast
 import pytest
 
 from mealplan.application.contracts import MealPlanResponse
-from mealplan.domain import calculate_training_calorie_demand_kcal, calculate_training_carbs_g
-from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, MealName, TrainingLoadTomorrow
+from mealplan.domain import (
+    calculate_normal_meal_calorie_pool_kcal,
+    calculate_training_calorie_demand_kcal,
+    calculate_training_carbs_g,
+)
+from mealplan.domain.enums import (
+    ActivityLevel,
+    CarbMode,
+    CarbStrategy,
+    Gender,
+    MealName,
+    TrainingLoadTomorrow,
+)
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.domain.services import (
     CARB_RECONCILIATION_TOLERANCE,
@@ -19,6 +30,7 @@ from mealplan.domain.services import (
     _validate_carb_reconciliation,
     calculate_macro_targets,
     calculate_meal_split_and_response_payload,
+    calculate_meal_split_and_response_payload_with_warnings,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
 )
@@ -100,6 +112,18 @@ def test_calculate_training_calorie_demand_kcal_counts_all_zone_minutes() -> Non
     zones_minutes: Mapping[int, int] = {1: 30, 2: 0, 3: 0, 4: 0, 5: 0}
 
     assert calculate_training_calorie_demand_kcal(zones_minutes) == 120.0
+
+
+def test_calculate_normal_meal_calorie_pool_kcal_subtracts_training_supply_from_day_energy(
+) -> None:
+    assert (
+        calculate_normal_meal_calorie_pool_kcal(
+            tdee_kcal=2310.0,
+            training_calorie_demand_kcal=320.0,
+            training_carbs_g=80.0,
+        )
+        == 2310.0
+    )
 
 
 @pytest.mark.parametrize(
@@ -193,30 +217,24 @@ def test_calculate_meal_split_and_response_payload_has_stable_orchestration_sign
 
     assert str(signature) == (
         "(tdee_kcal: 'float', training_carbs_g: 'float', training_calorie_demand_kcal: 'float', "
+        "carb_mode: 'CarbMode', "
         "training_before_meal: 'MealName | None', "
-        "protein_g: 'float', carbs_g: 'float', fat_g: 'float', "
-        "carb_allocation_g_by_meal: 'Mapping[MealName, float]') -> 'dict[str, object]'"
+        "training_load_tomorrow: 'TrainingLoadTomorrow', "
+        "protein_g: 'float', carbs_g: 'float', fat_g: 'float') -> 'dict[str, object]'"
     )
 
 
 def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_target() -> None:
-    carb_allocation_g_by_meal = dict(
-        zip(
-            CANONICAL_MEAL_ORDER,
-            [70.0, 30.0, 90.0, 40.0, 60.0, 10.0],
-            strict=True,
-        )
-    )
-
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2908.0,
         training_carbs_g=85.0,
         training_calorie_demand_kcal=340.0,
+        carb_mode=CarbMode.NORMAL,
         training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
-        carb_allocation_g_by_meal=carb_allocation_g_by_meal,
     )
 
     assert list(payload.keys()) == [
@@ -231,8 +249,8 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
     assert payload["TDEE"] == 2908.0
     assert payload["training_carbs_g"] == 85.0
     assert payload["protein_g"] == 180.0
-    assert payload["carbs_g"] == 300.0
-    assert payload["fat_g"] == 72.0
+    assert payload["carbs_g"] == 449.67
+    assert payload["fat_g"] == 81.04
     assert payload["total_kcal"] == 3248.0
 
     meals = payload["meals"]
@@ -250,22 +268,35 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
     ]
     assert meals[2] == {
         "meal": "training",
+        "carbs_strategy": CarbStrategy.HIGH,
         "carbs_g": 85.0,
         "protein_g": 0.0,
         "fat_g": 0.0,
         "kcal": 340.0,
     }
     canonical_meals = [entry for entry in meals if entry["meal"] != "training"]
-    assert [entry["carbs_g"] for entry in canonical_meals] == [70.0, 30.0, 90.0, 40.0, 60.0, 10.0]
-    assert [entry["protein_g"] for entry in canonical_meals] == [30.0] * len(CANONICAL_MEAL_ORDER)
-    assert [entry["fat_g"] for entry in canonical_meals] == [12.0] * len(CANONICAL_MEAL_ORDER)
+    assert [entry["carbs_strategy"] for entry in canonical_meals] == [CarbStrategy.MEDIUM] * 6
+    assert [entry["carbs_g"] for entry in canonical_meals] == [
+        81.04,
+        40.52,
+        81.04,
+        40.52,
+        81.04,
+        40.51,
+    ]
+    assert [entry["protein_g"] for entry in canonical_meals] == [40.0, 20.0, 40.0, 20.0, 40.0, 20.0]
+    assert round(sum(float(entry["kcal"]) for entry in canonical_meals), 2) == 2908.0
+    assert payload["total_kcal"] == pytest.approx(
+        2908.0 + calculate_training_calorie_demand_kcal({1: 0, 2: 85, 3: 0, 4: 0, 5: 0}),
+    )
+    assert [entry["fat_g"] for entry in canonical_meals] == [18.01, 9.0, 18.01, 9.0, 18.01, 9.01]
     assert [entry["kcal"] for entry in canonical_meals] == [
-        508.0,
-        348.0,
-        588.0,
-        388.0,
-        468.0,
-        608.0,
+        646.22,
+        323.11,
+        646.22,
+        323.11,
+        646.22,
+        323.12,
     ]
 
 
@@ -277,11 +308,12 @@ def test_calculate_meal_split_and_response_payload_deterministically_inserts_bef
         tdee_kcal=2400.0,
         training_carbs_g=60.0,
         training_calorie_demand_kcal=240.0,
+        carb_mode=CarbMode.LOW,
         training_before_meal=training_before_meal,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
-        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
     )
 
     meals = payload["meals"]
@@ -298,7 +330,14 @@ def test_calculate_meal_split_and_response_payload_deterministically_inserts_bef
 
 def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meals() -> None:
     meals = [
-        {"meal": meal, "carbs_g": 10.0, "protein_g": 20.0, "fat_g": 5.0, "kcal": 165.0}
+        {
+            "meal": meal,
+            "carbs_strategy": CarbStrategy.LOW,
+            "carbs_g": 10.0,
+            "protein_g": 20.0,
+            "fat_g": 5.0,
+            "kcal": 165.0,
+        }
         for meal in CANONICAL_MEAL_ORDER
     ]
 
@@ -335,11 +374,12 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
         tdee_kcal=2400.0,
         training_carbs_g=85.0,
         training_calorie_demand_kcal=340.0,
+        carb_mode=CarbMode.LOW,
         training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
-        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
     )
 
     parsed = MealPlanResponse.model_validate(payload)
@@ -347,115 +387,128 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
     assert parsed.TDEE == 2400.0
     assert parsed.training_carbs_g == 85.0
     assert parsed.protein_g == 180.0
-    assert parsed.carbs_g == 300.0
-    assert parsed.fat_g == 72.0
+    assert parsed.carbs_g == pytest.approx(
+        sum(float(meal.carbs_g) for meal in parsed.meals),
+        abs=MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE,
+    )
+    assert parsed.fat_g == pytest.approx(
+        sum(float(meal.fat_g) for meal in parsed.meals),
+        abs=MEAL_ASSEMBLY_RECONCILIATION_TOLERANCE,
+    )
     assert len(parsed.meals) == len(CANONICAL_MEAL_ORDER) + 1
     training_meal = next(meal for meal in parsed.meals if meal.meal == "training")
+    assert training_meal.carbs_strategy == CarbStrategy.HIGH
     assert training_meal.carbs_g == 85.0
     assert training_meal.protein_g == 0.0
     assert training_meal.fat_g == 0.0
     assert training_meal.kcal == 340.0
 
 
-def test_calculate_meal_split_and_response_payload_splits_protein_and_fat_equally() -> None:
+def test_calculate_meal_split_and_response_payload_uses_canonical_protein_and_kcal_shares() -> None:
     protein_g = 145.0
     fat_g = 73.0
-    expected_per_meal_protein_g = round(protein_g / float(len(CANONICAL_MEAL_ORDER)), 2)
-    expected_per_meal_fat_g = round(fat_g / float(len(CANONICAL_MEAL_ORDER)), 2)
+    expected_protein_g = [32.22, 16.11, 32.22, 16.11, 32.22, 16.12]
+    expected_carbs_g = [25.79, 12.9, 25.79, 12.9, 25.79, 12.89]
+    expected_fat_g = [34.39, 17.19, 34.39, 17.19, 34.39, 17.2]
+    expected_kcal = [541.56, 270.78, 541.56, 270.78, 541.56, 270.76]
 
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2437.0,
         training_carbs_g=0.0,
         training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.LOW,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=protein_g,
         carbs_g=300.0,
         fat_g=fat_g,
-        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
     )
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert [entry["protein_g"] for entry in meals[:-1]] == [expected_per_meal_protein_g] * 5
-    assert [entry["fat_g"] for entry in meals[:-1]] == [expected_per_meal_fat_g] * 5
-    assert meals[-1]["protein_g"] == 24.15
-    assert meals[-1]["fat_g"] == 12.15
-    assert meals[-1]["kcal"] == 405.95
+    assert [entry["carbs_strategy"] for entry in meals] == [CarbStrategy.LOW] * 6
+    assert [entry["protein_g"] for entry in meals] == expected_protein_g
+    assert [entry["carbs_g"] for entry in meals] == expected_carbs_g
+    assert [entry["fat_g"] for entry in meals] == expected_fat_g
+    assert [entry["kcal"] for entry in meals] == expected_kcal
     assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(protein_g)
-    assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(fat_g)
-    for meal in meals:
-        assert meal["kcal"] == round(
-            (float(meal["carbs_g"]) * 4.0)
-            + (float(meal["protein_g"]) * 4.0)
-            + (float(meal["fat_g"]) * 9.0),
-            2,
-        )
+    assert sum(float(entry["carbs_g"]) for entry in meals) == pytest.approx(payload["carbs_g"])
+    assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(payload["fat_g"])
+
+
+def test_calculate_meal_split_and_response_payload_uses_2_1_2_1_2_1_shares_for_kcal_and_protein(
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=900.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.NORMAL,
+        training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+        protein_g=90.0,
+        carbs_g=180.0,
+        fat_g=40.0,
+    )
+
+    meals = cast(list[dict[str, object]], payload["meals"])
+
+    assert [entry["meal"] for entry in meals] == list(CANONICAL_MEAL_ORDER)
+    assert [entry["kcal"] for entry in meals] == [200.0, 100.0, 200.0, 100.0, 200.0, 100.0]
+    assert [entry["protein_g"] for entry in meals] == [20.0, 10.0, 20.0, 10.0, 20.0, 10.0]
 
 
 def test_meal_split_rounds_meal_macro_fields_to_two_decimals_at_boundary() -> None:
     protein_g = 100.0
     fat_g = 50.0
-    expected_per_meal_protein_g = protein_g / float(len(CANONICAL_MEAL_ORDER))
-    expected_per_meal_fat_g = fat_g / float(len(CANONICAL_MEAL_ORDER))
-    carb_allocation_g_by_meal = dict(
-        zip(
-            CANONICAL_MEAL_ORDER,
-            [20.001, 30.004, 40.005, 50.006, 60.444, 39.54],
-            strict=True,
-        )
-    )
-
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2100.0,
         training_carbs_g=0.0,
         training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.NORMAL,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=protein_g,
         carbs_g=240.0,
         fat_g=fat_g,
-        carb_allocation_g_by_meal=carb_allocation_g_by_meal,
     )
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert [entry["protein_g"] for entry in meals[:-1]] == [
-        round(expected_per_meal_protein_g, 2)
-    ] * 5
-    assert [entry["fat_g"] for entry in meals[:-1]] == [round(expected_per_meal_fat_g, 2)] * 5
-    assert meals[-1]["protein_g"] == 16.65
-    assert meals[-1]["fat_g"] == 8.35
-    assert [entry["carbs_g"] for entry in meals] == [20.0, 30.0, 40.01, 50.01, 60.44, 39.54]
+    assert [entry["carbs_strategy"] for entry in meals] == [CarbStrategy.MEDIUM] * 6
+    assert [entry["protein_g"] for entry in meals] == [22.22, 11.11, 22.22, 11.11, 22.22, 11.12]
+    assert [entry["carbs_g"] for entry in meals] == [62.96, 31.48, 62.96, 31.48, 62.96, 31.49]
+    assert [entry["fat_g"] for entry in meals] == [13.99, 7.0, 13.99, 7.0, 13.99, 6.99]
     assert payload["protein_g"] == protein_g
-    assert payload["carbs_g"] == 240.0
-    assert payload["fat_g"] == fat_g
+    assert payload["carbs_g"] == 283.33
+    assert payload["fat_g"] == 62.96
 
 
 def test_meal_split_applies_residual_adjustment_to_evening_snack_only() -> None:
-    carb_allocation_g_by_meal = dict.fromkeys(CANONICAL_MEAL_ORDER, 10.005)
-
     payload = calculate_meal_split_and_response_payload(
         tdee_kcal=2200.0,
         training_carbs_g=0.0,
         training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.PERIODIZED,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=100.0,
         carbs_g=60.03,
         fat_g=10.0,
-        carb_allocation_g_by_meal=carb_allocation_g_by_meal,
     )
 
     meals = payload["meals"]
     assert isinstance(meals, list)
+    assert [entry["carbs_strategy"] for entry in meals] == [CarbStrategy.LOW] * 6
 
-    assert [entry["carbs_g"] for entry in meals[:-1]] == [10.01, 10.01, 10.01, 10.01, 10.01]
-    assert [entry["protein_g"] for entry in meals[:-1]] == [16.67, 16.67, 16.67, 16.67, 16.67]
-    assert [entry["fat_g"] for entry in meals[:-1]] == [1.67, 1.67, 1.67, 1.67, 1.67]
+    assert [entry["carbs_g"] for entry in meals[:-1]] == [25.0, 12.5, 25.0, 12.5, 25.0]
+    assert [entry["protein_g"] for entry in meals[:-1]] == [22.22, 11.11, 22.22, 11.11, 22.22]
+    assert [entry["fat_g"] for entry in meals[:-1]] == [33.33, 16.67, 33.33, 16.67, 33.33]
 
     evening_snack = meals[-1]
     assert evening_snack["meal"] == MealName.EVENING_SNACK
-    assert evening_snack["carbs_g"] == 9.98
-    assert evening_snack["protein_g"] == 16.65
-    assert evening_snack["fat_g"] == 1.65
+    assert evening_snack["carbs_g"] == 12.5
+    assert evening_snack["protein_g"] == 11.12
+    assert evening_snack["fat_g"] == 16.67
 
     assert sum(float(entry["carbs_g"]) for entry in meals) == pytest.approx(payload["carbs_g"])
     assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(payload["protein_g"])
@@ -467,19 +520,21 @@ def test_meal_split_keeps_evening_snack_unchanged_when_rounded_sums_match_target
         tdee_kcal=2200.0,
         training_carbs_g=0.0,
         training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.NORMAL,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=120.0,
         carbs_g=60.0,
         fat_g=30.0,
-        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 10.0),
     )
 
     meals = payload["meals"]
     assert isinstance(meals, list)
     assert meals[-1]["meal"] == MealName.EVENING_SNACK
-    assert meals[-1]["carbs_g"] == 10.0
-    assert meals[-1]["protein_g"] == 20.0
-    assert meals[-1]["fat_g"] == 5.0
+    assert [entry["carbs_strategy"] for entry in meals] == [CarbStrategy.MEDIUM] * 6
+    assert meals[-1]["carbs_g"] == 31.87
+    assert meals[-1]["protein_g"] == 13.33
+    assert meals[-1]["fat_g"] == 7.06
     assert sum(float(entry["carbs_g"]) for entry in meals) == pytest.approx(payload["carbs_g"])
     assert sum(float(entry["protein_g"]) for entry in meals) == pytest.approx(payload["protein_g"])
     assert sum(float(entry["fat_g"]) for entry in meals) == pytest.approx(payload["fat_g"])
@@ -490,21 +545,23 @@ def test_meal_split_reconciles_displayed_kcal_sum_to_tdee_on_evening_snack_only(
         tdee_kcal=990.03,
         training_carbs_g=0.0,
         training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.NORMAL,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=120.0,
         carbs_g=60.0,
         fat_g=30.0,
-        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 10.0),
     )
 
     meals = payload["meals"]
     assert isinstance(meals, list)
-    assert [entry["kcal"] for entry in meals[:-1]] == [165.0, 165.0, 165.0, 165.0, 165.0]
+    assert [entry["kcal"] for entry in meals[:-1]] == [220.01, 110.0, 220.01, 110.0, 220.01]
     assert meals[-1]["meal"] == MealName.EVENING_SNACK
-    assert meals[-1]["carbs_g"] == 10.0
-    assert meals[-1]["protein_g"] == 20.0
-    assert meals[-1]["fat_g"] == 5.0
-    assert meals[-1]["kcal"] == 165.03
+    assert [entry["carbs_strategy"] for entry in meals] == [CarbStrategy.MEDIUM] * 6
+    assert meals[-1]["carbs_g"] == 9.43
+    assert meals[-1]["protein_g"] == 13.33
+    assert meals[-1]["fat_g"] == 2.09
+    assert meals[-1]["kcal"] == 110.0
     assert sum(float(entry["kcal"]) for entry in meals) == pytest.approx(payload["TDEE"])
 
 
@@ -513,11 +570,12 @@ def test_meal_split_kcal_reconciliation_is_display_only_with_training_meal() -> 
         tdee_kcal=1230.03,
         training_carbs_g=60.0,
         training_calorie_demand_kcal=240.0,
+        carb_mode=CarbMode.PERIODIZED,
         training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=120.0,
         carbs_g=60.0,
         fat_g=30.0,
-        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 10.0),
     )
 
     meals = payload["meals"]
@@ -525,26 +583,34 @@ def test_meal_split_kcal_reconciliation_is_display_only_with_training_meal() -> 
     assert [entry["meal"] for entry in meals].count("training") == 1
 
     training_meal = next(entry for entry in meals if entry["meal"] == "training")
+    assert training_meal["carbs_strategy"] == CarbStrategy.HIGH
     assert training_meal["carbs_g"] == 60.0
     assert training_meal["protein_g"] == 0.0
     assert training_meal["fat_g"] == 0.0
     assert training_meal["kcal"] == 240.0
 
     evening_snack = next(entry for entry in meals if entry["meal"] == MealName.EVENING_SNACK)
-    assert evening_snack["carbs_g"] == 10.0
-    assert evening_snack["protein_g"] == 20.0
-    assert evening_snack["fat_g"] == 5.0
-    assert evening_snack["kcal"] == 405.03
+    assert [entry["carbs_strategy"] for entry in meals if entry["meal"] != "training"] == [
+        CarbStrategy.LOW,
+        CarbStrategy.LOW,
+        CarbStrategy.HIGH,
+        CarbStrategy.HIGH,
+        CarbStrategy.LOW,
+        CarbStrategy.LOW,
+    ]
+    assert evening_snack["carbs_g"] == 5.2
+    assert evening_snack["protein_g"] == 13.33
+    assert evening_snack["fat_g"] == 6.95
+    assert evening_snack["kcal"] == 136.67
 
-    for entry in meals:
-        if entry["meal"] is MealName.EVENING_SNACK:
-            continue
-        assert entry["kcal"] == round(
-            (float(entry["carbs_g"]) * 4.0)
-            + (float(entry["protein_g"]) * 4.0)
-            + (float(entry["fat_g"]) * 9.0),
-            2,
-        )
+    assert [entry["kcal"] for entry in meals if entry["meal"] != "training"] == [
+        273.34,
+        136.67,
+        273.34,
+        136.67,
+        273.34,
+        136.67,
+    ]
     assert sum(float(entry["kcal"]) for entry in meals) == pytest.approx(
         payload["TDEE"] + 240.0
     )
@@ -555,11 +621,12 @@ def test_meal_split_allows_subcent_target_delta_within_reconciliation_tolerance(
         tdee_kcal=2200.0,
         training_carbs_g=0.0,
         training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.LOW,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=100.0,
         carbs_g=60.035,
         fat_g=10.0,
-        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 10.005),
     )
 
     meals = payload["meals"]
@@ -572,11 +639,12 @@ def test_calculate_meal_split_and_response_payload_omits_training_meal_when_zero
         tdee_kcal=2400.0,
         training_carbs_g=0.0,
         training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.LOW,
         training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
         protein_g=180.0,
         carbs_g=300.0,
         fat_g=72.0,
-        carb_allocation_g_by_meal=dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
     )
 
     meals = payload["meals"]
@@ -584,48 +652,162 @@ def test_calculate_meal_split_and_response_payload_omits_training_meal_when_zero
     assert [entry["meal"] for entry in meals] == list(CANONICAL_MEAL_ORDER)
 
 
-def test_meal_split_raises_for_missing_carb_allocation_meals() -> None:
-    incomplete_carb_allocation = dict(
-        zip(
-            CANONICAL_MEAL_ORDER[:-1],
-            [50.0, 50.0, 50.0, 50.0, 50.0],
-            strict=True,
-        )
+@pytest.mark.parametrize(
+    ("carb_mode", "expected_strategy"),
+    [
+        (CarbMode.NORMAL, CarbStrategy.MEDIUM),
+        (CarbMode.LOW, CarbStrategy.LOW),
+        (CarbMode.PERIODIZED, CarbStrategy.LOW),
+    ],
+)
+def test_calculate_meal_split_and_response_payload_assigns_baseline_carb_strategy_by_mode(
+    carb_mode: CarbMode,
+    expected_strategy: CarbStrategy,
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=carb_mode,
+        training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
     )
 
-    with pytest.raises(DomainRuleError, match=r"^meal_assembly\.carb_allocation:"):
-        calculate_meal_split_and_response_payload(
-            tdee_kcal=2400.0,
-            training_carbs_g=70.0,
-            training_calorie_demand_kcal=280.0,
-            training_before_meal=MealName.LUNCH,
-            protein_g=180.0,
-            carbs_g=300.0,
-            fat_g=70.0,
-            carb_allocation_g_by_meal=incomplete_carb_allocation,
-        )
+    meals = payload["meals"]
+    assert isinstance(meals, list)
+    assert [entry["carbs_strategy"] for entry in meals] == [expected_strategy] * 6
 
 
-def test_meal_split_raises_for_extra_carb_allocation_meals() -> None:
-    carb_allocation_with_extra_key = cast(
-        Mapping[MealName, float],
-        {
-            **dict.fromkeys(CANONICAL_MEAL_ORDER, 50.0),
-            "late-night": 0.0,
-        },
+def test_calculate_meal_split_and_response_payload_marks_two_post_training_periodized_meals_high(
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.PERIODIZED,
+        training_before_meal=MealName.LUNCH,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
     )
 
-    with pytest.raises(DomainRuleError, match=r"^meal_assembly\.carb_allocation:"):
-        calculate_meal_split_and_response_payload(
-            tdee_kcal=2400.0,
-            training_carbs_g=70.0,
-            training_calorie_demand_kcal=280.0,
-            training_before_meal=MealName.LUNCH,
-            protein_g=180.0,
-            carbs_g=300.0,
-            fat_g=70.0,
-            carb_allocation_g_by_meal=carb_allocation_with_extra_key,
-        )
+    meals = cast(list[dict[str, object]], payload["meals"])
+    assert [entry["carbs_strategy"] for entry in meals] == [
+        CarbStrategy.LOW,
+        CarbStrategy.LOW,
+        CarbStrategy.HIGH,
+        CarbStrategy.HIGH,
+        CarbStrategy.LOW,
+        CarbStrategy.LOW,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("training_before_meal", "expected_high_meals"),
+    [
+        (MealName.DINNER, {MealName.DINNER}),
+        (MealName.EVENING_SNACK, {MealName.EVENING_SNACK}),
+    ],
+)
+def test_calculate_meal_split_and_response_payload_periodized_does_not_wrap_high_strategy(
+    training_before_meal: MealName,
+    expected_high_meals: set[MealName],
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.PERIODIZED,
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
+    )
+
+    meals = cast(list[dict[str, object]], payload["meals"])
+    high_meals = {
+        cast(MealName, entry["meal"])
+        for entry in meals
+        if entry["carbs_strategy"] is CarbStrategy.HIGH
+    }
+    assert high_meals == expected_high_meals
+
+
+@pytest.mark.parametrize(
+    ("training_before_meal", "expected_high_meals"),
+    [
+        (MealName.DINNER, {MealName.DINNER}),
+        (MealName.EVENING_SNACK, {MealName.DINNER, MealName.EVENING_SNACK}),
+    ],
+)
+def test_calculate_meal_split_and_response_payload_periodized_tomorrow_high_forces_dinner(
+    training_before_meal: MealName,
+    expected_high_meals: set[MealName],
+) -> None:
+    payload = calculate_meal_split_and_response_payload(
+        tdee_kcal=2400.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.PERIODIZED,
+        training_before_meal=training_before_meal,
+        training_load_tomorrow=TrainingLoadTomorrow.HIGH,
+        protein_g=180.0,
+        carbs_g=300.0,
+        fat_g=72.0,
+    )
+
+    meals = cast(list[dict[str, object]], payload["meals"])
+    high_meals = {
+        cast(MealName, entry["meal"])
+        for entry in meals
+        if entry["carbs_strategy"] is CarbStrategy.HIGH
+    }
+    assert high_meals == expected_high_meals
+
+
+def test_meal_split_reduces_protein_when_meal_budget_cannot_fit_assigned_protein() -> None:
+    expected_warnings = (
+        "meal_assembly.protein_reduction: reduced breakfast protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget",
+        "meal_assembly.protein_reduction: reduced morning-snack protein from 20.00g to 16.67g "
+        "to fit 66.67 kcal budget",
+        "meal_assembly.protein_reduction: reduced lunch protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget",
+        "meal_assembly.protein_reduction: reduced afternoon-snack protein from 20.00g to 16.67g "
+        "to fit 66.67 kcal budget",
+        "meal_assembly.protein_reduction: reduced dinner protein from 40.00g to 33.33g "
+        "to fit 133.33 kcal budget",
+        "meal_assembly.protein_reduction: reduced evening-snack protein from 20.00g to 16.67g "
+        "to fit 66.67 kcal budget",
+    )
+
+    assembly_result = calculate_meal_split_and_response_payload_with_warnings(
+        tdee_kcal=600.0,
+        training_carbs_g=0.0,
+        training_calorie_demand_kcal=0.0,
+        carb_mode=CarbMode.NORMAL,
+        training_before_meal=None,
+        training_load_tomorrow=TrainingLoadTomorrow.MEDIUM,
+        protein_g=180.0,
+        carbs_g=200.0,
+        fat_g=40.0,
+    )
+
+    payload = assembly_result["payload"]
+    meals = cast(list[dict[str, object]], payload["meals"])
+
+    assert payload["protein_g"] == 150.0
+    assert payload["carbs_g"] == 0.0
+    assert payload["fat_g"] == 0.0
+    assert [entry["protein_g"] for entry in meals] == [33.33, 16.67, 33.33, 16.67, 33.33, 16.67]
+    assert [entry["carbs_g"] for entry in meals] == [0.0] * 6
+    assert [entry["fat_g"] for entry in meals] == [0.0] * 6
+    assert assembly_result["warnings"] == expected_warnings
 
 
 def test_calculate_periodized_carb_allocation_marks_two_post_training_meals_high() -> None:

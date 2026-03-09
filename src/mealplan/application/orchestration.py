@@ -8,14 +8,14 @@ from typing import cast
 from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
 from mealplan.application.parsing import parse_contract
 from mealplan.application.validation import normalize_training_zones, validate_semantic_input
-from mealplan.domain.enums import MealName
+from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.services import (
     calculate_macro_targets,
-    calculate_training_calorie_demand_kcal,
-    calculate_meal_split_and_response_payload,
+    calculate_meal_split_and_response_payload_with_warnings,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
+    calculate_training_calorie_demand_kcal,
     calculate_training_carbs_g,
 )
 from mealplan.domain.validation import (
@@ -41,8 +41,12 @@ class MealPlanCalculationService:
     - Subsequent Phase 8 stories wire stage composition behind this stable contract.
     """
 
+    def __init__(self) -> None:
+        self.warnings: tuple[str, ...] = ()
+
     def calculate(self, request: MealPlanRequest) -> MealPlanResponse:
         """Run deterministic meal-plan calculation for a validated request."""
+        self.warnings = ()
         validated_request = validate_meal_plan_flow(
             request_payload=request,
             response=MealPlanResponse.placeholder(),
@@ -53,18 +57,14 @@ class MealPlanCalculationService:
         macro_targets = self._run_macro_stage(validated_request, tdee_kcal)
         training_carbs_g = self._run_fueling_stage(training_session)
         training_calorie_demand_kcal = self._run_training_demand_stage(training_session)
-        carb_allocation_g_by_meal = self._run_periodization_stage(
-            validated_request,
-            training_session,
-            macro_targets,
-        )
         return self._run_assembly_stage(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
             training_calorie_demand_kcal=training_calorie_demand_kcal,
+            carb_mode=validated_request.carb_mode,
             training_before_meal=training_session.training_before_meal,
+            training_load_tomorrow=validated_request.training_load_tomorrow,
             macro_targets=macro_targets,
-            carb_allocation_g_by_meal=carb_allocation_g_by_meal,
         )
 
     def _run_energy_stage(self, request: MealPlanRequest) -> float:
@@ -115,22 +115,25 @@ class MealPlanCalculationService:
         tdee_kcal: float,
         training_carbs_g: float,
         training_calorie_demand_kcal: float,
+        carb_mode: CarbMode,
         training_before_meal: MealName | None,
+        training_load_tomorrow: TrainingLoadTomorrow,
         macro_targets: MacroTargets,
-        carb_allocation_g_by_meal: dict[MealName, float],
     ) -> MealPlanResponse:
         """Return validated response model from canonical meal assembly payload."""
-        response_payload = calculate_meal_split_and_response_payload(
+        assembly_result = calculate_meal_split_and_response_payload_with_warnings(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
             training_calorie_demand_kcal=training_calorie_demand_kcal,
+            carb_mode=carb_mode,
             training_before_meal=training_before_meal,
+            training_load_tomorrow=training_load_tomorrow,
             protein_g=macro_targets.protein_g,
             carbs_g=macro_targets.carbs_g,
             fat_g=macro_targets.fat_g,
-            carb_allocation_g_by_meal=carb_allocation_g_by_meal,
         )
-        return MealPlanResponse.model_validate(response_payload)
+        self.warnings = assembly_result["warnings"]
+        return MealPlanResponse.model_validate(assembly_result["payload"])
 
 
 def _validated_training_session(request: MealPlanRequest) -> ValidatedTrainingSession:
