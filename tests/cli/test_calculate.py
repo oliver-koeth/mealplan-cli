@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 
+import pytest
 from typer.testing import CliRunner
 
 from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
@@ -79,6 +80,31 @@ def test_calculate_command_passes_optional_vo2max(monkeypatch) -> None:
     request = captured["request"]
     assert isinstance(request, MealPlanRequest)
     assert request.vo2max == 58
+
+
+@pytest.mark.parametrize("vo2max", ["10", "100"])
+def test_calculate_command_accepts_vo2max_range_boundaries(
+    monkeypatch,
+    vo2max: str,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeCalculationService:
+        def calculate(self, request: object) -> MealPlanResponse:
+            captured["request"] = request
+            return MealPlanResponse.placeholder()
+
+    monkeypatch.setattr(
+        "mealplan.cli.main.MealPlanCalculationService",
+        FakeCalculationService,
+    )
+
+    result = runner.invoke(app, [*_required_calculate_args(), "--vo2max", vo2max])
+
+    assert result.exit_code == 0
+    request = captured["request"]
+    assert isinstance(request, MealPlanRequest)
+    assert request.vo2max == int(vo2max)
 
 
 def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
@@ -354,6 +380,37 @@ def test_calculate_invalid_enum_option_returns_validation_exit_code() -> None:
     stderr = _normalized_stderr(result.stderr)
     assert "Invalid value" in stderr
     assert "--gender" in stderr
+
+
+@pytest.mark.parametrize(
+    ("vo2max", "expected_fragment"),
+    [
+        ("9", "greater than or equal to 10"),
+        ("101", "less than or equal to 100"),
+    ],
+)
+def test_calculate_out_of_range_vo2max_returns_validation_exit_code(
+    vo2max: str,
+    expected_fragment: str,
+) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            *_required_calculate_args(),
+            "--vo2max",
+            vo2max,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    stderr = _normalized_stderr(result.stderr)
+    assert "vo2max" in stderr
+    assert expected_fragment in stderr
 
 
 def test_calculate_help_includes_optional_vo2max_flag() -> None:

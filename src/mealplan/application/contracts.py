@@ -61,6 +61,8 @@ class MealPlanRequest(BoundaryModel):
     vo2max: StrictInt | None = Field(
         default=None,
         description="Optional VO2max in ml/kg/min.",
+        ge=10,
+        le=100,
     )
     activity_level: ActivityLevel
     carb_mode: CarbMode

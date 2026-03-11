@@ -50,6 +50,19 @@ def test_meal_plan_request_accepts_optional_vo2max(
     assert request.vo2max == 58
 
 
+@pytest.mark.parametrize("vo2max", [10, 100])
+def test_meal_plan_request_accepts_vo2max_range_boundaries(
+    meal_plan_request_payload: dict[str, Any],
+    vo2max: int,
+) -> None:
+    payload = meal_plan_request_payload
+    payload["vo2max"] = vo2max
+
+    request = MealPlanRequest.model_validate(payload)
+
+    assert request.vo2max == vo2max
+
+
 def test_meal_plan_request_allows_missing_training_session(
     meal_plan_request_payload: dict[str, Any],
 ) -> None:
@@ -150,6 +163,20 @@ def test_meal_plan_request_rejects_invalid_primitive_and_nested_types(
         MealPlanRequest.model_validate(payload)
 
     _assert_validation_error_types(error_info.value, expected_error_types)
+
+
+@pytest.mark.parametrize("vo2max", [9, 101])
+def test_meal_plan_request_rejects_out_of_range_vo2max(
+    meal_plan_request_payload: dict[str, Any],
+    vo2max: int,
+) -> None:
+    payload = meal_plan_request_payload
+    payload["vo2max"] = vo2max
+
+    with pytest.raises(PydanticValidationError) as error_info:
+        MealPlanRequest.model_validate(payload)
+
+    _assert_validation_error_types(error_info.value, {"greater_than_equal", "less_than_equal"})
 
 
 @pytest.mark.parametrize(
