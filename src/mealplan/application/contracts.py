@@ -24,6 +24,7 @@ CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "age": "years",
     "height_cm": "cm",
     "weight_kg": "kg",
+    "vo2max": "ml/kg/min",
     "zones_minutes": "minutes",
     "TDEE": "kcal/day (legacy field name retained for compatibility)",
     "training_carbs_g": "g",
@@ -57,6 +58,10 @@ class MealPlanRequest(BoundaryModel):
     gender: Gender
     height_cm: StrictInt = Field(description="Body height in centimeters.")
     weight_kg: StrictFloat = Field(description="Body weight in kilograms.")
+    vo2max: StrictInt | None = Field(
+        default=None,
+        description="Optional VO2max in ml/kg/min.",
+    )
     activity_level: ActivityLevel
     carb_mode: CarbMode
     training_load_tomorrow: TrainingLoadTomorrow

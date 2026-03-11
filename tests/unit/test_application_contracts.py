@@ -34,8 +34,20 @@ def test_meal_plan_request_parses_canonical_payload(
     assert request.age == 35
     assert request.height_cm == 178
     assert request.weight_kg == 72.5
+    assert request.vo2max is None
     assert request.training_session.zones_minutes["2"] == 40
     assert request.training_session.training_before_meal == "lunch"
+
+
+def test_meal_plan_request_accepts_optional_vo2max(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
+    payload = meal_plan_request_payload
+    payload["vo2max"] = 58
+
+    request = MealPlanRequest.model_validate(payload)
+
+    assert request.vo2max == 58
 
 
 def test_meal_plan_request_allows_missing_training_session(
@@ -120,6 +132,7 @@ def test_meal_plan_request_rejects_invalid_enum_values(
         ("age", "35", {"int_type"}),
         ("height_cm", "178", {"int_type"}),
         ("weight_kg", "72.5", {"float_type"}),
+        ("vo2max", "58", {"int_type"}),
         ("training_session", "not-an-object", {"model_type", "model_attributes_type"}),
     ],
 )
@@ -359,6 +372,7 @@ def test_contract_units_policy_covers_request_and_response_units() -> None:
         "age": "years",
         "height_cm": "cm",
         "weight_kg": "kg",
+        "vo2max": "ml/kg/min",
         "zones_minutes": "minutes",
         "TDEE": "kcal/day (legacy field name retained for compatibility)",
         "training_carbs_g": "g",
