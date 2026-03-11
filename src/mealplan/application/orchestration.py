@@ -56,7 +56,10 @@ class MealPlanCalculationService:
         tdee_kcal = self._run_energy_stage(validated_request)
         macro_targets = self._run_macro_stage(validated_request, tdee_kcal)
         training_carbs_g = self._run_fueling_stage(training_session)
-        training_calorie_demand_kcal = self._run_training_demand_stage(training_session)
+        training_calorie_demand_kcal = self._run_training_demand_stage(
+            validated_request,
+            training_session,
+        )
         return self._run_assembly_stage(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
@@ -90,10 +93,20 @@ class MealPlanCalculationService:
         canonical_zones = _canonical_training_zones(training_session.zones_minutes)
         return calculate_training_carbs_g(canonical_zones)
 
-    def _run_training_demand_stage(self, training_session: ValidatedTrainingSession) -> float:
+    def _run_training_demand_stage(
+        self,
+        request: MealPlanRequest,
+        training_session: ValidatedTrainingSession,
+    ) -> float:
         """Return training calorie demand from normalized training zone minutes."""
         canonical_zones = _canonical_training_zones(training_session.zones_minutes)
-        return calculate_training_calorie_demand_kcal(canonical_zones)
+        return calculate_training_calorie_demand_kcal(
+            age=request.age,
+            gender=request.gender,
+            weight_kg=request.weight_kg,
+            vo2max=request.vo2max,
+            zones_minutes=canonical_zones,
+        )
 
     def _run_periodization_stage(
         self,

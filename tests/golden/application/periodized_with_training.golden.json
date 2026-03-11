@@ -2,25 +2,25 @@
   "TDEE": 1809.0,
   "training_carbs_g": 30.0,
   "protein_g": 108.0,
-  "carbs_g": 211.69,
-  "fat_g": 72.25,
-  "total_kcal": 1929.0,
+  "carbs_g": 220.62,
+  "fat_g": 75.8,
+  "total_kcal": 1996.71,
   "meals": [
     {
       "meal": "breakfast",
       "carbs_strategy": "low",
-      "carbs_g": 19.12,
+      "carbs_g": 20.07,
       "protein_g": 24.0,
-      "fat_g": 25.5,
-      "kcal": 402.0
+      "fat_g": 26.75,
+      "kcal": 417.05
     },
     {
       "meal": "morning-snack",
       "carbs_strategy": "low",
-      "carbs_g": 9.56,
+      "carbs_g": 10.03,
       "protein_g": 12.0,
-      "fat_g": 12.75,
-      "kcal": 201.0
+      "fat_g": 13.38,
+      "kcal": 208.52
     },
     {
       "meal": "training",
@@ -33,34 +33,34 @@
     {
       "meal": "lunch",
       "carbs_strategy": "high",
-      "carbs_g": 57.38,
+      "carbs_g": 60.2,
       "protein_g": 24.0,
-      "fat_g": 8.5,
-      "kcal": 402.0
+      "fat_g": 8.92,
+      "kcal": 417.05
     },
     {
       "meal": "afternoon-snack",
       "carbs_strategy": "high",
-      "carbs_g": 28.69,
+      "carbs_g": 30.1,
       "protein_g": 12.0,
-      "fat_g": 4.25,
-      "kcal": 201.0
+      "fat_g": 4.46,
+      "kcal": 208.52
     },
     {
       "meal": "dinner",
       "carbs_strategy": "high",
-      "carbs_g": 57.38,
+      "carbs_g": 60.2,
       "protein_g": 24.0,
-      "fat_g": 8.5,
-      "kcal": 402.0
+      "fat_g": 8.92,
+      "kcal": 417.05
     },
     {
       "meal": "evening-snack",
       "carbs_strategy": "low",
-      "carbs_g": 9.56,
+      "carbs_g": 10.02,
       "protein_g": 12.0,
-      "fat_g": 12.75,
-      "kcal": 201.0
+      "fat_g": 13.37,
+      "kcal": 208.52
     }
   ]
 }

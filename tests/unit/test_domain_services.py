@@ -149,7 +149,54 @@ def test_select_vo2max_used_keeps_weight_in_kilograms_without_pounds_conversion(
 def test_calculate_training_calorie_demand_kcal_counts_all_zone_minutes() -> None:
     zones_minutes: Mapping[int, int] = {1: 30, 2: 0, 3: 0, 4: 0, 5: 0}
 
-    assert calculate_training_calorie_demand_kcal(zones_minutes) == 120.0
+    assert calculate_training_calorie_demand_kcal(
+        age=35,
+        gender=Gender.MALE,
+        weight_kg=72.5,
+        vo2max=None,
+        zones_minutes=zones_minutes,
+    ) == pytest.approx(138.493125)
+
+
+def test_calculate_training_calorie_demand_kcal_uses_explicit_vo2max_when_present() -> None:
+    zones_minutes: Mapping[int, int] = {1: 0, 2: 30, 3: 0, 4: 0, 5: 0}
+
+    assert calculate_training_calorie_demand_kcal(
+        age=35,
+        gender=Gender.MALE,
+        weight_kg=72.5,
+        vo2max=58,
+        zones_minutes=zones_minutes,
+    ) == pytest.approx(296.34375)
+
+
+def test_calculate_training_calorie_demand_kcal_keeps_full_precision_without_internal_rounding(
+) -> None:
+    demand = calculate_training_calorie_demand_kcal(
+        age=35,
+        gender=Gender.MALE,
+        weight_kg=72.5,
+        vo2max=None,
+        zones_minutes={1: 0, 2: 7, 3: 0, 4: 0, 5: 0},
+    )
+
+    assert demand == pytest.approx(53.8584375)
+    assert demand != round(demand, 2)
+
+
+def test_calculate_training_calorie_demand_kcal_zone_coefficients_are_monotonic() -> None:
+    athlete = {"age": 35, "gender": Gender.MALE, "weight_kg": 72.5, "vo2max": 58}
+
+    zone_demands = [
+        calculate_training_calorie_demand_kcal(
+            **athlete,
+            zones_minutes={1: 0, 2: 0, 3: 0, 4: 0, 5: 0} | {zone: 30},
+        )
+        for zone in range(1, 6)
+    ]
+
+    assert zone_demands == sorted(zone_demands)
+    assert zone_demands[0] > 0.0
 
 
 def test_calculate_normal_meal_calorie_pool_kcal_subtracts_training_supply_from_day_energy(
@@ -324,9 +371,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
     ]
     assert [entry["protein_g"] for entry in canonical_meals] == [40.0, 20.0, 40.0, 20.0, 40.0, 20.0]
     assert round(sum(float(entry["kcal"]) for entry in canonical_meals), 2) == 2908.0
-    assert payload["total_kcal"] == pytest.approx(
-        2908.0 + calculate_training_calorie_demand_kcal({1: 0, 2: 85, 3: 0, 4: 0, 5: 0}),
-    )
+    assert payload["total_kcal"] == 3248.0
     assert [entry["fat_g"] for entry in canonical_meals] == [18.01, 9.0, 18.01, 9.0, 18.01, 9.01]
     assert [entry["kcal"] for entry in canonical_meals] == [
         646.22,

@@ -14,6 +14,7 @@ from mealplan.application.orchestration import (
     _validated_training_session,
     validate_meal_plan_flow,
 )
+from mealplan.domain import calculate_training_calorie_demand_kcal
 from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, UserProfile
 from mealplan.shared.errors import DomainRuleError, ValidationError
@@ -63,7 +64,7 @@ def test_meal_plan_calculation_service_resets_warnings_between_runs(
         lambda _, __: MacroTargets(protein_g=120.0, carbs_g=240.0, fat_g=60.0),
     )
     monkeypatch.setattr(service, "_run_fueling_stage", lambda _: 0.0)
-    monkeypatch.setattr(service, "_run_training_demand_stage", lambda _: 0.0)
+    monkeypatch.setattr(service, "_run_training_demand_stage", lambda *_: 0.0)
 
     warnings_by_run = iter([("first warning",), ()])
 
@@ -155,7 +156,7 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
     monkeypatch.setattr(service, "_run_energy_stage", track_energy)
     monkeypatch.setattr(service, "_run_macro_stage", track_macro)
     monkeypatch.setattr(service, "_run_fueling_stage", track_fueling)
-    monkeypatch.setattr(service, "_run_training_demand_stage", lambda _: 0.0)
+    monkeypatch.setattr(service, "_run_training_demand_stage", lambda *_: 0.0)
     monkeypatch.setattr(service, "_run_assembly_stage", track_assembly)
 
     response = service.calculate(request)
@@ -211,7 +212,7 @@ def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
     monkeypatch.setattr(service, "_run_energy_stage", track_energy)
     monkeypatch.setattr(service, "_run_macro_stage", track_macro)
     monkeypatch.setattr(service, "_run_fueling_stage", track_fueling)
-    monkeypatch.setattr(service, "_run_training_demand_stage", lambda _: 0.0)
+    monkeypatch.setattr(service, "_run_training_demand_stage", lambda *_: 0.0)
     monkeypatch.setattr(service, "_run_assembly_stage", track_assembly)
 
     with pytest.raises(ValidationError) as error_info:
@@ -267,6 +268,52 @@ def test_meal_plan_calculation_service_uses_normalized_training_for_fueling(
     assert len(normalized_sessions) == 1
     for session in normalized_sessions:
         assert session.zones_minutes == {1: 0, 2: 40, 3: 0, 4: 0, 5: 0}
+
+
+def test_meal_plan_calculation_service_training_demand_stage_passes_athlete_context(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payload = meal_plan_request_payload
+    request_payload["vo2max"] = 58
+    request_payload["training_session"]["zones_minutes"] = {"2": 40}
+    request = MealPlanRequest.model_validate(request_payload)
+    service = MealPlanCalculationService()
+    captured: dict[str, object] = {}
+
+    def fake_calculate_training_calorie_demand_kcal(
+        *,
+        age: int,
+        gender: object,
+        weight_kg: float,
+        vo2max: int | None,
+        zones_minutes: dict[int, int],
+    ) -> float:
+        captured["age"] = age
+        captured["gender"] = gender
+        captured["weight_kg"] = weight_kg
+        captured["vo2max"] = vo2max
+        captured["zones_minutes"] = zones_minutes
+        return 123.45
+
+    monkeypatch.setattr(
+        "mealplan.application.orchestration.calculate_training_calorie_demand_kcal",
+        fake_calculate_training_calorie_demand_kcal,
+    )
+
+    result = service._run_training_demand_stage(
+        request,
+        _validated_training_session(request),
+    )
+
+    assert result == 123.45
+    assert captured == {
+        "age": request.age,
+        "gender": request.gender,
+        "weight_kg": request.weight_kg,
+        "vo2max": request.vo2max,
+        "zones_minutes": {1: 0, 2: 40, 3: 0, 4: 0, 5: 0},
+    }
 
 
 def test_meal_plan_calculation_service_builds_user_profile_and_calls_energy_macro_services(
@@ -348,7 +395,7 @@ def test_meal_plan_calculation_service_passes_unrounded_energy_macro_outputs_dow
     monkeypatch.setattr(service, "_run_energy_stage", lambda _: tdee_value)
     monkeypatch.setattr(service, "_run_macro_stage", lambda _, __: macro_value)
     monkeypatch.setattr(service, "_run_fueling_stage", lambda _: 0.0)
-    monkeypatch.setattr(service, "_run_training_demand_stage", lambda _: 0.0)
+    monkeypatch.setattr(service, "_run_training_demand_stage", lambda *_: 0.0)
 
     def capture_assembly(
         *,
@@ -817,8 +864,15 @@ def test_meal_plan_calculation_service_integration_success_matrix(
     assert response.total_kcal == pytest.approx(sum(meal.kcal for meal in response.meals))
     expected_training_calorie_demand = 0.0
     if request.training_session is not None:
-        expected_training_calorie_demand = (
-            sum(int(value) for value in request.training_session.zones_minutes.values()) * 4.0
+        expected_training_calorie_demand = calculate_training_calorie_demand_kcal(
+            age=request.age,
+            gender=request.gender,
+            weight_kg=request.weight_kg,
+            vo2max=request.vo2max,
+            zones_minutes={
+                zone: int(request.training_session.zones_minutes.get(str(zone), 0))
+                for zone in range(1, 6)
+            },
         )
     assert sum(meal.kcal for meal in response.meals) == pytest.approx(
         response.TDEE + expected_training_calorie_demand
@@ -869,7 +923,7 @@ def test_meal_plan_calculation_service_integration_surfaces_protein_reduction_wa
         lambda _, __: MacroTargets(protein_g=180.0, carbs_g=200.0, fat_g=40.0),
     )
     monkeypatch.setattr(service, "_run_fueling_stage", lambda _: 0.0)
-    monkeypatch.setattr(service, "_run_training_demand_stage", lambda _: 0.0)
+    monkeypatch.setattr(service, "_run_training_demand_stage", lambda *_: 0.0)
 
     response = service.calculate(request)
 

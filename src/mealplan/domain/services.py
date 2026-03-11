@@ -27,6 +27,13 @@ CARB_CALORIE_SHARE_BY_STRATEGY: dict[CarbStrategy, float] = {
     CarbStrategy.MEDIUM: 2.0 / 3.0,
     CarbStrategy.HIGH: 0.75,
 }
+ZONE_INTENSITY_BY_ZONE: dict[int, float] = {
+    1: 0.30,
+    2: 0.50,
+    3: 0.65,
+    4: 0.80,
+    5: 0.925,
+}
 
 
 class MealPayloadRow(TypedDict):
@@ -94,15 +101,33 @@ def select_vo2max_used(
     return 79.9 - (0.39 * age) - (13.7 * sex) - (0.28 * weight_kg)
 
 
-def calculate_training_calorie_demand_kcal(zones_minutes: Mapping[int, int]) -> float:
-    """Return training calorie demand from total minutes across zones 1..5.
+def calculate_training_calorie_demand_kcal(
+    *,
+    age: int,
+    gender: Gender,
+    weight_kg: float,
+    vo2max: int | None,
+    zones_minutes: Mapping[int, int],
+) -> float:
+    """Return VO2-based training calorie demand from normalized zone minutes.
 
-    Business rule:
-    - All zone minutes contribute to demand, including zone 1.
-    - Demand uses a fixed conversion of 4 kcal per minute-equivalent unit.
+    Contract:
+    - Uses explicit ``vo2max`` when present, otherwise the canonical prediction formula.
+    - Keeps full floating-point precision internally; rounding is deferred to emitted fields.
+    - Applies the fixed zone-intensity coefficients for canonical zones ``1..5``.
     """
-    total_minutes = sum(zones_minutes.values())
-    return round(float(total_minutes) * 4.0, 2)
+    vo2max_used = select_vo2max_used(
+        age=age,
+        gender=gender,
+        weight_kg=weight_kg,
+        vo2max=vo2max,
+    )
+    net_vo2max = max(vo2max_used - 3.5, 0.0)
+    base_kcal_per_min = weight_kg * 0.005 * net_vo2max
+    return sum(
+        float(zones_minutes.get(zone, 0)) * base_kcal_per_min * intensity
+        for zone, intensity in ZONE_INTENSITY_BY_ZONE.items()
+    )
 
 
 def calculate_normal_meal_calorie_pool_kcal(
