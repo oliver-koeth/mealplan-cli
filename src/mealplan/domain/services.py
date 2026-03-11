@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Literal, TypedDict, cast
 
 from mealplan.domain.energy import tdee_kcal_per_day_for
-from mealplan.domain.enums import CarbMode, CarbStrategy, MealName, TrainingLoadTomorrow
+from mealplan.domain.enums import CarbMode, CarbStrategy, Gender, MealName, TrainingLoadTomorrow
 from mealplan.domain.macros import carbs_target_g_for, fat_target_g_for, protein_target_g_for
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.validation import validate_meal_allocation_invariants
@@ -77,6 +77,21 @@ def calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float:
         return 0.0
 
     return float(total_minutes)
+
+
+def select_vo2max_used(
+    *,
+    age: int,
+    gender: Gender,
+    weight_kg: float,
+    vo2max: int | None,
+) -> float:
+    """Return explicit VO2max or canonical kg-based prediction when omitted."""
+    if vo2max is not None:
+        return float(vo2max)
+
+    sex = 0 if gender is Gender.MALE else 1
+    return 79.9 - (0.39 * age) - (13.7 * sex) - (0.28 * weight_kg)
 
 
 def calculate_training_calorie_demand_kcal(zones_minutes: Mapping[int, int]) -> float:

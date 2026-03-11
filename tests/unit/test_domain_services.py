@@ -33,6 +33,7 @@ from mealplan.domain.services import (
     calculate_meal_split_and_response_payload_with_warnings,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
+    select_vo2max_used,
 )
 from mealplan.domain.services import (
     calculate_training_carbs_g as calculate_training_carbs_g_service,
@@ -106,6 +107,43 @@ def test_calculate_training_carbs_g_returns_zero_for_zero_total_minutes() -> Non
     zones_minutes: Mapping[int, int] = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
 
     assert calculate_training_carbs_g(zones_minutes) == 0.0
+
+
+def test_select_vo2max_used_returns_explicit_value_when_present() -> None:
+    assert select_vo2max_used(age=35, gender=Gender.MALE, weight_kg=72.5, vo2max=58) == 58.0
+
+
+@pytest.mark.parametrize(
+    ("gender", "expected_vo2max"),
+    [
+        (Gender.MALE, 45.95),
+        (Gender.FEMALE, 32.25),
+    ],
+)
+def test_select_vo2max_used_predicts_from_age_gender_and_weight_kg(
+    gender: Gender,
+    expected_vo2max: float,
+) -> None:
+    assert select_vo2max_used(age=35, gender=gender, weight_kg=72.5, vo2max=None) == pytest.approx(
+        expected_vo2max
+    )
+
+
+def test_select_vo2max_used_keeps_weight_in_kilograms_without_pounds_conversion() -> None:
+    weight_kg = 72.5
+
+    predicted = select_vo2max_used(
+        age=35,
+        gender=Gender.MALE,
+        weight_kg=weight_kg,
+        vo2max=None,
+    )
+
+    expected = 79.9 - (0.39 * 35) - (0.28 * weight_kg)
+    converted_weight_expected = 79.9 - (0.39 * 35) - (0.28 * (weight_kg * 2.20462))
+
+    assert predicted == pytest.approx(expected)
+    assert predicted != pytest.approx(converted_weight_expected)
 
 
 def test_calculate_training_calorie_demand_kcal_counts_all_zone_minutes() -> None:

@@ -39,3 +39,19 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Gotchas encountered: Typer already rejects non-integer `--vo2max` values before request parsing, so range regressions need subprocess CLI tests rather than only direct runner mocks.
 - Useful context: the current mapped Pydantic constraint messages surface through `main()` as user-facing stderr, making substring assertions on the bound text stable enough for CLI validation tests.
 ---
+## 2026-03-11 22:05:41 CET - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Added `select_vo2max_used(...)` to the domain services layer so explicit VO2max is used when present and the canonical age/gender/weight-in-kg prediction formula is used when omitted.
+- Re-exported the helper through `mealplan.domain` to keep higher layers on the stable public domain surface.
+- Added regression coverage for explicit override, male/female prediction paths, and a kg-vs-pounds guard to pin the no-conversion requirement.
+- Files changed
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/domain/__init__.py`
+- `src/mealplan/domain/services.py`
+- `tests/unit/test_domain_services.py`
+- **Learnings for future iterations:**
+- Patterns discovered: new reusable calculation primitives should live in `src/mealplan/domain/services.py` and be re-exported via `mealplan.domain.__init__` before application-layer wiring changes depend on them.
+- Gotchas encountered: if a long-running `make quality` process starts before a test patch lands, rerun it from a fresh process; the existing session will keep reporting against the earlier file state.
+- Useful context: the canonical predicted VO2max formula yields `45.95` for a 35-year-old 72.5 kg male and `32.25` for the same female profile, which are now pinned in unit tests.
+---
