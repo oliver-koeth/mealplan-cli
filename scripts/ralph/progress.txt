@@ -3,6 +3,7 @@
 - When adding a new `MealPlanRequest` boundary field, update the contract schema and `CONTRACT_UNITS_POLICY`, the Typer flag-to-request mapping in `src/mealplan/cli/main.py`, and both request-boundary test modules (`tests/unit/test_application_contracts.py`, `tests/cli/test_calculate.py`) in the same iteration.
 - For bounded numeric CLI inputs, enforce the inclusive range on the Pydantic request contract and cover both direct `MealPlanRequest.model_validate(...)` boundaries and end-to-end CLI exit-code behavior.
 - Training-demand formula changes must update both direct domain coverage in `tests/unit/test_domain_services.py` and the application golden snapshots in `tests/golden/application/`, because orchestration flows straight into the canonical response payloads.
+- If a training-demand story only pins formula behavior or physiological regressions, prefer adding focused assertions in `tests/unit/test_domain_services.py` and avoid touching orchestration or goldens unless the public payload changes.
 
 Started: Wed Mar 11 21:57:53 CET 2026
 ---
@@ -74,4 +75,17 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Patterns discovered: training-demand formula changes need paired updates in domain unit tests and application goldens because the calculated demand flows directly into top-level meal payload totals.
 - Gotchas encountered: `calculate_training_calorie_demand_kcal(...)` now keeps full floating-point precision, so assertions should use `pytest.approx(...)` unless they target an emitted rounded field.
 - Useful context: the periodized and non-periodized training goldens now move from `1929.0` total kcal to `1996.71` for the canonical age-20/54kg training scenario under the new VO2-based formula.
+---
+## 2026-03-11 23:42:48 CET - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Added focused regression coverage for predicted VO2-based training demand so age, gender, and weight changes each produce different calorie demand for the same zone workload.
+- Kept the story test-only because the existing implementation already satisfied the zero-minutes, zone-1, and monotonic zone-coefficient behavior.
+- Files changed
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `tests/unit/test_domain_services.py`
+- **Learnings for future iterations:**
+- Patterns discovered: training-demand regression stories that do not alter the public payload can usually be completed entirely in `tests/unit/test_domain_services.py`.
+- Gotchas encountered: the predicted-demand acceptance criterion is broader than the existing VO2 selection tests, so it needs assertions at the `calculate_training_calorie_demand_kcal(...)` level rather than only on `select_vo2max_used(...)`.
+- Useful context: using a fixed `{2: 30}` workload isolates athlete-profile differences cleanly because zone coefficients stay constant while the predicted VO2-based kcal/min changes.
 ---

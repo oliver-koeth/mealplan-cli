@@ -199,6 +199,48 @@ def test_calculate_training_calorie_demand_kcal_zone_coefficients_are_monotonic(
     assert zone_demands[0] > 0.0
 
 
+@pytest.mark.parametrize(
+    ("athlete", "comparison_athlete"),
+    [
+        (
+            {"age": 25, "gender": Gender.MALE, "weight_kg": 72.5, "vo2max": None},
+            {"age": 45, "gender": Gender.MALE, "weight_kg": 72.5, "vo2max": None},
+        ),
+        (
+            {"age": 35, "gender": Gender.MALE, "weight_kg": 72.5, "vo2max": None},
+            {"age": 35, "gender": Gender.FEMALE, "weight_kg": 72.5, "vo2max": None},
+        ),
+        (
+            {"age": 35, "gender": Gender.MALE, "weight_kg": 60.0, "vo2max": None},
+            {"age": 35, "gender": Gender.MALE, "weight_kg": 85.0, "vo2max": None},
+        ),
+    ],
+    ids=["age_change", "gender_change", "weight_change"],
+)
+def test_calculate_training_calorie_demand_kcal_changes_with_predicted_athlete_profile(
+    athlete: dict[str, object],
+    comparison_athlete: dict[str, object],
+) -> None:
+    zones_minutes: Mapping[int, int] = {1: 0, 2: 30, 3: 0, 4: 0, 5: 0}
+
+    athlete_demand = calculate_training_calorie_demand_kcal(
+        age=cast(int, athlete["age"]),
+        gender=cast(Gender, athlete["gender"]),
+        weight_kg=cast(float, athlete["weight_kg"]),
+        vo2max=cast(int | None, athlete["vo2max"]),
+        zones_minutes=zones_minutes,
+    )
+    comparison_demand = calculate_training_calorie_demand_kcal(
+        age=cast(int, comparison_athlete["age"]),
+        gender=cast(Gender, comparison_athlete["gender"]),
+        weight_kg=cast(float, comparison_athlete["weight_kg"]),
+        vo2max=cast(int | None, comparison_athlete["vo2max"]),
+        zones_minutes=zones_minutes,
+    )
+
+    assert athlete_demand != pytest.approx(comparison_demand)
+
+
 def test_calculate_normal_meal_calorie_pool_kcal_subtracts_training_supply_from_day_energy(
 ) -> None:
     assert (
