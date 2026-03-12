@@ -110,6 +110,7 @@ This document defines the canonical domain model for `mealplan`: object structur
   - Rule:
     - all training in zone 1 -> `0`
     - any zone >=2 -> total training minutes * `1 g/min` (equivalent to 60 g/hour)
+  - Scope: internal fueling and optional training-meal budgeting only; not a public top-level response field.
 - `protein_g`
   - Type: float
   - Unit: grams/day
@@ -191,8 +192,8 @@ This document defines the canonical domain model for `mealplan`: object structur
 ### 5.6 `MealPlan`
 - Fields:
   - `tdee_kcal: float`
-  - `training_kcal: float`
-  - `training_carbs_g: float`
+  - `training_kcal: float` (public training-demand metric)
+  - `training_carbs_g: float` (internal fueling/training-meal value)
   - `macro_targets: MacroTargets`
   - `meal_allocations: list[MealAllocation]` (length exactly 6)
 - Invariants:
@@ -225,7 +226,7 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Training fueling:
 - Input: normalized `zones_minutes: Mapping[int, int]` with canonical keys `1..5`
 - Canonical API: `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float`
-- Output: `training_carbs_g: float`
+- Output: internal `training_carbs_g: float`
 - Logic:
   - If all non-zero minutes are zone 1 -> `0`
   - If any zone 2-5 has minutes > 0 -> `sum(minutes) * 1.0`
@@ -306,12 +307,12 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Deterministic orchestration sequence:
   - Validation flow first (`validate_meal_plan_flow`).
   - Training-session normalization.
-  - Domain stage composition in fixed order: energy -> macros -> fueling -> periodization -> assembly.
+  - Domain stage composition in fixed order: energy -> macros -> fueling -> training demand -> periodization -> assembly.
 - Omitted training-session interpretation:
   - If `request.training_session is None`, canonical normalized training context is:
     - `zones_minutes = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}`
     - `training_before_meal = None`
-  - This case is valid and must produce deterministic zero-training fueling (`training_carbs_g = 0.0`).
+  - This case is valid and must produce deterministic zero-training fueling (`training_carbs_g = 0.0`) and emitted `training_kcal = 0.0`.
 
 ## 7. Verification Matrix
 

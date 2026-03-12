@@ -109,12 +109,13 @@ def calculate_training_calorie_demand_kcal(
     vo2max: int | None,
     zones_minutes: Mapping[int, int],
 ) -> float:
-    """Return VO2-based training calorie demand from normalized zone minutes.
+    """Return internal VO2-based training calorie demand from normalized zone minutes.
 
     Contract:
     - Uses explicit ``vo2max`` when present, otherwise the canonical prediction formula.
     - Keeps full floating-point precision internally; rounding is deferred to emitted fields.
     - Applies the fixed zone-intensity coefficients for canonical zones ``1..5``.
+    - The public response emits this value as top-level ``training_kcal``.
     """
     vo2max_used = select_vo2max_used(
         age=age,

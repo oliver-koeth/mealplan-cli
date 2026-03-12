@@ -8,6 +8,7 @@
 - When the public response metric changes but internal fueling stays intact, keep `training_kcal` as the top-level contract field, preserve `training_carbs_g` only inside meal assembly/training-meal logic, and update contracts, renderers, helper tolerances, and success goldens together.
 - For CLI output contract renames, pin both the positive field name and the removed field's absence in real subprocess renderer tests, and use ordered key assertions for JSON output so formatter drift is caught outside mocked service tests.
 - For contract/documentation updates, verify README and the canonical docs (`docs/REQUIREMENTS.md`, `docs/MODEL.md`, `docs/ARCHITECTURE.md`) against the actual request contracts, orchestration contexts, and domain models so request-only fields do not drift into domain-object descriptions.
+- When README contract or golden-policy wording changes, refresh the tracked `src/mealplan_cli.egg-info/PKG-INFO` metadata in the same iteration so packaged metadata stays aligned with repository docs.
 
 Started: Wed Mar 11 21:57:53 CET 2026
 ---
@@ -169,4 +170,24 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Patterns discovered: when docs describe a public metric rename but internal model data remains, keep public-field wording in README/requirements/architecture aligned while leaving explicitly internal `training_carbs_g` references only where fueling or training-meal behavior is being documented.
 - Gotchas encountered: `docs/MODEL.md` should not promote request-only additions like `vo2max` onto the `UserProfile` domain object unless the code model actually changed; verify docs against `src/mealplan/application/contracts.py`, `src/mealplan/application/orchestration.py`, and `src/mealplan/domain/model.py`.
 - Useful context: `UV=uv make quality` remained the reliable quality-gate invocation in this environment and passed with `309` tests after the docs-only update.
+---
+## 2026-03-12 07:55:19 CET - US-010
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Clarified canonical docs and service docstrings so top-level `training_kcal` is consistently described as the public demand metric while `training_carbs_g` is explicitly limited to internal fueling and optional training-meal budgeting.
+- Corrected the documented application/domain stage narrative to include the separate training-demand step and zero-training `training_kcal = 0.0` behavior.
+- Refreshed the tracked package metadata file so its golden-tolerance wording matches the current README/public contract.
+- Files changed
+- `AGENT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/MODEL.md`
+- `docs/REQUIREMENTS.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/application/orchestration.py`
+- `src/mealplan/domain/services.py`
+- `src/mealplan_cli.egg-info/PKG-INFO`
+- **Learnings for future iterations:**
+- Patterns discovered: tracked package metadata in `src/mealplan_cli.egg-info/PKG-INFO` can drift from README contract wording and should be refreshed whenever public output terminology or golden-policy text changes.
+- Gotchas encountered: the canonical docs had already been mostly updated for `training_kcal`; the remaining risk was subtle wording that still made `training_carbs_g` read like a public field rather than an internal fueling value.
+- Useful context: `UV=uv make quality` passed after this cleanup with Ruff, mypy, and all `309` pytest cases green.
 ---

@@ -110,7 +110,7 @@ class MealPlanCalculationService:
         self,
         context: TrainingDemandContext,
     ) -> float:
-        """Return training calorie demand from normalized training zone minutes."""
+        """Return internal training calorie demand for later `training_kcal` emission."""
         return calculate_training_calorie_demand_kcal(
             age=context.age,
             gender=context.gender,

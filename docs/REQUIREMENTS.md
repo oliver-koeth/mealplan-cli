@@ -254,6 +254,8 @@ JSON structure:
 -   The six canonical non-training meals are budgeted from a calories-first pool:
     `normal_meal_calorie_pool_kcal = TDEE + training_calorie_demand_kcal - training_calorie_supply_kcal`.
 -   `training_calorie_supply_kcal` remains `training_carbs_g * 4`.
+-   `training_carbs_g` is an internal fueling and training-meal input only; the
+    public top-level response field is `training_kcal`.
 -   Distribute both normal-meal `kcal` budgets and initial protein targets across
     `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`
     with canonical shares `2/9, 1/9, 2/9, 1/9, 2/9, 1/9`.
@@ -296,8 +298,8 @@ JSON structure:
     2. training-session normalization
     3. energy calculation
     4. macro target calculation
-    5. training fueling calculation
-    6. training calorie demand calculation
+    5. training fueling calculation for internal `training_carbs_g`
+    6. training calorie demand calculation for public `training_kcal`
     7. meal assembly and `MealPlanResponse` model validation
 -   Standalone periodization allocation remains available as a pure domain helper, but calories-first response assembly is now the canonical source for emitted meal strategies and meal-level carb/fat allocation.
 -   `training_session` is optional at the request boundary.

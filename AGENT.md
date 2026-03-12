@@ -119,6 +119,7 @@ When in doubt, update those source docs instead of expanding this file.
 88. When adding a new `MealPlanRequest` boundary field, update all three in the same iteration: `application/contracts.py` schema plus `CONTRACT_UNITS_POLICY`, `cli/main.py` flag-to-request mapping, and request-boundary tests in `tests/unit/test_application_contracts.py` and `tests/cli/test_calculate.py`.
 89. For staged calculation boundaries that need only a subset of request data, build a dedicated typed context in `application/orchestration.py` and pass normalized values into the stage method instead of the full `MealPlanRequest`.
 90. When the public response distinguishes training demand from fueling, keep top-level `training_kcal` sourced from `training_calorie_demand_kcal`, preserve `training_carbs_g` only for the optional training meal/internal budgeting, and update contracts, CLI renderers, and application/CLI goldens together.
+91. When README contract or golden-policy wording changes, refresh the tracked `src/mealplan_cli.egg-info/PKG-INFO` metadata in the same iteration so packaged metadata does not drift from the repository docs.
 
 ## Ralph Runner
 

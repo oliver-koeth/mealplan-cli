@@ -162,7 +162,8 @@ mealplan/
   - Training calorie demand uses a VO2-based zone-weighted estimate with athlete context and normalized zone minutes.
   - Phase 5 domain API boundary for demand is `calculate_training_calorie_demand_kcal(age: int, gender: Gender, weight_kg: float, vo2max: int | None, zones_minutes: Mapping[int, int]) -> float`.
   - Demand uses explicit `vo2max` when present; otherwise it predicts VO2max from age, gender, and weight in kilograms.
-  - Public response payloads emit this demand as top-level `training_kcal`, while internal fueling still uses `training_carbs_g`.
+  - Public response payloads emit this demand as top-level `training_kcal`.
+  - Internal fueling remains a separate `training_carbs_g` path used only for optional training-meal insertion and normal-meal calorie budgeting.
   - All Z1 => `0g`; any zone >=2 => `60g/hour` over total duration.
   - Phase 5 domain API boundary is `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float` and assumes canonical normalized zone keys `1..5`.
   - Malformed `zones_minutes` payload rejection (invalid keys, negative minutes, non-integer minutes) remains a Phase 3 concern in application-layer normalization/semantic validation.
@@ -176,6 +177,7 @@ mealplan/
 - Phase 7 meal assembly boundary:
   - Canonical domain API: `calculate_meal_split_and_response_payload(tdee_kcal, training_carbs_g, training_calorie_demand_kcal, carb_mode, training_before_meal, training_load_tomorrow, protein_g, carbs_g, fat_g) -> dict[str, object]`.
   - Domain API builds top-level response fields plus `meals[]`; no Phase 7 application-layer wrapper.
+  - `training_carbs_g` in this API is internal fueling input, while emitted top-level demand remains `training_kcal`.
   - Build `MealAllocation` rows and validate canonical order/coverage before payload serialization.
   - Response `meals[]` always includes the six canonical meals and may include one optional `training` row inserted before `training_before_meal` when `training_carbs_g > 0`.
   - Canonical breakfast/lunch/dinner use `2/9` shares and snacks use `1/9` shares for both non-training meal `kcal` budgets and initial protein allocation.
