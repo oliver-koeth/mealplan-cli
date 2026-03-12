@@ -6,6 +6,7 @@
 - If a training-demand story only pins formula behavior or physiological regressions, prefer adding focused assertions in `tests/unit/test_domain_services.py` and avoid touching orchestration or goldens unless the public payload changes.
 - For application stages that only need a subset of request data, prefer a dedicated typed context object in `src/mealplan/application/orchestration.py` so the stage boundary receives only normalized, stage-specific inputs.
 - When the public response metric changes but internal fueling stays intact, keep `training_kcal` as the top-level contract field, preserve `training_carbs_g` only inside meal assembly/training-meal logic, and update contracts, renderers, helper tolerances, and success goldens together.
+- For CLI output contract renames, pin both the positive field name and the removed field's absence in real subprocess renderer tests, and use ordered key assertions for JSON output so formatter drift is caught outside mocked service tests.
 
 Started: Wed Mar 11 21:57:53 CET 2026
 ---
@@ -135,4 +136,19 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Patterns discovered: top-level contract renames in this codebase propagate through `MealPlanResponse`, domain payload assembly, CLI renderers, golden helper numeric tolerances, and both application/CLI success goldens.
 - Gotchas encountered: once `training_kcal` becomes canonical, test fixtures must also satisfy the stricter invariant `total_kcal == TDEE + training_kcal`, not just `sum(meals[*].kcal)`.
 - Useful context: the shipped response now reports training demand calories at the top level, but the optional `training` meal still derives its carbs/kcal solely from internal `training_carbs_g`.
+---
+## 2026-03-12 07:47:40 CET - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Tightened real CLI renderer coverage so JSON output now pins ordered top-level keys with `training_kcal` in place and explicitly rejects top-level `training_carbs_g`.
+- Added explicit absence checks for `training_carbs_g` in text and table renderer subprocess tests, keeping the renderer contract aligned with the updated CLI goldens.
+- Updated the repo agent guidance for hybrid golden comparisons so the documented tolerant numeric fields match the current `training_kcal`/`total_kcal` contract.
+- Files changed
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `tests/cli/test_calculate.py`
+- **Learnings for future iterations:**
+- Patterns discovered: CLI contract rename stories need subprocess assertions for both field presence and removed-field absence, because mocked response-equality tests alone can miss renderer regressions.
+- Gotchas encountered: the latest available Codex transcript file in this workspace is still `scripts/ralph/.codex-last-message-iter-1.txt`, so progress entries may reuse that path when newer iteration files have not been emitted.
+- Useful context: `make quality` passes in this environment via `UV=uv make quality`, covering Ruff, mypy, and the full pytest suite.
 ---

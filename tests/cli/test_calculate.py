@@ -210,7 +210,7 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
 
     assert result.returncode == 0
     response = json.loads(result.stdout)
-    assert set(response.keys()) == {
+    assert list(response.keys()) == [
         "TDEE",
         "training_kcal",
         "protein_g",
@@ -218,7 +218,8 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
         "fat_g",
         "total_kcal",
         "meals",
-    }
+    ]
+    assert "training_carbs_g" not in response
     assert [meal["meal"] for meal in response["meals"]] == [
         "breakfast",
         "morning-snack",
@@ -245,8 +246,16 @@ def test_calculate_default_format_is_json() -> None:
 
     assert result.returncode == 0
     response = json.loads(result.stdout)
-    assert "TDEE" in response
-    assert "meals" in response
+    assert list(response.keys()) == [
+        "TDEE",
+        "training_kcal",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+        "total_kcal",
+        "meals",
+    ]
+    assert "training_carbs_g" not in response
 
 
 def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
@@ -272,6 +281,7 @@ def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
     assert "carbs_g:" in text_output
     assert "fat_g:" in text_output
     assert "total_kcal:" in text_output
+    assert "training_carbs_g:" not in text_output
     assert "carbs_strategy=" in text_output
     assert "kcal=" in text_output
 
@@ -304,6 +314,7 @@ def test_calculate_table_format_outputs_top_level_and_canonical_meals() -> None:
     assert "| carbs_g |" in table_output
     assert "| fat_g |" in table_output
     assert "| total_kcal |" in table_output
+    assert "| training_carbs_g |" not in table_output
     assert "| meal | carbs_strategy | carbs_g | protein_g | fat_g | kcal |" in table_output
 
     meal_rows = [
