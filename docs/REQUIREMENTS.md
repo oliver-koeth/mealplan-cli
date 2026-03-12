@@ -56,6 +56,10 @@ The tool must be fully machine-executable without ambiguity.
                                               dinner / evening-snack /
                                               training (parseable but
                                               semantically invalid)
+
+  `--vo2max`                   int            Optional explicit VO2max in
+                                              ml/kg/min (`10..100`
+                                              inclusive)
   ------------------------------------------------------------------------
 
 ### Runtime and Output Controls
@@ -94,10 +98,24 @@ TDEE = BMR × activity_factor
 
 ### 5.1 Training Calorie Demand
 
--   Training calorie demand is derived from total minutes across zones `1..5`.
--   Zone 1 minutes contribute to calorie demand.
+-   Training calorie demand is derived from a zone-weighted VO2 estimate.
+-   Use explicit `--vo2max` when provided; otherwise predict VO2max as:
 
-training_calorie_demand_kcal = sum(zone_1..zone_5 minutes) × 4
+    `79.9 - (0.39 * age) - (13.7 * sex) - (0.28 * weight_kg)`
+
+-   Map `male -> sex = 0` and `female -> sex = 1`.
+-   Use fixed zone intensity coefficients:
+    `z1=0.30`, `z2=0.50`, `z3=0.65`, `z4=0.80`, `z5=0.925`.
+-   Per-zone calorie demand is:
+
+    `zone_kcal_per_min = weight_kg * 0.005 * zone_intensity * max(vo2max_used - 3.5, 0)`
+
+-   Total training demand is:
+
+    `training_kcal = sum(zone_minutes * zone_kcal_per_min for zones 1..5)`
+
+-   Keep full floating-point precision internally and round only emitted public
+    `training_kcal` fields to 2 decimals.
 
 ### 5.2 Training Fueling
 
@@ -225,7 +243,7 @@ Phase 6 contract clarification:
 
 JSON structure:
 
-{ "TDEE": number, "training_carbs_g": number, "protein_g": number,
+{ "TDEE": number, "training_kcal": number, "protein_g": number,
 "carbs_g": number, "fat_g": number, "total_kcal": number, "meals": \[
 {"meal":"breakfast","carbs_g":x,"protein_g":y,"fat_g":z,"kcal":k} \] }
 
@@ -236,6 +254,8 @@ JSON structure:
 -   The six canonical non-training meals are budgeted from a calories-first pool:
     `normal_meal_calorie_pool_kcal = TDEE + training_calorie_demand_kcal - training_calorie_supply_kcal`.
 -   `training_calorie_supply_kcal` remains `training_carbs_g * 4`.
+-   `training_carbs_g` is an internal fueling and training-meal input only; the
+    public top-level response field is `training_kcal`.
 -   Distribute both normal-meal `kcal` budgets and initial protein targets across
     `breakfast`, `morning-snack`, `lunch`, `afternoon-snack`, `dinner`, `evening-snack`
     with canonical shares `2/9, 1/9, 2/9, 1/9, 2/9, 1/9`.
@@ -263,8 +283,11 @@ JSON structure:
 -   Per-meal `carbs_g`, `protein_g`, and `fat_g` values are rounded to 2 decimals at output boundary only, and each meal row includes displayed `kcal`.
 -   Top-level `protein_g`, `carbs_g`, and `fat_g` are derived from the final emitted meal rows.
 -   Top-level `total_kcal` is output-only and equals the sum of displayed meal `kcal` values.
+-   Top-level `training_kcal` is the public training-demand metric; internal
+    `training_carbs_g` remains part of fueling and optional training-meal
+    assembly only.
 -   After canonical meal `kcal` budgets are allocated, apply display-only `kcal` reconciliation so:
-    `sum(meals[*].kcal) == (TDEE + training_calorie_demand_kcal)`.
+    `sum(meals[*].kcal) == (TDEE + training_kcal)`.
 
 ### 9.2 Phase 8 Application Orchestration Flow
 
@@ -275,15 +298,16 @@ JSON structure:
     2. training-session normalization
     3. energy calculation
     4. macro target calculation
-    5. training fueling calculation
-    6. training calorie demand calculation
+    5. training fueling calculation for internal `training_carbs_g`
+    6. training calorie demand calculation for public `training_kcal`
     7. meal assembly and `MealPlanResponse` model validation
 -   Standalone periodization allocation remains available as a pure domain helper, but calories-first response assembly is now the canonical source for emitted meal strategies and meal-level carb/fat allocation.
 -   `training_session` is optional at the request boundary.
 -   If `training_session` is omitted (`null`/`None`), orchestration must treat it as zero training with canonical defaults:
     - `zones_minutes = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}`
     - `training_before_meal = null`
--   For omitted training sessions, calculation proceeds normally and `training_carbs_g` must be `0.0`.
+-   For omitted training sessions, calculation proceeds normally with
+    `training_carbs_g = 0.0` internally and emitted `training_kcal = 0.0`.
 
 ### 9.3 Phase 9 CLI Contract Clarifications
 

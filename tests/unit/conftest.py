@@ -30,7 +30,7 @@ def meal_plan_response_payload() -> dict[str, Any]:
     """Canonical valid response payload with six meals in canonical order."""
     return {
         "TDEE": 2400.0,
-        "training_carbs_g": 60.0,
+        "training_kcal": 40.0,
         "protein_g": 150.0,
         "carbs_g": 280.0,
         "fat_g": 80.0,

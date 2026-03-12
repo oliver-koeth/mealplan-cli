@@ -7,9 +7,10 @@ import re
 import subprocess
 import sys
 
+import pytest
 from typer.testing import CliRunner
 
-from mealplan.application.contracts import MealPlanResponse
+from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
 from mealplan.cli.main import app
 from mealplan.domain.model import CANONICAL_MEAL_ORDER
 
@@ -60,11 +61,57 @@ def test_calculate_command_calls_application_service(monkeypatch) -> None:
     assert "request" in captured
 
 
+def test_calculate_command_passes_optional_vo2max(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeCalculationService:
+        def calculate(self, request: object) -> MealPlanResponse:
+            captured["request"] = request
+            return MealPlanResponse.placeholder()
+
+    monkeypatch.setattr(
+        "mealplan.cli.main.MealPlanCalculationService",
+        FakeCalculationService,
+    )
+
+    result = runner.invoke(app, [*_required_calculate_args(), "--vo2max", "58"])
+
+    assert result.exit_code == 0
+    request = captured["request"]
+    assert isinstance(request, MealPlanRequest)
+    assert request.vo2max == 58
+
+
+@pytest.mark.parametrize("vo2max", ["10", "100"])
+def test_calculate_command_accepts_vo2max_range_boundaries(
+    monkeypatch,
+    vo2max: str,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeCalculationService:
+        def calculate(self, request: object) -> MealPlanResponse:
+            captured["request"] = request
+            return MealPlanResponse.placeholder()
+
+    monkeypatch.setattr(
+        "mealplan.cli.main.MealPlanCalculationService",
+        FakeCalculationService,
+    )
+
+    result = runner.invoke(app, [*_required_calculate_args(), "--vo2max", vo2max])
+
+    assert result.exit_code == 0
+    request = captured["request"]
+    assert isinstance(request, MealPlanRequest)
+    assert request.vo2max == int(vo2max)
+
+
 def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
     expected = MealPlanResponse.model_validate(
         {
-            "TDEE": 2222.5,
-            "training_carbs_g": 12.0,
+            "TDEE": 2148.18,
+            "training_kcal": 12.0,
             "protein_g": 160.0,
             "carbs_g": 210.0,
             "fat_g": 77.0,
@@ -140,6 +187,8 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
             "180",
             "--weight",
             "75",
+            "--vo2max",
+            "58",
             "--activity",
             "medium",
             "--carbs",
@@ -161,15 +210,16 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
 
     assert result.returncode == 0
     response = json.loads(result.stdout)
-    assert set(response.keys()) == {
+    assert list(response.keys()) == [
         "TDEE",
-        "training_carbs_g",
+        "training_kcal",
         "protein_g",
         "carbs_g",
         "fat_g",
         "total_kcal",
         "meals",
-    }
+    ]
+    assert "training_carbs_g" not in response
     assert [meal["meal"] for meal in response["meals"]] == [
         "breakfast",
         "morning-snack",
@@ -196,8 +246,16 @@ def test_calculate_default_format_is_json() -> None:
 
     assert result.returncode == 0
     response = json.loads(result.stdout)
-    assert "TDEE" in response
-    assert "meals" in response
+    assert list(response.keys()) == [
+        "TDEE",
+        "training_kcal",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+        "total_kcal",
+        "meals",
+    ]
+    assert "training_carbs_g" not in response
 
 
 def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
@@ -218,11 +276,12 @@ def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
     assert result.returncode == 0
     text_output = result.stdout
     assert "TDEE:" in text_output
-    assert "training_carbs_g:" in text_output
+    assert "training_kcal:" in text_output
     assert "protein_g:" in text_output
     assert "carbs_g:" in text_output
     assert "fat_g:" in text_output
     assert "total_kcal:" in text_output
+    assert "training_carbs_g:" not in text_output
     assert "carbs_strategy=" in text_output
     assert "kcal=" in text_output
 
@@ -250,11 +309,12 @@ def test_calculate_table_format_outputs_top_level_and_canonical_meals() -> None:
     assert result.returncode == 0
     table_output = result.stdout
     assert "| TDEE |" in table_output
-    assert "| training_carbs_g |" in table_output
+    assert "| training_kcal |" in table_output
     assert "| protein_g |" in table_output
     assert "| carbs_g |" in table_output
     assert "| fat_g |" in table_output
     assert "| total_kcal |" in table_output
+    assert "| training_carbs_g |" not in table_output
     assert "| meal | carbs_strategy | carbs_g | protein_g | fat_g | kcal |" in table_output
 
     meal_rows = [
@@ -331,6 +391,51 @@ def test_calculate_invalid_enum_option_returns_validation_exit_code() -> None:
     stderr = _normalized_stderr(result.stderr)
     assert "Invalid value" in stderr
     assert "--gender" in stderr
+
+
+@pytest.mark.parametrize(
+    ("vo2max", "expected_fragment"),
+    [
+        ("9", "greater than or equal to 10"),
+        ("101", "less than or equal to 100"),
+    ],
+)
+def test_calculate_out_of_range_vo2max_returns_validation_exit_code(
+    vo2max: str,
+    expected_fragment: str,
+) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            *_required_calculate_args(),
+            "--vo2max",
+            vo2max,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    stderr = _normalized_stderr(result.stderr)
+    assert "vo2max" in stderr
+    assert expected_fragment in stderr
+
+
+def test_calculate_help_includes_optional_vo2max_flag() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "mealplan", "calculate", "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    stdout = _normalized_stderr(result.stdout)
+    assert "--vo2max" in stdout
+    assert "Optional VO2max" in stdout
 
 
 def test_calculate_invalid_format_choice_returns_validation_exit_code() -> None:
@@ -470,7 +575,7 @@ def test_calculate_training_zones_accepts_json_string_input() -> None:
 
     assert result.returncode == 0
     response = json.loads(result.stdout)
-    assert response["training_carbs_g"] == 0.0
+    assert response["training_kcal"] == 0.0
 
 
 def test_calculate_training_zones_invalid_json_returns_validation_exit_code() -> None:

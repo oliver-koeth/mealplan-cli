@@ -34,8 +34,33 @@ def test_meal_plan_request_parses_canonical_payload(
     assert request.age == 35
     assert request.height_cm == 178
     assert request.weight_kg == 72.5
+    assert request.vo2max is None
     assert request.training_session.zones_minutes["2"] == 40
     assert request.training_session.training_before_meal == "lunch"
+
+
+def test_meal_plan_request_accepts_optional_vo2max(
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
+    payload = meal_plan_request_payload
+    payload["vo2max"] = 58
+
+    request = MealPlanRequest.model_validate(payload)
+
+    assert request.vo2max == 58
+
+
+@pytest.mark.parametrize("vo2max", [10, 100])
+def test_meal_plan_request_accepts_vo2max_range_boundaries(
+    meal_plan_request_payload: dict[str, Any],
+    vo2max: int,
+) -> None:
+    payload = meal_plan_request_payload
+    payload["vo2max"] = vo2max
+
+    request = MealPlanRequest.model_validate(payload)
+
+    assert request.vo2max == vo2max
 
 
 def test_meal_plan_request_allows_missing_training_session(
@@ -120,6 +145,7 @@ def test_meal_plan_request_rejects_invalid_enum_values(
         ("age", "35", {"int_type"}),
         ("height_cm", "178", {"int_type"}),
         ("weight_kg", "72.5", {"float_type"}),
+        ("vo2max", "58", {"int_type"}),
         ("training_session", "not-an-object", {"model_type", "model_attributes_type"}),
     ],
 )
@@ -137,6 +163,20 @@ def test_meal_plan_request_rejects_invalid_primitive_and_nested_types(
         MealPlanRequest.model_validate(payload)
 
     _assert_validation_error_types(error_info.value, expected_error_types)
+
+
+@pytest.mark.parametrize("vo2max", [9, 101])
+def test_meal_plan_request_rejects_out_of_range_vo2max(
+    meal_plan_request_payload: dict[str, Any],
+    vo2max: int,
+) -> None:
+    payload = meal_plan_request_payload
+    payload["vo2max"] = vo2max
+
+    with pytest.raises(PydanticValidationError) as error_info:
+        MealPlanRequest.model_validate(payload)
+
+    _assert_validation_error_types(error_info.value, {"greater_than_equal", "less_than_equal"})
 
 
 @pytest.mark.parametrize(
@@ -204,6 +244,7 @@ def test_meal_plan_response_allows_optional_training_meal_between_canonical_meal
         *payload["meals"][2:],
     ]
     payload["total_kcal"] = 2680.0
+    payload["training_kcal"] = 280.0
 
     response = MealPlanResponse.model_validate(payload)
 
@@ -267,7 +308,7 @@ def test_meal_plan_response_rejects_duplicate_training_meals(
 
 @pytest.mark.parametrize(
     "missing_field",
-    ["TDEE", "training_carbs_g", "protein_g", "carbs_g", "fat_g", "total_kcal", "meals"],
+    ["TDEE", "training_kcal", "protein_g", "carbs_g", "fat_g", "total_kcal", "meals"],
 )
 def test_meal_plan_response_rejects_missing_required_fields(
     meal_plan_response_payload: dict[str, Any],
@@ -342,6 +383,7 @@ def test_meal_plan_response_placeholder_instantiates_full_shape() -> None:
     response = MealPlanResponse.placeholder()
 
     assert response.TDEE == 0.0
+    assert response.training_kcal == 0.0
     assert [meal.meal for meal in response.meals] == [
         "breakfast",
         "morning-snack",
@@ -359,9 +401,10 @@ def test_contract_units_policy_covers_request_and_response_units() -> None:
         "age": "years",
         "height_cm": "cm",
         "weight_kg": "kg",
+        "vo2max": "ml/kg/min",
         "zones_minutes": "minutes",
         "TDEE": "kcal/day (legacy field name retained for compatibility)",
-        "training_carbs_g": "g",
+        "training_kcal": "kcal",
         "protein_g": "g",
         "carbs_g": "g",
         "fat_g": "g",
@@ -372,6 +415,19 @@ def test_contract_units_policy_covers_request_and_response_units() -> None:
     assert MealPlanRequest.model_fields["age"].description == "Age in years."
     assert MealPlanResponse.model_fields["TDEE"].description is not None
     assert "kcal/day" in MealPlanResponse.model_fields["TDEE"].description
+    assert MealPlanResponse.model_fields["training_kcal"].description is not None
+
+
+def test_meal_plan_response_rejects_total_kcal_that_does_not_match_tdee_plus_training_kcal(
+    meal_plan_response_payload: dict[str, Any],
+) -> None:
+    payload = meal_plan_response_payload
+    payload["total_kcal"] = 2440.01
+
+    with pytest.raises(PydanticValidationError) as error_info:
+        MealPlanResponse.model_validate(payload)
+
+    _assert_validation_error_types(error_info.value, {"value_error"})
 
 
 def test_probe_request_parses_known_payload() -> None:

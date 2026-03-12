@@ -34,6 +34,7 @@ from mealplan.domain.services import (
     calculate_tdee_kcal,
     calculate_training_calorie_demand_kcal,
     calculate_training_carbs_g,
+    select_vo2max_used,
 )
 from mealplan.domain.validation import (
     validate_carb_reconciliation_invariants,
@@ -66,6 +67,7 @@ __all__ = [
     "carbs_target_g_for",
     "fat_target_g_for",
     "protein_target_g_for",
+    "select_vo2max_used",
     "tdee_kcal_per_day_for",
     "validate_carb_reconciliation_invariants",
     "validate_meal_allocation_invariants",

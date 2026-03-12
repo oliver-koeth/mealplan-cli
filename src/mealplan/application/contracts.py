@@ -24,9 +24,10 @@ CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "age": "years",
     "height_cm": "cm",
     "weight_kg": "kg",
+    "vo2max": "ml/kg/min",
     "zones_minutes": "minutes",
     "TDEE": "kcal/day (legacy field name retained for compatibility)",
-    "training_carbs_g": "g",
+    "training_kcal": "kcal",
     "protein_g": "g",
     "carbs_g": "g",
     "fat_g": "g",
@@ -57,6 +58,12 @@ class MealPlanRequest(BoundaryModel):
     gender: Gender
     height_cm: StrictInt = Field(description="Body height in centimeters.")
     weight_kg: StrictFloat = Field(description="Body weight in kilograms.")
+    vo2max: StrictInt | None = Field(
+        default=None,
+        description="Optional VO2max in ml/kg/min.",
+        ge=10,
+        le=100,
+    )
     activity_level: ActivityLevel
     carb_mode: CarbMode
     training_load_tomorrow: TrainingLoadTomorrow
@@ -83,7 +90,9 @@ class MealPlanResponse(BoundaryModel):
             "expenditure (kcal/day)."
         ),
     )
-    training_carbs_g: StrictFloat
+    training_kcal: StrictFloat = Field(
+        description="Rounded training calorie demand for the planned day in kcal.",
+    )
     protein_g: StrictFloat
     carbs_g: StrictFloat
     fat_g: StrictFloat
@@ -113,12 +122,19 @@ class MealPlanResponse(BoundaryModel):
             raise ValueError("total_kcal must equal sum(meals[*].kcal)")
         return self
 
+    @model_validator(mode="after")
+    def _ensure_total_kcal_matches_tdee_plus_training(self) -> MealPlanResponse:
+        expected_total = round(self.TDEE + self.training_kcal, 2)
+        if round(self.total_kcal, 2) != expected_total:
+            raise ValueError("total_kcal must equal TDEE + training_kcal")
+        return self
+
     @classmethod
     def placeholder(cls) -> MealPlanResponse:
         """Build a zeroed response shape usable before calculation phases are implemented."""
         return cls(
             TDEE=0.0,
-            training_carbs_g=0.0,
+            training_kcal=0.0,
             protein_g=0.0,
             carbs_g=0.0,
             fat_g=0.0,

@@ -33,6 +33,7 @@ from mealplan.domain.services import (
     calculate_meal_split_and_response_payload_with_warnings,
     calculate_periodized_carb_allocation,
     calculate_tdee_kcal,
+    select_vo2max_used,
 )
 from mealplan.domain.services import (
     calculate_training_carbs_g as calculate_training_carbs_g_service,
@@ -108,10 +109,136 @@ def test_calculate_training_carbs_g_returns_zero_for_zero_total_minutes() -> Non
     assert calculate_training_carbs_g(zones_minutes) == 0.0
 
 
+def test_select_vo2max_used_returns_explicit_value_when_present() -> None:
+    assert select_vo2max_used(age=35, gender=Gender.MALE, weight_kg=72.5, vo2max=58) == 58.0
+
+
+@pytest.mark.parametrize(
+    ("gender", "expected_vo2max"),
+    [
+        (Gender.MALE, 45.95),
+        (Gender.FEMALE, 32.25),
+    ],
+)
+def test_select_vo2max_used_predicts_from_age_gender_and_weight_kg(
+    gender: Gender,
+    expected_vo2max: float,
+) -> None:
+    assert select_vo2max_used(age=35, gender=gender, weight_kg=72.5, vo2max=None) == pytest.approx(
+        expected_vo2max
+    )
+
+
+def test_select_vo2max_used_keeps_weight_in_kilograms_without_pounds_conversion() -> None:
+    weight_kg = 72.5
+
+    predicted = select_vo2max_used(
+        age=35,
+        gender=Gender.MALE,
+        weight_kg=weight_kg,
+        vo2max=None,
+    )
+
+    expected = 79.9 - (0.39 * 35) - (0.28 * weight_kg)
+    converted_weight_expected = 79.9 - (0.39 * 35) - (0.28 * (weight_kg * 2.20462))
+
+    assert predicted == pytest.approx(expected)
+    assert predicted != pytest.approx(converted_weight_expected)
+
+
 def test_calculate_training_calorie_demand_kcal_counts_all_zone_minutes() -> None:
     zones_minutes: Mapping[int, int] = {1: 30, 2: 0, 3: 0, 4: 0, 5: 0}
 
-    assert calculate_training_calorie_demand_kcal(zones_minutes) == 120.0
+    assert calculate_training_calorie_demand_kcal(
+        age=35,
+        gender=Gender.MALE,
+        weight_kg=72.5,
+        vo2max=None,
+        zones_minutes=zones_minutes,
+    ) == pytest.approx(138.493125)
+
+
+def test_calculate_training_calorie_demand_kcal_uses_explicit_vo2max_when_present() -> None:
+    zones_minutes: Mapping[int, int] = {1: 0, 2: 30, 3: 0, 4: 0, 5: 0}
+
+    assert calculate_training_calorie_demand_kcal(
+        age=35,
+        gender=Gender.MALE,
+        weight_kg=72.5,
+        vo2max=58,
+        zones_minutes=zones_minutes,
+    ) == pytest.approx(296.34375)
+
+
+def test_calculate_training_calorie_demand_kcal_keeps_full_precision_without_internal_rounding(
+) -> None:
+    demand = calculate_training_calorie_demand_kcal(
+        age=35,
+        gender=Gender.MALE,
+        weight_kg=72.5,
+        vo2max=None,
+        zones_minutes={1: 0, 2: 7, 3: 0, 4: 0, 5: 0},
+    )
+
+    assert demand == pytest.approx(53.8584375)
+    assert demand != round(demand, 2)
+
+
+def test_calculate_training_calorie_demand_kcal_zone_coefficients_are_monotonic() -> None:
+    athlete = {"age": 35, "gender": Gender.MALE, "weight_kg": 72.5, "vo2max": 58}
+
+    zone_demands = [
+        calculate_training_calorie_demand_kcal(
+            **athlete,
+            zones_minutes={1: 0, 2: 0, 3: 0, 4: 0, 5: 0} | {zone: 30},
+        )
+        for zone in range(1, 6)
+    ]
+
+    assert zone_demands == sorted(zone_demands)
+    assert zone_demands[0] > 0.0
+
+
+@pytest.mark.parametrize(
+    ("athlete", "comparison_athlete"),
+    [
+        (
+            {"age": 25, "gender": Gender.MALE, "weight_kg": 72.5, "vo2max": None},
+            {"age": 45, "gender": Gender.MALE, "weight_kg": 72.5, "vo2max": None},
+        ),
+        (
+            {"age": 35, "gender": Gender.MALE, "weight_kg": 72.5, "vo2max": None},
+            {"age": 35, "gender": Gender.FEMALE, "weight_kg": 72.5, "vo2max": None},
+        ),
+        (
+            {"age": 35, "gender": Gender.MALE, "weight_kg": 60.0, "vo2max": None},
+            {"age": 35, "gender": Gender.MALE, "weight_kg": 85.0, "vo2max": None},
+        ),
+    ],
+    ids=["age_change", "gender_change", "weight_change"],
+)
+def test_calculate_training_calorie_demand_kcal_changes_with_predicted_athlete_profile(
+    athlete: dict[str, object],
+    comparison_athlete: dict[str, object],
+) -> None:
+    zones_minutes: Mapping[int, int] = {1: 0, 2: 30, 3: 0, 4: 0, 5: 0}
+
+    athlete_demand = calculate_training_calorie_demand_kcal(
+        age=cast(int, athlete["age"]),
+        gender=cast(Gender, athlete["gender"]),
+        weight_kg=cast(float, athlete["weight_kg"]),
+        vo2max=cast(int | None, athlete["vo2max"]),
+        zones_minutes=zones_minutes,
+    )
+    comparison_demand = calculate_training_calorie_demand_kcal(
+        age=cast(int, comparison_athlete["age"]),
+        gender=cast(Gender, comparison_athlete["gender"]),
+        weight_kg=cast(float, comparison_athlete["weight_kg"]),
+        vo2max=cast(int | None, comparison_athlete["vo2max"]),
+        zones_minutes=zones_minutes,
+    )
+
+    assert athlete_demand != pytest.approx(comparison_demand)
 
 
 def test_calculate_normal_meal_calorie_pool_kcal_subtracts_training_supply_from_day_energy(
@@ -239,7 +366,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
 
     assert list(payload.keys()) == [
         "TDEE",
-        "training_carbs_g",
+        "training_kcal",
         "protein_g",
         "carbs_g",
         "fat_g",
@@ -247,7 +374,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
         "meals",
     ]
     assert payload["TDEE"] == 2908.0
-    assert payload["training_carbs_g"] == 85.0
+    assert payload["training_kcal"] == 340.0
     assert payload["protein_g"] == 180.0
     assert payload["carbs_g"] == 449.67
     assert payload["fat_g"] == 81.04
@@ -286,9 +413,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
     ]
     assert [entry["protein_g"] for entry in canonical_meals] == [40.0, 20.0, 40.0, 20.0, 40.0, 20.0]
     assert round(sum(float(entry["kcal"]) for entry in canonical_meals), 2) == 2908.0
-    assert payload["total_kcal"] == pytest.approx(
-        2908.0 + calculate_training_calorie_demand_kcal({1: 0, 2: 85, 3: 0, 4: 0, 5: 0}),
-    )
+    assert payload["total_kcal"] == 3248.0
     assert [entry["fat_g"] for entry in canonical_meals] == [18.01, 9.0, 18.01, 9.0, 18.01, 9.01]
     assert [entry["kcal"] for entry in canonical_meals] == [
         646.22,
@@ -343,7 +468,7 @@ def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meal
 
     payload = _assemble_meal_split_response_payload(
         tdee_kcal=2300.0,
-        training_carbs_g=55.0,
+        training_kcal=55.0,
         protein_g=120.0,
         carbs_g=200.0,
         fat_g=60.0,
@@ -353,7 +478,7 @@ def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meal
 
     assert list(payload.keys()) == [
         "TDEE",
-        "training_carbs_g",
+        "training_kcal",
         "protein_g",
         "carbs_g",
         "fat_g",
@@ -361,7 +486,7 @@ def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meal
         "meals",
     ]
     assert payload["TDEE"] == 2300.0
-    assert payload["training_carbs_g"] == 55.0
+    assert payload["training_kcal"] == 55.0
     assert payload["protein_g"] == 120.0
     assert payload["carbs_g"] == 200.0
     assert payload["fat_g"] == 60.0
@@ -385,7 +510,7 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
     parsed = MealPlanResponse.model_validate(payload)
 
     assert parsed.TDEE == 2400.0
-    assert parsed.training_carbs_g == 85.0
+    assert parsed.training_kcal == 340.0
     assert parsed.protein_g == 180.0
     assert parsed.carbs_g == pytest.approx(
         sum(float(meal.carbs_g) for meal in parsed.meals),

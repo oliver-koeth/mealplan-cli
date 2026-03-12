@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Literal, TypedDict, cast
 
 from mealplan.domain.energy import tdee_kcal_per_day_for
-from mealplan.domain.enums import CarbMode, CarbStrategy, MealName, TrainingLoadTomorrow
+from mealplan.domain.enums import CarbMode, CarbStrategy, Gender, MealName, TrainingLoadTomorrow
 from mealplan.domain.macros import carbs_target_g_for, fat_target_g_for, protein_target_g_for
 from mealplan.domain.model import CANONICAL_MEAL_ORDER, MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.validation import validate_meal_allocation_invariants
@@ -26,6 +26,13 @@ CARB_CALORIE_SHARE_BY_STRATEGY: dict[CarbStrategy, float] = {
     CarbStrategy.LOW: 0.25,
     CarbStrategy.MEDIUM: 2.0 / 3.0,
     CarbStrategy.HIGH: 0.75,
+}
+ZONE_INTENSITY_BY_ZONE: dict[int, float] = {
+    1: 0.30,
+    2: 0.50,
+    3: 0.65,
+    4: 0.80,
+    5: 0.925,
 }
 
 
@@ -79,15 +86,49 @@ def calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float:
     return float(total_minutes)
 
 
-def calculate_training_calorie_demand_kcal(zones_minutes: Mapping[int, int]) -> float:
-    """Return training calorie demand from total minutes across zones 1..5.
+def select_vo2max_used(
+    *,
+    age: int,
+    gender: Gender,
+    weight_kg: float,
+    vo2max: int | None,
+) -> float:
+    """Return explicit VO2max or canonical kg-based prediction when omitted."""
+    if vo2max is not None:
+        return float(vo2max)
 
-    Business rule:
-    - All zone minutes contribute to demand, including zone 1.
-    - Demand uses a fixed conversion of 4 kcal per minute-equivalent unit.
+    sex = 0 if gender is Gender.MALE else 1
+    return 79.9 - (0.39 * age) - (13.7 * sex) - (0.28 * weight_kg)
+
+
+def calculate_training_calorie_demand_kcal(
+    *,
+    age: int,
+    gender: Gender,
+    weight_kg: float,
+    vo2max: int | None,
+    zones_minutes: Mapping[int, int],
+) -> float:
+    """Return internal VO2-based training calorie demand from normalized zone minutes.
+
+    Contract:
+    - Uses explicit ``vo2max`` when present, otherwise the canonical prediction formula.
+    - Keeps full floating-point precision internally; rounding is deferred to emitted fields.
+    - Applies the fixed zone-intensity coefficients for canonical zones ``1..5``.
+    - The public response emits this value as top-level ``training_kcal``.
     """
-    total_minutes = sum(zones_minutes.values())
-    return round(float(total_minutes) * 4.0, 2)
+    vo2max_used = select_vo2max_used(
+        age=age,
+        gender=gender,
+        weight_kg=weight_kg,
+        vo2max=vo2max,
+    )
+    net_vo2max = max(vo2max_used - 3.5, 0.0)
+    base_kcal_per_min = weight_kg * 0.005 * net_vo2max
+    return sum(
+        float(zones_minutes.get(zone, 0)) * base_kcal_per_min * intensity
+        for zone, intensity in ZONE_INTENSITY_BY_ZONE.items()
+    )
 
 
 def calculate_normal_meal_calorie_pool_kcal(
@@ -238,7 +279,7 @@ def calculate_meal_split_and_response_payload_with_warnings(
 
     payload = _assemble_meal_split_response_payload(
         tdee_kcal=tdee_kcal,
-        training_carbs_g=training_carbs_g,
+        training_kcal=round(training_calorie_demand_kcal, 2),
         protein_g=round(sum(float(meal["protein_g"]) for meal in meals), 2),
         carbs_g=response_carbs_g,
         fat_g=response_fat_g,
@@ -280,7 +321,7 @@ def _insert_training_meal_if_needed(
 def _assemble_meal_split_response_payload(
     *,
     tdee_kcal: float,
-    training_carbs_g: float,
+    training_kcal: float,
     protein_g: float,
     carbs_g: float,
     fat_g: float,
@@ -289,7 +330,7 @@ def _assemble_meal_split_response_payload(
 ) -> dict[str, object]:
     return {
         "TDEE": tdee_kcal,
-        "training_carbs_g": training_carbs_g,
+        "training_kcal": training_kcal,
         "protein_g": protein_g,
         "carbs_g": carbs_g,
         "fat_g": fat_g,

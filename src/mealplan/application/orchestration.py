@@ -8,7 +8,7 @@ from typing import cast
 from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
 from mealplan.application.parsing import parse_contract
 from mealplan.application.validation import normalize_training_zones, validate_semantic_input
-from mealplan.domain.enums import CarbMode, MealName, TrainingLoadTomorrow
+from mealplan.domain.enums import CarbMode, Gender, MealName, TrainingLoadTomorrow
 from mealplan.domain.model import MacroTargets, MealAllocation, UserProfile
 from mealplan.domain.services import (
     calculate_macro_targets,
@@ -31,6 +31,17 @@ class ValidatedTrainingSession:
 
     zones_minutes: dict[int, int]
     training_before_meal: MealName | None
+
+
+@dataclass(frozen=True, slots=True)
+class TrainingDemandContext:
+    """Athlete context required by the training-demand stage."""
+
+    age: int
+    gender: Gender
+    weight_kg: float
+    vo2max: int | None
+    zones_minutes: dict[int, int]
 
 
 class MealPlanCalculationService:
@@ -56,7 +67,12 @@ class MealPlanCalculationService:
         tdee_kcal = self._run_energy_stage(validated_request)
         macro_targets = self._run_macro_stage(validated_request, tdee_kcal)
         training_carbs_g = self._run_fueling_stage(training_session)
-        training_calorie_demand_kcal = self._run_training_demand_stage(training_session)
+        training_calorie_demand_kcal = self._run_training_demand_stage(
+            _training_demand_context(
+                request=validated_request,
+                training_session=training_session,
+            ),
+        )
         return self._run_assembly_stage(
             tdee_kcal=tdee_kcal,
             training_carbs_g=training_carbs_g,
@@ -90,10 +106,18 @@ class MealPlanCalculationService:
         canonical_zones = _canonical_training_zones(training_session.zones_minutes)
         return calculate_training_carbs_g(canonical_zones)
 
-    def _run_training_demand_stage(self, training_session: ValidatedTrainingSession) -> float:
-        """Return training calorie demand from normalized training zone minutes."""
-        canonical_zones = _canonical_training_zones(training_session.zones_minutes)
-        return calculate_training_calorie_demand_kcal(canonical_zones)
+    def _run_training_demand_stage(
+        self,
+        context: TrainingDemandContext,
+    ) -> float:
+        """Return internal training calorie demand for later `training_kcal` emission."""
+        return calculate_training_calorie_demand_kcal(
+            age=context.age,
+            gender=context.gender,
+            weight_kg=context.weight_kg,
+            vo2max=context.vo2max,
+            zones_minutes=context.zones_minutes,
+        )
 
     def _run_periodization_stage(
         self,
@@ -153,6 +177,20 @@ def _validated_training_session(request: MealPlanRequest) -> ValidatedTrainingSe
 
 def _canonical_training_zones(zones_minutes: dict[int, int]) -> dict[int, int]:
     return {zone: zones_minutes.get(zone, 0) for zone in range(1, 6)}
+
+
+def _training_demand_context(
+    *,
+    request: MealPlanRequest,
+    training_session: ValidatedTrainingSession,
+) -> TrainingDemandContext:
+    return TrainingDemandContext(
+        age=request.age,
+        gender=request.gender,
+        weight_kg=request.weight_kg,
+        vo2max=request.vo2max,
+        zones_minutes=_canonical_training_zones(training_session.zones_minutes),
+    )
 
 
 def _user_profile_from_request(request: MealPlanRequest) -> UserProfile:

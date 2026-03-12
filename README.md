@@ -105,6 +105,7 @@ mealplan calculate \
 
 Optional flags:
 
+- `--vo2max` (integer `10..100`, optional explicit VO2max in `ml/kg/min`)
 - `--training-zones` (JSON string only, for example `'{"1": 20, "2": 40}'`)
 - `--training-before` (`breakfast|morning-snack|lunch|afternoon-snack|dinner|evening-snack`)
 - `--format` (`json|text|table`, default `json`)
@@ -122,6 +123,7 @@ uv run mealplan calculate \
 uv run mealplan calculate \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs periodized --training-tomorrow high \
+  --vo2max 58 \
   --training-zones '{"1": 20, "2": 40, "3": 0, "4": 0, "5": 0}' \
   --training-before lunch \
   --format text
@@ -151,7 +153,7 @@ Error output behavior:
 Golden tests use a hybrid policy:
 
 - Strict checks: exact JSON keys, key ordering, list ordering, and all string/enum fields.
-- Tolerant checks: numeric fields only for `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, and per-meal macro grams (`meals[*].protein_g`, `meals[*].carbs_g`, `meals[*].fat_g`) with absolute tolerance `0.01`.
+- Tolerant checks: numeric fields only for `TDEE`, `training_kcal`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`, and `meals[*].{protein_g,carbs_g,fat_g,kcal}` with absolute tolerance `0.01`.
 - Shared helper: tolerance constants and comparisons are centralized in `tests/golden/helpers.py` and reused by CLI and application golden suites.
 - Deterministic fixture rules:
   - CLI snapshots must use canonical keys in this order: `exit_code`, `stderr`, `stdout`.

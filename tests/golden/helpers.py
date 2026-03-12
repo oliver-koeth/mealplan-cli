@@ -8,7 +8,7 @@ from typing import Any
 
 NUMERIC_TOLERANCE_ABS = 0.01
 _TOLERANT_TOP_LEVEL_NUMERIC_FIELDS = frozenset(
-    {"TDEE", "training_carbs_g", "protein_g", "carbs_g", "fat_g", "total_kcal"}
+    {"TDEE", "training_kcal", "protein_g", "carbs_g", "fat_g", "total_kcal"}
 )
 _TOLERANT_MEAL_NUMERIC_FIELDS = frozenset({"protein_g", "carbs_g", "fat_g", "kcal"})
 

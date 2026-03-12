@@ -33,6 +33,11 @@ AGE_OPTION = typer.Option(..., "--age", help="Age in years.")
 GENDER_OPTION = typer.Option(..., "--gender", help="Gender: male|female.")
 HEIGHT_OPTION = typer.Option(..., "--height", help="Height in centimeters.")
 WEIGHT_OPTION = typer.Option(..., "--weight", help="Weight in kilograms.")
+VO2MAX_OPTION = typer.Option(
+    None,
+    "--vo2max",
+    help="Optional VO2max in ml/kg/min.",
+)
 ACTIVITY_OPTION = typer.Option(..., "--activity", help="Activity level.")
 CARBS_OPTION = typer.Option(..., "--carbs", help="Carb mode.")
 TRAINING_TOMORROW_OPTION = typer.Option(
@@ -84,6 +89,7 @@ def calculate_command(
     gender: Gender = GENDER_OPTION,
     height: int = HEIGHT_OPTION,
     weight: float = WEIGHT_OPTION,
+    vo2max: int | None = VO2MAX_OPTION,
     activity: ActivityLevel = ACTIVITY_OPTION,
     carbs: CarbMode = CARBS_OPTION,
     training_tomorrow: TrainingLoadTomorrow = TRAINING_TOMORROW_OPTION,
@@ -100,6 +106,7 @@ def calculate_command(
         "gender": gender,
         "height_cm": height,
         "weight_kg": weight,
+        "vo2max": vo2max,
         "activity_level": activity,
         "carb_mode": carbs,
         "training_load_tomorrow": training_tomorrow,
@@ -156,7 +163,7 @@ def _render_text_output(response: MealPlanResponse) -> str:
     payload = response.model_dump(mode="json")
     lines = [
         f"TDEE: {payload['TDEE']}",
-        f"training_carbs_g: {payload['training_carbs_g']}",
+        f"training_kcal: {payload['training_kcal']}",
         f"protein_g: {payload['protein_g']}",
         f"carbs_g: {payload['carbs_g']}",
         f"fat_g: {payload['fat_g']}",
@@ -178,7 +185,7 @@ def _render_table_output(response: MealPlanResponse) -> str:
         "| field | value |",
         "| --- | --- |",
         f"| TDEE | {payload['TDEE']} |",
-        f"| training_carbs_g | {payload['training_carbs_g']} |",
+        f"| training_kcal | {payload['training_kcal']} |",
         f"| protein_g | {payload['protein_g']} |",
         f"| carbs_g | {payload['carbs_g']} |",
         f"| fat_g | {payload['fat_g']} |",

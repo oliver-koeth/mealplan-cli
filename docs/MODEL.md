@@ -74,6 +74,10 @@ This document defines the canonical domain model for `mealplan`: object structur
   - Parsing policy: strict integer only (numeric strings are invalid)
 
 ### 4.2 Training Inputs
+- `vo2max`
+  - Type: integer or null
+  - Unit: `ml/kg/min`
+  - Range: `10..100` inclusive when provided
 - `zones_minutes`
   - Type: mapping `zone -> minutes`
   - Zone keys: `1`, `2`, `3`, `4`, `5`
@@ -89,12 +93,24 @@ This document defines the canonical domain model for `mealplan`: object structur
   - Type: float
   - Unit: kcal/day
   - Rule: computed from BMR * activity factor.
+- `training_kcal`
+  - Type: float
+  - Unit: kcal/day
+  - Rule:
+    - uses explicit `vo2max` when present, otherwise predicted VO2max
+    - predicted VO2max = `79.9 - (0.39 * age) - (13.7 * sex) - (0.28 * weight_kg)`
+    - map `male -> sex = 0`, `female -> sex = 1`
+    - zone coefficients are `z1=0.30`, `z2=0.50`, `z3=0.65`, `z4=0.80`, `z5=0.925`
+    - `zone_kcal_per_min = weight_kg * 0.005 * zone_intensity * max(vo2max_used - 3.5, 0)`
+    - `training_kcal = sum(zone_minutes * zone_kcal_per_min for zones 1..5)`
+    - emitted public value is rounded to 2 decimals
 - `training_carbs_g`
   - Type: float
   - Unit: grams/day
   - Rule:
     - all training in zone 1 -> `0`
     - any zone >=2 -> total training minutes * `1 g/min` (equivalent to 60 g/hour)
+  - Scope: internal fueling and optional training-meal budgeting only; not a public top-level response field.
 - `protein_g`
   - Type: float
   - Unit: grams/day
@@ -176,7 +192,8 @@ This document defines the canonical domain model for `mealplan`: object structur
 ### 5.6 `MealPlan`
 - Fields:
   - `tdee_kcal: float`
-  - `training_carbs_g: float`
+  - `training_kcal: float` (public training-demand metric)
+  - `training_carbs_g: float` (internal fueling/training-meal value)
   - `macro_targets: MacroTargets`
   - `meal_allocations: list[MealAllocation]` (length exactly 6)
 - Invariants:
@@ -195,17 +212,21 @@ This document defines the canonical domain model for `mealplan`: object structur
 
 ### 6.2 Training Demand and Fuel Rule Contract
 - Training calorie demand:
-  - Input: normalized `zones_minutes: Mapping[int, int]` with canonical keys `1..5`
-  - Canonical API: `calculate_training_calorie_demand_kcal(zones_minutes: Mapping[int, int]) -> float`
+  - Input: `age`, `gender`, `weight_kg`, optional `vo2max`, and normalized `zones_minutes: Mapping[int, int]` with canonical keys `1..5`
+  - Canonical API: `calculate_training_calorie_demand_kcal(age: int, gender: Gender, weight_kg: float, vo2max: int | None, zones_minutes: Mapping[int, int]) -> float`
   - Output: `training_calorie_demand_kcal: float`
   - Logic:
-    - All zone minutes (including zone 1) contribute.
-    - `training_calorie_demand_kcal = sum(minutes) * 4.0`
+    - Use explicit `vo2max` when present, otherwise predict it as `79.9 - (0.39 * age) - (13.7 * sex) - (0.28 * weight_kg)`.
+    - Map `male -> sex = 0` and `female -> sex = 1`.
+    - Zone intensity coefficients are `z1=0.30`, `z2=0.50`, `z3=0.65`, `z4=0.80`, `z5=0.925`.
+    - `zone_kcal_per_min = weight_kg * 0.005 * zone_intensity * max(vo2max_used - 3.5, 0)`.
+    - `training_calorie_demand_kcal = sum(zone_minutes * zone_kcal_per_min for zones 1..5)`.
+    - Internal precision stays unrounded; public `training_kcal` is rounded to 2 decimals at emission.
 
 - Training fueling:
 - Input: normalized `zones_minutes: Mapping[int, int]` with canonical keys `1..5`
 - Canonical API: `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float`
-- Output: `training_carbs_g: float`
+- Output: internal `training_carbs_g: float`
 - Logic:
   - If all non-zero minutes are zone 1 -> `0`
   - If any zone 2-5 has minutes > 0 -> `sum(minutes) * 1.0`
@@ -252,7 +273,7 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Inputs:
   - Canonical top-level macro/energy values plus carb-mode and training-timing context.
 - Output contract:
-  - Returns top-level response fields (`TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`) plus response `meals`.
+  - Returns top-level response fields (`TDEE`, `training_kcal`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`) plus response `meals`.
   - `meals` contains exactly six canonical entries plus at most one optional `training` entry.
   - Optional `training` entry is inserted immediately before `training_before_meal` when `training_carbs_g > 0`; no `training` entry is emitted when `training_carbs_g == 0`.
 - Rules:
@@ -286,12 +307,12 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Deterministic orchestration sequence:
   - Validation flow first (`validate_meal_plan_flow`).
   - Training-session normalization.
-  - Domain stage composition in fixed order: energy -> macros -> fueling -> periodization -> assembly.
+  - Domain stage composition in fixed order: energy -> macros -> fueling -> training demand -> periodization -> assembly.
 - Omitted training-session interpretation:
   - If `request.training_session is None`, canonical normalized training context is:
     - `zones_minutes = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}`
     - `training_before_meal = None`
-  - This case is valid and must produce deterministic zero-training fueling (`training_carbs_g = 0.0`).
+  - This case is valid and must produce deterministic zero-training fueling (`training_carbs_g = 0.0`) and emitted `training_kcal = 0.0`.
 
 ## 7. Verification Matrix
 
@@ -313,7 +334,7 @@ This document defines the canonical domain model for `mealplan`: object structur
 - Reject if deterministic precedence cannot resolve conflict (this should never occur with current rule set).
 
 ### 7.3 Output Verification
-- Output top-level fields are present: `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`, `meals`.
+- Output top-level fields are present: `TDEE`, `training_kcal`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`, `meals`.
 - `meals` length is `6` or `7` (with at most one `training` row) and canonical ordering is preserved for non-training meals.
 - Every emitted meal row includes `carbs_strategy`.
 - Meal macro totals reconcile to top-level totals because top-level `protein_g`, `carbs_g`, and `fat_g` are derived from the final emitted meal rows.
@@ -344,6 +365,7 @@ This document defines the canonical domain model for `mealplan`: object structur
   "gender": "male",
   "height_cm": 178,
   "weight_kg": 72.5,
+  "vo2max": 58,
   "activity_level": "medium",
   "carb_mode": "periodized",
   "training_load_tomorrow": "high",
@@ -357,6 +379,7 @@ This document defines the canonical domain model for `mealplan`: object structur
 ### 9.2 Example Derived Facts
 - `protein_g = 145.0`
 - `carbs_g (baseline periodized) = 290.0`
+- `training_kcal` is emitted at the top level from the VO2-based demand formula, rounded to 2 decimals.
 - `training_carbs_g = 60.0` because zone 2 is present for total 60 minutes.
 - Post-training high meals start at `lunch`, then `afternoon-snack`.
 
