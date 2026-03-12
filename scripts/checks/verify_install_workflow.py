@@ -12,10 +12,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DIST_DIR = REPO_ROOT / "dist"
 EXPECTED_TOP_LEVEL_KEYS = {
     "TDEE",
-    "training_carbs_g",
+    "training_kcal",
     "protein_g",
     "carbs_g",
     "fat_g",
+    "total_kcal",
     "meals",
 }
 
