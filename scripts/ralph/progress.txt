@@ -7,6 +7,7 @@
 - For application stages that only need a subset of request data, prefer a dedicated typed context object in `src/mealplan/application/orchestration.py` so the stage boundary receives only normalized, stage-specific inputs.
 - When the public response metric changes but internal fueling stays intact, keep `training_kcal` as the top-level contract field, preserve `training_carbs_g` only inside meal assembly/training-meal logic, and update contracts, renderers, helper tolerances, and success goldens together.
 - For CLI output contract renames, pin both the positive field name and the removed field's absence in real subprocess renderer tests, and use ordered key assertions for JSON output so formatter drift is caught outside mocked service tests.
+- For contract/documentation updates, verify README and the canonical docs (`docs/REQUIREMENTS.md`, `docs/MODEL.md`, `docs/ARCHITECTURE.md`) against the actual request contracts, orchestration contexts, and domain models so request-only fields do not drift into domain-object descriptions.
 
 Started: Wed Mar 11 21:57:53 CET 2026
 ---
@@ -151,4 +152,21 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Patterns discovered: CLI contract rename stories need subprocess assertions for both field presence and removed-field absence, because mocked response-equality tests alone can miss renderer regressions.
 - Gotchas encountered: the latest available Codex transcript file in this workspace is still `scripts/ralph/.codex-last-message-iter-1.txt`, so progress entries may reuse that path when newer iteration files have not been emitted.
 - Useful context: `make quality` passes in this environment via `UV=uv make quality`, covering Ruff, mypy, and the full pytest suite.
+---
+## 2026-03-12 07:51:44 CET - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Updated `docs/REQUIREMENTS.md` to describe the VO2-based zone-weighted training-kcal formula, optional `--vo2max`, and the public `training_kcal` response contract while preserving internal fueling notes for `training_carbs_g`.
+- Updated `docs/MODEL.md` and `docs/ARCHITECTURE.md` so the canonical stage sequence, service signatures, request/response field lists, and examples reflect explicit/derived VO2max handling and top-level `training_kcal`.
+- Updated `README.md` examples and tolerance-policy text to include `--vo2max` and the shipped `training_kcal` output terminology.
+- Files changed
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/MODEL.md`
+- `docs/REQUIREMENTS.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+- Patterns discovered: when docs describe a public metric rename but internal model data remains, keep public-field wording in README/requirements/architecture aligned while leaving explicitly internal `training_carbs_g` references only where fueling or training-meal behavior is being documented.
+- Gotchas encountered: `docs/MODEL.md` should not promote request-only additions like `vo2max` onto the `UserProfile` domain object unless the code model actually changed; verify docs against `src/mealplan/application/contracts.py`, `src/mealplan/application/orchestration.py`, and `src/mealplan/domain/model.py`.
+- Useful context: `UV=uv make quality` remained the reliable quality-gate invocation in this environment and passed with `309` tests after the docs-only update.
 ---

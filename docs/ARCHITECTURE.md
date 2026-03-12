@@ -96,7 +96,7 @@ mealplan/
   - `probe` remains a deterministic scaffolding command and must not change behavior when evolving `calculate`.
   - `calculate` is the production boundary and accepts the canonical flags:
     - required: `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`
-    - optional: `--training-zones`, `--training-before`, `--format`, `--debug`
+    - optional: `--vo2max`, `--training-zones`, `--training-before`, `--format`, `--debug`
 - Validation flow:
   - Parse primitive CLI inputs.
   - Convert to request DTO.
@@ -127,8 +127,9 @@ mealplan/
   3. Energy stage via `calculate_tdee_kcal(...)`.
   4. Macro stage via `calculate_macro_targets(...)`.
   5. Fueling stage via `calculate_training_carbs_g(...)`.
-  6. Periodization stage via `calculate_periodized_carb_allocation(...)`.
-  7. Assembly stage via `calculate_meal_split_and_response_payload(...)`, then boundary parse with `MealPlanResponse.model_validate(...)`.
+  6. Training-demand stage via `calculate_training_calorie_demand_kcal(...)`.
+  7. Periodization stage via `calculate_periodized_carb_allocation(...)`.
+  8. Assembly stage via `calculate_meal_split_and_response_payload(...)`, then boundary parse with `MealPlanResponse.model_validate(...)`.
 - Omitted training-session behavior at the application boundary:
   - If `request.training_session is None`, orchestration must use canonical zero-training defaults:
     - `zones_minutes = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}`
@@ -139,7 +140,7 @@ mealplan/
   - Stateless runtime; no persisted mutable session state.
 - DTOs:
   - Request DTO mirrors CLI schema.
-  - Response DTO mirrors PRD JSON contract (`TDEE`, `training_carbs_g`, macros, `total_kcal`, `meals[]`).
+  - Response DTO mirrors PRD JSON contract (`TDEE`, `training_kcal`, macros, `total_kcal`, `meals[]`).
 
 ## 7. Domain Model
 - Canonical specification lives in [MODEL.md](/Users/Oliver.Koeth/work/mealplan-cli/docs/MODEL.md).
@@ -158,8 +159,10 @@ mealplan/
   - Carbs by mode: low `3g/kg`, normal `5g/kg`, periodized baseline `4g/kg`.
   - Fat as calorie remainder; reject negative fat.
 - Training fueling:
-  - Training calorie demand uses all zone minutes (including zone 1): `training_calorie_demand_kcal = sum(zone minutes) * 4`.
-  - Phase 5 domain API boundary for demand is `calculate_training_calorie_demand_kcal(zones_minutes: Mapping[int, int]) -> float`.
+  - Training calorie demand uses a VO2-based zone-weighted estimate with athlete context and normalized zone minutes.
+  - Phase 5 domain API boundary for demand is `calculate_training_calorie_demand_kcal(age: int, gender: Gender, weight_kg: float, vo2max: int | None, zones_minutes: Mapping[int, int]) -> float`.
+  - Demand uses explicit `vo2max` when present; otherwise it predicts VO2max from age, gender, and weight in kilograms.
+  - Public response payloads emit this demand as top-level `training_kcal`, while internal fueling still uses `training_carbs_g`.
   - All Z1 => `0g`; any zone >=2 => `60g/hour` over total duration.
   - Phase 5 domain API boundary is `calculate_training_carbs_g(zones_minutes: Mapping[int, int]) -> float` and assumes canonical normalized zone keys `1..5`.
   - Malformed `zones_minutes` payload rejection (invalid keys, negative minutes, non-integer minutes) remains a Phase 3 concern in application-layer normalization/semantic validation.
@@ -208,12 +211,12 @@ mealplan/
 - Input schema:
   - Canonical request DTO module path: `src/mealplan/application/contracts.py` (`MealPlanRequest`, `TrainingSession`).
   - Canonical enum module path: `src/mealplan/domain/enums.py` (import through `mealplan.domain.enums`).
-  - `MealPlanRequest` exact fields: `age`, `gender`, `weight_kg`, `activity_level`, `carb_mode`, `training_load_tomorrow`, `training_session`.
+  - `MealPlanRequest` exact fields: `age`, `gender`, `height_cm`, `weight_kg`, `activity_level`, `carb_mode`, `training_load_tomorrow`, `vo2max`, `training_session`.
   - `TrainingSession` exact fields: `zones_minutes`, `training_before_meal`.
   - Unknown fields are forbidden at every nesting level.
 - Output schema:
   - Canonical response DTO module path: `src/mealplan/application/contracts.py` (`MealPlanResponse`, `MealAllocation`).
-  - `MealPlanResponse` exact top-level fields: `TDEE`, `training_carbs_g`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`, `meals`.
+  - `MealPlanResponse` exact top-level fields: `TDEE`, `training_kcal`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`, `meals`.
   - `MealAllocation` exact fields: `meal`, `carbs_strategy`, `carbs_g`, `protein_g`, `fat_g`, `kcal`.
   - `meals[]` preserves canonical order for base meals and allows at most one optional `training` row.
 - Canonical meal order:
@@ -222,6 +225,7 @@ mealplan/
   - Use this order in response DTO validation and all future allocation/output assembly code.
 - Units naming policy:
   - Use explicit unit suffixes in DTO field names where applicable: `weight_kg`, `*_g`, and `*_minutes`.
+  - `vo2max` is expressed in `ml/kg/min` at the request boundary.
   - `age` is expressed in years at the contract boundary (`MealPlanRequest.age`).
   - `TDEE` remains a legacy response key for compatibility and represents kcal/day.
 - JSON schema:
@@ -256,10 +260,12 @@ mealplan/
 {
   "age": 35,
   "gender": "male",
+  "height_cm": 178,
   "weight_kg": 72.5,
   "activity_level": "medium",
   "carb_mode": "periodized",
   "training_load_tomorrow": "high",
+  "vo2max": 58,
   "training_session": {
     "zones_minutes": {
       "1": 20,
@@ -276,7 +282,7 @@ mealplan/
 ```json
 {
   "TDEE": 2500.0,
-  "training_carbs_g": 60.0,
+  "training_kcal": 187.71,
   "protein_g": 145.0,
   "carbs_g": 290.0,
   "fat_g": 70.0,
