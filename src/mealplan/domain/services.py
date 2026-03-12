@@ -278,7 +278,7 @@ def calculate_meal_split_and_response_payload_with_warnings(
 
     payload = _assemble_meal_split_response_payload(
         tdee_kcal=tdee_kcal,
-        training_carbs_g=training_carbs_g,
+        training_kcal=round(training_calorie_demand_kcal, 2),
         protein_g=round(sum(float(meal["protein_g"]) for meal in meals), 2),
         carbs_g=response_carbs_g,
         fat_g=response_fat_g,
@@ -320,7 +320,7 @@ def _insert_training_meal_if_needed(
 def _assemble_meal_split_response_payload(
     *,
     tdee_kcal: float,
-    training_carbs_g: float,
+    training_kcal: float,
     protein_g: float,
     carbs_g: float,
     fat_g: float,
@@ -329,7 +329,7 @@ def _assemble_meal_split_response_payload(
 ) -> dict[str, object]:
     return {
         "TDEE": tdee_kcal,
-        "training_carbs_g": training_carbs_g,
+        "training_kcal": training_kcal,
         "protein_g": protein_g,
         "carbs_g": carbs_g,
         "fat_g": fat_g,

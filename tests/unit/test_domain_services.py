@@ -366,7 +366,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
 
     assert list(payload.keys()) == [
         "TDEE",
-        "training_carbs_g",
+        "training_kcal",
         "protein_g",
         "carbs_g",
         "fat_g",
@@ -374,7 +374,7 @@ def test_calculate_meal_split_and_response_payload_inserts_training_meal_before_
         "meals",
     ]
     assert payload["TDEE"] == 2908.0
-    assert payload["training_carbs_g"] == 85.0
+    assert payload["training_kcal"] == 340.0
     assert payload["protein_g"] == 180.0
     assert payload["carbs_g"] == 449.67
     assert payload["fat_g"] == 81.04
@@ -468,7 +468,7 @@ def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meal
 
     payload = _assemble_meal_split_response_payload(
         tdee_kcal=2300.0,
-        training_carbs_g=55.0,
+        training_kcal=55.0,
         protein_g=120.0,
         carbs_g=200.0,
         fat_g=60.0,
@@ -478,7 +478,7 @@ def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meal
 
     assert list(payload.keys()) == [
         "TDEE",
-        "training_carbs_g",
+        "training_kcal",
         "protein_g",
         "carbs_g",
         "fat_g",
@@ -486,7 +486,7 @@ def test_assemble_meal_split_response_payload_includes_top_level_fields_and_meal
         "meals",
     ]
     assert payload["TDEE"] == 2300.0
-    assert payload["training_carbs_g"] == 55.0
+    assert payload["training_kcal"] == 55.0
     assert payload["protein_g"] == 120.0
     assert payload["carbs_g"] == 200.0
     assert payload["fat_g"] == 60.0
@@ -510,7 +510,7 @@ def test_calculate_meal_split_payload_is_meal_plan_response_compatible_shape() -
     parsed = MealPlanResponse.model_validate(payload)
 
     assert parsed.TDEE == 2400.0
-    assert parsed.training_carbs_g == 85.0
+    assert parsed.training_kcal == 340.0
     assert parsed.protein_g == 180.0
     assert parsed.carbs_g == pytest.approx(
         sum(float(meal.carbs_g) for meal in parsed.meals),

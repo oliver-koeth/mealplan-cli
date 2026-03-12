@@ -163,7 +163,7 @@ def _render_text_output(response: MealPlanResponse) -> str:
     payload = response.model_dump(mode="json")
     lines = [
         f"TDEE: {payload['TDEE']}",
-        f"training_carbs_g: {payload['training_carbs_g']}",
+        f"training_kcal: {payload['training_kcal']}",
         f"protein_g: {payload['protein_g']}",
         f"carbs_g: {payload['carbs_g']}",
         f"fat_g: {payload['fat_g']}",
@@ -185,7 +185,7 @@ def _render_table_output(response: MealPlanResponse) -> str:
         "| field | value |",
         "| --- | --- |",
         f"| TDEE | {payload['TDEE']} |",
-        f"| training_carbs_g | {payload['training_carbs_g']} |",
+        f"| training_kcal | {payload['training_kcal']} |",
         f"| protein_g | {payload['protein_g']} |",
         f"| carbs_g | {payload['carbs_g']} |",
         f"| fat_g | {payload['fat_g']} |",

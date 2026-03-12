@@ -110,8 +110,8 @@ def test_calculate_command_accepts_vo2max_range_boundaries(
 def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
     expected = MealPlanResponse.model_validate(
         {
-            "TDEE": 2222.5,
-            "training_carbs_g": 12.0,
+            "TDEE": 2148.18,
+            "training_kcal": 12.0,
             "protein_g": 160.0,
             "carbs_g": 210.0,
             "fat_g": 77.0,
@@ -212,7 +212,7 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
     response = json.loads(result.stdout)
     assert set(response.keys()) == {
         "TDEE",
-        "training_carbs_g",
+        "training_kcal",
         "protein_g",
         "carbs_g",
         "fat_g",
@@ -267,7 +267,7 @@ def test_calculate_text_format_outputs_top_level_and_canonical_meals() -> None:
     assert result.returncode == 0
     text_output = result.stdout
     assert "TDEE:" in text_output
-    assert "training_carbs_g:" in text_output
+    assert "training_kcal:" in text_output
     assert "protein_g:" in text_output
     assert "carbs_g:" in text_output
     assert "fat_g:" in text_output
@@ -299,7 +299,7 @@ def test_calculate_table_format_outputs_top_level_and_canonical_meals() -> None:
     assert result.returncode == 0
     table_output = result.stdout
     assert "| TDEE |" in table_output
-    assert "| training_carbs_g |" in table_output
+    assert "| training_kcal |" in table_output
     assert "| protein_g |" in table_output
     assert "| carbs_g |" in table_output
     assert "| fat_g |" in table_output
@@ -564,7 +564,7 @@ def test_calculate_training_zones_accepts_json_string_input() -> None:
 
     assert result.returncode == 0
     response = json.loads(result.stdout)
-    assert response["training_carbs_g"] == 0.0
+    assert response["training_kcal"] == 0.0
 
 
 def test_calculate_training_zones_invalid_json_returns_validation_exit_code() -> None:

@@ -10,7 +10,9 @@ import pytest
 from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
 from mealplan.application.orchestration import (
     MealPlanCalculationService,
+    TrainingDemandContext,
     ValidatedTrainingSession,
+    _training_demand_context,
     _validated_training_session,
     validate_meal_plan_flow,
 )
@@ -129,6 +131,10 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
         steps.append("fueling")
         return 4.0
 
+    def track_training_demand(_: TrainingDemandContext) -> float:
+        steps.append("training-demand")
+        return 5.0
+
     def track_assembly(
         *,
         tdee_kcal: float,
@@ -142,7 +148,7 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
         steps.append("assembly")
         assert tdee_kcal == 1.0
         assert training_carbs_g == 4.0
-        assert training_calorie_demand_kcal == 0.0
+        assert training_calorie_demand_kcal == 5.0
         assert carb_mode is request.carb_mode
         assert training_before_meal == MealName.LUNCH
         assert training_load_tomorrow is request.training_load_tomorrow
@@ -156,13 +162,13 @@ def test_meal_plan_calculation_service_calculate_runs_validation_before_stages(
     monkeypatch.setattr(service, "_run_energy_stage", track_energy)
     monkeypatch.setattr(service, "_run_macro_stage", track_macro)
     monkeypatch.setattr(service, "_run_fueling_stage", track_fueling)
-    monkeypatch.setattr(service, "_run_training_demand_stage", lambda *_: 0.0)
+    monkeypatch.setattr(service, "_run_training_demand_stage", track_training_demand)
     monkeypatch.setattr(service, "_run_assembly_stage", track_assembly)
 
     response = service.calculate(request)
 
     assert isinstance(response, MealPlanResponse)
-    assert steps == ["validate", "energy", "macro", "fueling", "assembly"]
+    assert steps == ["validate", "energy", "macro", "fueling", "training-demand", "assembly"]
 
 
 def test_meal_plan_calculation_service_calculate_fails_fast_on_validation_error(
@@ -302,8 +308,10 @@ def test_meal_plan_calculation_service_training_demand_stage_passes_athlete_cont
     )
 
     result = service._run_training_demand_stage(
-        request,
-        _validated_training_session(request),
+        _training_demand_context(
+            request=request,
+            training_session=_validated_training_session(request),
+        ),
     )
 
     assert result == 123.45
@@ -314,6 +322,44 @@ def test_meal_plan_calculation_service_training_demand_stage_passes_athlete_cont
         "vo2max": request.vo2max,
         "zones_minutes": {1: 0, 2: 40, 3: 0, 4: 0, 5: 0},
     }
+
+
+def test_meal_plan_calculation_service_calculate_builds_training_demand_context(
+    meal_plan_request_payload: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payload = meal_plan_request_payload
+    request_payload["vo2max"] = 57
+    request_payload["training_session"]["zones_minutes"] = {"3": 25}
+    request = MealPlanRequest.model_validate(request_payload)
+    service = MealPlanCalculationService()
+    captured: list[TrainingDemandContext] = []
+
+    monkeypatch.setattr(service, "_run_energy_stage", lambda _: 2400.0)
+    monkeypatch.setattr(
+        service,
+        "_run_macro_stage",
+        lambda _, __: MacroTargets(protein_g=120.0, carbs_g=240.0, fat_g=60.0),
+    )
+    monkeypatch.setattr(service, "_run_fueling_stage", lambda _: 0.0)
+
+    def track_training_demand(context: TrainingDemandContext) -> float:
+        captured.append(context)
+        return 111.0
+
+    monkeypatch.setattr(service, "_run_training_demand_stage", track_training_demand)
+
+    response = service.calculate(request)
+
+    assert len(captured) == 1
+    assert captured[0] == TrainingDemandContext(
+        age=request.age,
+        gender=request.gender,
+        weight_kg=request.weight_kg,
+        vo2max=request.vo2max,
+        zones_minutes={1: 0, 2: 0, 3: 25, 4: 0, 5: 0},
+    )
+    assert response.total_kcal > 0.0
 
 
 def test_meal_plan_calculation_service_builds_user_profile_and_calls_energy_macro_services(
@@ -542,9 +588,19 @@ def test_meal_plan_calculation_service_calls_fueling_service_once_with_canonical
         lambda _, __: MacroTargets(protein_g=1.0, carbs_g=2.0, fat_g=3.0),
     )
     response = service.calculate(request)
+    expected_training_kcal = round(
+        calculate_training_calorie_demand_kcal(
+            age=request.age,
+            gender=request.gender,
+            weight_kg=request.weight_kg,
+            vo2max=request.vo2max,
+            zones_minutes={1: 0, 2: 35, 3: 0, 4: 15, 5: 0},
+        ),
+        2,
+    )
 
     assert captured_calls == [{1: 0, 2: 35, 3: 0, 4: 15, 5: 0}]
-    assert response.training_carbs_g == 50.0
+    assert response.training_kcal == pytest.approx(expected_training_kcal)
 
 
 def test_meal_plan_calculation_service_fueling_zero_training_defaults_to_zero(
@@ -565,7 +621,7 @@ def test_meal_plan_calculation_service_fueling_zero_training_defaults_to_zero(
     )
     response = service.calculate(request)
 
-    assert response.training_carbs_g == 0.0
+    assert response.training_kcal == 0.0
 
 
 @pytest.mark.parametrize("carb_mode", ["periodized", "normal"])
@@ -574,7 +630,7 @@ def test_meal_plan_calculation_service_omitted_training_defaults_to_zero_trainin
     carb_mode: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Integration coverage: omitted training should stay valid and produce zero training carbs."""
+    """Integration coverage: omitted training should stay valid and produce zero training kcal."""
     request_payload = meal_plan_request_payload
     request_payload["carb_mode"] = carb_mode
     request_payload["training_session"] = None
@@ -587,7 +643,7 @@ def test_meal_plan_calculation_service_omitted_training_defaults_to_zero_trainin
     response = service.calculate(request)
 
     assert isinstance(response, MealPlanResponse)
-    assert response.training_carbs_g == 0.0
+    assert response.training_kcal == 0.0
 
 
 def test_validated_training_session_omitted_training_uses_canonical_zero_defaults(
@@ -826,7 +882,6 @@ def test_meal_plan_calculation_service_integration_success_matrix(
         expected_meal_sequence.insert(insertion_idx, "training")
     assert [meal.meal for meal in response.meals] == expected_meal_sequence
     assert len(response.meals) == len(expected_meal_sequence)
-    assert response.training_carbs_g == pytest.approx(expected_training_carbs_g)
 
     canonical_meals = [meal for meal in response.meals if meal.meal != "training"]
     training_meals = [meal for meal in response.meals if meal.meal == "training"]
@@ -874,6 +929,7 @@ def test_meal_plan_calculation_service_integration_success_matrix(
                 for zone in range(1, 6)
             },
         )
+    assert response.training_kcal == pytest.approx(round(expected_training_calorie_demand, 2))
     assert sum(meal.kcal for meal in response.meals) == pytest.approx(
         response.TDEE + expected_training_calorie_demand
     )
@@ -1000,6 +1056,6 @@ def test_meal_plan_calculation_service_integration_uses_emitted_meal_totals_and_
     canonical_meals = [meal for meal in response.meals if meal.meal != "training"]
 
     assert [meal.carbs_strategy for meal in canonical_meals] == expected_canonical_strategies
-    assert response.training_carbs_g == 0.0
+    assert response.training_kcal == 0.0
     assert response.carbs_g == pytest.approx(sum(meal.carbs_g for meal in canonical_meals))
     assert response.fat_g == pytest.approx(sum(meal.fat_g for meal in canonical_meals))
