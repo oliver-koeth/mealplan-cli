@@ -264,6 +264,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         opacity: 0.7;
       }
 
+      .secondary-button {
+        font-weight: 500;
+      }
+
       .status-note {
         font-size: 0.78rem;
         color: var(--text-subtle);
@@ -572,6 +576,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         const totalsGrid = document.querySelector('[data-calculate-results-totals="true"]');
         const mealsGrid = document.querySelector('[data-calculate-results-meals="true"]');
         const resultsBackButton = document.querySelector('[data-calculate-results-back="true"]');
+        const resultsSaveButton = document.querySelector('[data-calculate-results-save="true"]');
+        const scaleDownButton = document.querySelector('[data-calculate-scale-down="true"]');
+        const scaleUpButton = document.querySelector('[data-calculate-scale-up="true"]');
+        const scaleValue = document.querySelector('[data-calculate-scale-value="true"]');
         const mealOrder = [
           "breakfast",
           "morning-snack",
@@ -580,7 +588,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           "dinner",
           "evening-snack",
         ];
+        const scaleStepKcal = 100;
         let requestInFlight = false;
+        let baselineResultsPayload = null;
+        let displayedKcalOffset = 0;
 
         const parseMinutes = (rawValue) => {
           const parsed = parseIntegerOrNull(rawValue);
@@ -689,18 +700,94 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             .join(" ");
         };
 
-        const renderResultsState = (payload) => {
-          if (!resultsPanel || !resultsState || !inputState || !totalsGrid || !mealsGrid) {
+        const buildScaledResults = (payload) => {
+          const baselineTotalKcal = Number(payload?.total_kcal);
+          const hasScaleBaseline = Number.isFinite(baselineTotalKcal) && baselineTotalKcal > 0;
+          const displayedTotalKcal = hasScaleBaseline
+            ? Math.max(0, baselineTotalKcal + displayedKcalOffset)
+            : baselineTotalKcal;
+          const scaleFactor = hasScaleBaseline ? displayedTotalKcal / baselineTotalKcal : 1;
+          const scaleNumber = (value) => {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) {
+              return Number.NaN;
+            }
+            return numeric * scaleFactor;
+          };
+          const scaledMeals = Array.isArray(payload?.meals)
+            ? payload.meals.map((meal) => {
+                return {
+                  meal: meal?.meal,
+                  carbs_strategy: meal?.carbs_strategy,
+                  kcal: scaleNumber(meal?.kcal),
+                  protein_g: scaleNumber(meal?.protein_g),
+                  carbs_g: scaleNumber(meal?.carbs_g),
+                  fat_g: scaleNumber(meal?.fat_g),
+                };
+              })
+            : [];
+
+          return {
+            TDEE: Number(payload?.TDEE),
+            training_kcal: Number(payload?.training_kcal),
+            protein_g: scaleNumber(payload?.protein_g),
+            carbs_g: scaleNumber(payload?.carbs_g),
+            fat_g: scaleNumber(payload?.fat_g),
+            total_kcal: displayedTotalKcal,
+            baseline_total_kcal: baselineTotalKcal,
+            has_scale_baseline: hasScaleBaseline,
+            meals: scaledMeals,
+          };
+        };
+
+        const updateScaleControls = (scaledResults) => {
+          if (!scaleValue) {
+            return;
+          }
+          if (!scaledResults.has_scale_baseline) {
+            scaleValue.textContent = "Scaling unavailable for this response.";
+            if (scaleDownButton) {
+              scaleDownButton.disabled = true;
+            }
+            if (scaleUpButton) {
+              scaleUpButton.disabled = true;
+            }
             return;
           }
 
+          scaleValue.textContent = (
+            "Displayed total: "
+            + formatNumber(scaledResults.total_kcal)
+            + " kcal (baseline "
+            + formatNumber(scaledResults.baseline_total_kcal)
+            + " kcal)"
+          );
+          if (scaleDownButton) {
+            scaleDownButton.disabled = (scaledResults.total_kcal - scaleStepKcal) < 0;
+          }
+          if (scaleUpButton) {
+            scaleUpButton.disabled = false;
+          }
+        };
+
+        const renderResultsState = () => {
+          if (!resultsPanel || !resultsState || !inputState || !totalsGrid || !mealsGrid) {
+            return;
+          }
+          if (!baselineResultsPayload) {
+            return;
+          }
+
+          const scaledResults = buildScaledResults(baselineResultsPayload);
+          updateScaleControls(scaledResults);
+
           const totals = [
-            ["TDEE", payload.TDEE, "kcal"],
-            ["Training kcal", payload.training_kcal, "kcal"],
-            ["Protein", payload.protein_g, "g"],
-            ["Carbs", payload.carbs_g, "g"],
-            ["Fat", payload.fat_g, "g"],
-            ["Total kcal", payload.total_kcal, "kcal"],
+            ["TDEE", scaledResults.TDEE, "kcal"],
+            ["Training kcal", scaledResults.training_kcal, "kcal"],
+            ["Protein", scaledResults.protein_g, "g"],
+            ["Carbs", scaledResults.carbs_g, "g"],
+            ["Fat", scaledResults.fat_g, "g"],
+            ["Total kcal", scaledResults.total_kcal, "kcal"],
           ];
           totalsGrid.innerHTML = "";
           for (const [label, value, unit] of totals) {
@@ -716,7 +803,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           }
 
           mealsGrid.innerHTML = "";
-          const rawMeals = Array.isArray(payload.meals) ? payload.meals : [];
+          const rawMeals = scaledResults.meals;
           const meals = [...rawMeals].sort((left, right) => {
             const leftName = typeof left?.meal === "string" ? left.meal : "";
             const rightName = typeof right?.meal === "string" ? right.meal : "";
@@ -751,6 +838,42 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           inputState.hidden = true;
           resultsPanel.hidden = false;
           resultsState.hidden = false;
+        };
+
+        const clearResultsState = () => {
+          baselineResultsPayload = null;
+          displayedKcalOffset = 0;
+          if (totalsGrid) {
+            totalsGrid.innerHTML = "";
+          }
+          if (mealsGrid) {
+            mealsGrid.innerHTML = "";
+          }
+          if (scaleValue) {
+            scaleValue.textContent = "";
+          }
+          if (scaleDownButton) {
+            scaleDownButton.disabled = true;
+          }
+          if (scaleUpButton) {
+            scaleUpButton.disabled = true;
+          }
+        };
+
+        const adjustDisplayedTotalKcal = (deltaKcal) => {
+          if (!baselineResultsPayload) {
+            return;
+          }
+          const baselineTotalKcal = Number(baselineResultsPayload.total_kcal);
+          if (!Number.isFinite(baselineTotalKcal) || baselineTotalKcal <= 0) {
+            return;
+          }
+          const nextTotalKcal = baselineTotalKcal + displayedKcalOffset + deltaKcal;
+          if (nextTotalKcal < 0) {
+            return;
+          }
+          displayedKcalOffset += deltaKcal;
+          renderResultsState();
         };
 
         const closeResultsState = () => {
@@ -837,7 +960,9 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               renderApiError(payload.error ?? {});
               return;
             }
-            renderResultsState(payload);
+            baselineResultsPayload = payload;
+            displayedKcalOffset = 0;
+            renderResultsState();
           } catch {
             renderApiError({message: "Unable to reach local calculate API."});
           } finally {
@@ -855,6 +980,22 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         if (resultsBackButton) {
           resultsBackButton.addEventListener("click", () => {
             closeResultsState();
+          });
+        }
+        if (resultsSaveButton) {
+          resultsSaveButton.addEventListener("click", () => {
+            clearResultsState();
+            closeResultsState();
+          });
+        }
+        if (scaleDownButton) {
+          scaleDownButton.addEventListener("click", () => {
+            adjustDisplayedTotalKcal(-scaleStepKcal);
+          });
+        }
+        if (scaleUpButton) {
+          scaleUpButton.addEventListener("click", () => {
+            adjustDisplayedTotalKcal(scaleStepKcal);
           });
         }
       })();
@@ -1034,11 +1175,31 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
               <p class="hint">
                 Review totals and meal details, then go back to adjust inputs.
               </p>
+              <div class="actions">
+                <button
+                  class="primary-button secondary-button"
+                  type="button"
+                  data-calculate-scale-down="true"
+                >
+                  -100 kcal
+                </button>
+                <button
+                  class="primary-button secondary-button"
+                  type="button"
+                  data-calculate-scale-up="true"
+                >
+                  +100 kcal
+                </button>
+                <span class="status-note" data-calculate-scale-value="true"></span>
+              </div>
               <section class="results-totals" data-calculate-results-totals="true"></section>
               <section class="results-meals" data-calculate-results-meals="true"></section>
               <div class="actions">
                 <button class="primary-button" type="button" data-calculate-results-back="true">
                   Back to inputs
+                </button>
+                <button class="primary-button" type="button" data-calculate-results-save="true">
+                  Save
                 </button>
               </div>
             </section>

@@ -187,17 +187,32 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert 'data-calculate-results-totals="true"' in html
     assert 'data-calculate-results-meals="true"' in html
     assert 'data-calculate-results-back="true"' in html
+    assert 'data-calculate-results-save="true"' in html
+    assert 'data-calculate-scale-down="true"' in html
+    assert 'data-calculate-scale-up="true"' in html
+    assert 'data-calculate-scale-value="true"' in html
     assert 'window.fetch("/api/v1/calculate",' in html
     assert 'if (requestInFlight) {' in html
     assert 'calculateButton.disabled = inFlight;' in html
-    assert "const renderResultsState = (payload) => {" in html
+    assert "let baselineResultsPayload = null;" in html
+    assert "let displayedKcalOffset = 0;" in html
+    assert "const buildScaledResults = (payload) => {" in html
+    assert (
+        "const scaleFactor = hasScaleBaseline ? displayedTotalKcal / baselineTotalKcal : 1;"
+        in html
+    )
+    assert "const renderResultsState = () => {" in html
     assert "inputState.hidden = true;" in html
     assert "resultsState.hidden = false;" in html
+    assert "const clearResultsState = () => {" in html
+    assert "const adjustDisplayedTotalKcal = (deltaKcal) => {" in html
     assert "resultsBackButton.addEventListener" in html
+    assert "resultsSaveButton.addEventListener" in html
     assert "closeResultsState();" in html
     assert "const totals = [" in html
     assert "const meals = [...rawMeals].sort" in html
-    assert '["TDEE", payload.TDEE, "kcal"]' in html
+    assert '["TDEE", scaledResults.TDEE, "kcal"]' in html
+    assert "Displayed total: " in html
     assert 'training_session: {' in html
     assert '"1": parseMinutes(calculateSnapshot.zone_1_minutes)' in html
 

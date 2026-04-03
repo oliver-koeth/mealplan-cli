@@ -127,6 +127,7 @@ When in doubt, update those source docs instead of expanding this file.
 96. For calculate-form readiness, derive `training_before_meal` required state from aggregate zone-minute inputs (`zone_1_minutes`..`zone_5_minutes`): require it only when any zone is greater than zero, and keep the UI dropdown restricted to canonical meal names (exclude CLI-only `training`).
 97. For `/calculate` submit wiring, assemble the API payload from a merged snapshot of calculate-form control values plus persisted settings (`mealplan.ui.settings.v1`) so calculation can run even though settings controls are rendered on a separate route.
 98. For calculate results UX, keep rendering in a hidden in-page state (`data-calculate-results-state`) toggled from the input state (`data-calculate-input-state`) after successful submit; do not expose a direct results route.
+99. For display-only kcal scaling in calculate results, keep the API payload as an immutable baseline (`total_kcal` reference), apply proportional scaling only at render time in +/-100 kcal steps, and let `Save` clear transient results state without persisting data.
 
 ## Ralph Runner
 

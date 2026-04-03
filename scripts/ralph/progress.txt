@@ -7,6 +7,7 @@
 - For calculate-page readiness, require `training_before_meal` only when aggregate zone minutes (`zone_1_minutes`..`zone_5_minutes`) are greater than zero, with concise inline guidance and no `training` option in the UI dropdown.
 - For calculate submissions, build payloads by merging the latest route form values with the corresponding `localStorage` snapshot (`mealplan.ui.settings.v1` + `mealplan.ui.calculate.v1`) so `/calculate` can submit complete requests without rendering settings controls.
 - For calculate results, keep output as a hidden in-page state (`data-calculate-results-state`) that is only shown after successful submit, and return to editable inputs via `data-calculate-input-state` instead of adding a separate results route.
+- For display-only kcal scaling in calculate results, keep the API response as the immutable baseline and apply proportional scaling during render from a signed +/-100 kcal offset; `Save` should clear transient results state and return to inputs without persistence.
 
 Started: Fri Apr  3 16:29:36 CEST 2026
 ---
@@ -154,4 +155,25 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - HTML contract tests in `tests/unit/test_web_ui_server.py` are string-based; assert stable markers/identifiers instead of brittle full-line element literals when template line wrapping changes.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Results rendering now writes totals into `data-calculate-results-totals` and meal rows into `data-calculate-results-meals`, with canonical meal ordering normalized client-side.
+---
+## 2026-04-03 17:39:31 CEST - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented display-only kcal scaling controls in calculate results with signed 100 kcal step buttons, baseline-aware scale state, and proportional re-rendering of displayed top-level macros plus per-meal kcal/macros.
+- Kept API `total_kcal` as immutable baseline for scaling math, including safe handling for unavailable scaling baselines and deterministic render-only updates.
+- Added a placeholder `Save` action in results that dismisses back to input state and clears transient rendered results until the next successful calculation.
+- Expanded calculate-shell contract tests to assert scaling/save UI markers and script hooks for scaling state, baseline tracking, and save-reset wiring.
+- Quality checks passed via `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest`.
+- Files changed
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Keep UI kcal scaling as presentation-only state derived from a fixed API baseline so adjustments never mutate canonical response payloads.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- Because shell tests are string-contract based, new UI controls must add stable `data-*` markers and matching script identifier assertions to avoid regressions from template refactors.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Results scaling/save behavior lives entirely in the inline script/template of `src/mealplan/web/ui_server.py` and is covered by `tests/unit/test_web_ui_server.py` marker assertions.
 ---
