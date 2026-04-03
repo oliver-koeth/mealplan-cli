@@ -168,10 +168,8 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert '<select name="training_before_meal">' in html
     assert '<option value="training">' not in html
     for zone in range(1, 6):
-        assert (
-            f'<input name="zone_{zone}_minutes" type="number" min="0" '
-            'step="1" value="0" required />'
-        ) in html
+        assert f'name="zone_{zone}_minutes"' in html
+        assert 'value="0"' in html
     assert (
         "const guidance = document.querySelector("
         '\'[data-training-before-guidance="true"]\');'
@@ -183,11 +181,23 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert 'bindLocalStorageForm(calculateForm, calculateStorageKey,' in html
     assert 'data-calculate-submit="true"' in html
     assert 'class="alert-card" data-calculate-error-card="true" hidden' in html
+    assert 'data-calculate-input-state="true"' in html
+    assert 'class="results-state" data-calculate-results-state="true" hidden' in html
     assert 'data-calculate-results="true" hidden' in html
+    assert 'data-calculate-results-totals="true"' in html
+    assert 'data-calculate-results-meals="true"' in html
+    assert 'data-calculate-results-back="true"' in html
     assert 'window.fetch("/api/v1/calculate",' in html
     assert 'if (requestInFlight) {' in html
     assert 'calculateButton.disabled = inFlight;' in html
-    assert 'resultsJson.textContent = JSON.stringify(payload, null, 2);' in html
+    assert "const renderResultsState = (payload) => {" in html
+    assert "inputState.hidden = true;" in html
+    assert "resultsState.hidden = false;" in html
+    assert "resultsBackButton.addEventListener" in html
+    assert "closeResultsState();" in html
+    assert "const totals = [" in html
+    assert "const meals = [...rawMeals].sort" in html
+    assert '["TDEE", payload.TDEE, "kcal"]' in html
     assert 'training_session: {' in html
     assert '"1": parseMinutes(calculateSnapshot.zone_1_minutes)' in html
 

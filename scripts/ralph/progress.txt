@@ -6,6 +6,7 @@
 - For browser-restored UI forms in the inline shell, gate persistence behind a page-specific form marker (`data-settings-form="true"`) and namespace `localStorage` keys as `mealplan.ui.<page>.v1`.
 - For calculate-page readiness, require `training_before_meal` only when aggregate zone minutes (`zone_1_minutes`..`zone_5_minutes`) are greater than zero, with concise inline guidance and no `training` option in the UI dropdown.
 - For calculate submissions, build payloads by merging the latest route form values with the corresponding `localStorage` snapshot (`mealplan.ui.settings.v1` + `mealplan.ui.calculate.v1`) so `/calculate` can submit complete requests without rendering settings controls.
+- For calculate results, keep output as a hidden in-page state (`data-calculate-results-state`) that is only shown after successful submit, and return to editable inputs via `data-calculate-input-state` instead of adding a separate results route.
 
 Started: Fri Apr  3 16:29:36 CEST 2026
 ---
@@ -131,4 +132,26 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - When inlined script constants replace literal storage-key strings, update HTML string assertions in `tests/unit/test_web_ui_server.py` to avoid brittle failures.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Current results state is a shell-level panel (`data-calculate-results`) and stores the raw API payload in `pre[data-calculate-results-json]`; later stories can layer structured rendering and back/save controls on top of this marker.
+---
+
+## 2026-04-03 17:35:10 CEST - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Replaced raw JSON results with an in-calculate panel state that renders top-level totals (`TDEE`, `training_kcal`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`) and meal cards (meal name, carb strategy, kcal, macros).
+- Added client-side state toggling so successful submit hides input state and reveals results state; added a Back button that returns to inputs without touching persisted form values.
+- Kept results non-routable by URL entry by retaining them as hidden in-page state on `/calculate` only.
+- Expanded UI-shell contract tests for results-state markers, totals/meals rendering hooks, canonical meal-order sorting, and back-button wiring.
+- Quality checks passed via `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest`.
+- Files changed
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Keep transient calculate results in marker-driven state (`data-calculate-input-state` + `data-calculate-results-state`) so future UX flows can layer on top without changing routing.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- HTML contract tests in `tests/unit/test_web_ui_server.py` are string-based; assert stable markers/identifiers instead of brittle full-line element literals when template line wrapping changes.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Results rendering now writes totals into `data-calculate-results-totals` and meal rows into `data-calculate-results-meals`, with canonical meal ordering normalized client-side.
 ---

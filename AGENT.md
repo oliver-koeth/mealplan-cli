@@ -126,6 +126,7 @@ When in doubt, update those source docs instead of expanding this file.
 95. For inline UI-form local persistence, attach behavior only when a page marker form exists (for example `data-settings-form="true"`) and namespace storage keys with a versioned scope (`mealplan.ui.<page>.v1`) to keep route scripts safe and migration-ready.
 96. For calculate-form readiness, derive `training_before_meal` required state from aggregate zone-minute inputs (`zone_1_minutes`..`zone_5_minutes`): require it only when any zone is greater than zero, and keep the UI dropdown restricted to canonical meal names (exclude CLI-only `training`).
 97. For `/calculate` submit wiring, assemble the API payload from a merged snapshot of calculate-form control values plus persisted settings (`mealplan.ui.settings.v1`) so calculation can run even though settings controls are rendered on a separate route.
+98. For calculate results UX, keep rendering in a hidden in-page state (`data-calculate-results-state`) toggled from the input state (`data-calculate-input-state`) after successful submit; do not expose a direct results route.
 
 ## Ralph Runner
 

@@ -302,6 +302,86 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         font-size: 0.76rem;
       }
 
+      .results-state[hidden],
+      .input-state[hidden] {
+        display: none;
+      }
+
+      .results-totals {
+        display: grid;
+        gap: 0.65rem;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .results-total {
+        border-radius: 9px;
+        border: 1px solid var(--border);
+        background: var(--surface-muted);
+        padding: 0.6rem 0.65rem;
+      }
+
+      .results-total strong {
+        display: block;
+        font-size: 0.78rem;
+        color: var(--text-subtle);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .results-total span {
+        display: block;
+        margin-top: 0.3rem;
+        font-size: 0.94rem;
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .results-meals {
+        margin-top: 0.75rem;
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .meal-result-card {
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--surface-muted);
+        padding: 0.7rem;
+      }
+
+      .meal-result-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+      }
+
+      .meal-result-head h3 {
+        margin: 0;
+        font-size: 0.9rem;
+      }
+
+      .meal-result-head span {
+        color: var(--text-subtle);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .meal-result-grid {
+        margin-top: 0.45rem;
+        display: grid;
+        gap: 0.45rem;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .meal-result-grid p {
+        margin: 0;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
       .hint {
         margin: 0.65rem 0 0;
         color: var(--text-subtle);
@@ -319,6 +399,14 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 
         .field-grid {
           grid-template-columns: 1fr;
+        }
+
+        .results-totals {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .meal-result-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }
     </style>
@@ -478,8 +566,20 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         const errorCard = document.querySelector('[data-calculate-error-card="true"]');
         const errorSummary = document.querySelector('[data-calculate-error-summary="true"]');
         const errorList = document.querySelector('[data-calculate-error-list="true"]');
+        const inputState = document.querySelector('[data-calculate-input-state="true"]');
+        const resultsState = document.querySelector('[data-calculate-results-state="true"]');
         const resultsPanel = document.querySelector('[data-calculate-results="true"]');
-        const resultsJson = document.querySelector('[data-calculate-results-json="true"]');
+        const totalsGrid = document.querySelector('[data-calculate-results-totals="true"]');
+        const mealsGrid = document.querySelector('[data-calculate-results-meals="true"]');
+        const resultsBackButton = document.querySelector('[data-calculate-results-back="true"]');
+        const mealOrder = [
+          "breakfast",
+          "morning-snack",
+          "lunch",
+          "afternoon-snack",
+          "dinner",
+          "evening-snack",
+        ];
         let requestInFlight = false;
 
         const parseMinutes = (rawValue) => {
@@ -559,9 +659,6 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           if (errorCard) {
             errorCard.hidden = true;
           }
-          if (resultsPanel) {
-            resultsPanel.hidden = true;
-          }
         };
 
         const setSubmissionState = (inFlight) => {
@@ -573,6 +670,96 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           if (statusNote) {
             statusNote.textContent = inFlight ? "Submitting request..." : "";
           }
+        };
+
+        const formatNumber = (value) => {
+          if (!Number.isFinite(value)) {
+            return "-";
+          }
+          return Number(value).toFixed(2);
+        };
+
+        const formatMealName = (value) => {
+          if (typeof value !== "string") {
+            return "Meal";
+          }
+          return value
+            .split("-")
+            .map((part) => part ? part.charAt(0).toUpperCase() + part.slice(1) : "")
+            .join(" ");
+        };
+
+        const renderResultsState = (payload) => {
+          if (!resultsPanel || !resultsState || !inputState || !totalsGrid || !mealsGrid) {
+            return;
+          }
+
+          const totals = [
+            ["TDEE", payload.TDEE, "kcal"],
+            ["Training kcal", payload.training_kcal, "kcal"],
+            ["Protein", payload.protein_g, "g"],
+            ["Carbs", payload.carbs_g, "g"],
+            ["Fat", payload.fat_g, "g"],
+            ["Total kcal", payload.total_kcal, "kcal"],
+          ];
+          totalsGrid.innerHTML = "";
+          for (const [label, value, unit] of totals) {
+            const card = document.createElement("article");
+            card.className = "results-total";
+            const title = document.createElement("strong");
+            title.textContent = label;
+            const valueNode = document.createElement("span");
+            valueNode.textContent = formatNumber(Number(value)) + " " + unit;
+            card.appendChild(title);
+            card.appendChild(valueNode);
+            totalsGrid.appendChild(card);
+          }
+
+          mealsGrid.innerHTML = "";
+          const rawMeals = Array.isArray(payload.meals) ? payload.meals : [];
+          const meals = [...rawMeals].sort((left, right) => {
+            const leftName = typeof left?.meal === "string" ? left.meal : "";
+            const rightName = typeof right?.meal === "string" ? right.meal : "";
+            const leftIndex = mealOrder.indexOf(leftName);
+            const rightIndex = mealOrder.indexOf(rightName);
+            const normalizedLeft = leftIndex === -1 ? mealOrder.length : leftIndex;
+            const normalizedRight = rightIndex === -1 ? mealOrder.length : rightIndex;
+            return normalizedLeft - normalizedRight;
+          });
+          for (const meal of meals) {
+            const card = document.createElement("article");
+            card.className = "meal-result-card";
+            const strategy = typeof meal?.carbs_strategy === "string"
+              ? meal.carbs_strategy
+              : "n/a";
+            card.innerHTML = (
+              '<div class="meal-result-head">'
+              + '<h3>' + formatMealName(meal?.meal) + '</h3>'
+              + '<span>' + strategy + '</span>'
+              + "</div>"
+              + '<div class="meal-result-grid">'
+              + "<p>Calories: " + formatNumber(Number(meal?.kcal)) + " kcal</p>"
+              + "<p>Protein: " + formatNumber(Number(meal?.protein_g)) + " g</p>"
+              + "<p>Carbs: " + formatNumber(Number(meal?.carbs_g)) + " g</p>"
+              + "<p>Fat: " + formatNumber(Number(meal?.fat_g)) + " g</p>"
+              + "</div>"
+            );
+            mealsGrid.appendChild(card);
+          }
+
+          clearApiFeedback();
+          inputState.hidden = true;
+          resultsPanel.hidden = false;
+          resultsState.hidden = false;
+        };
+
+        const closeResultsState = () => {
+          if (!resultsState || !inputState || !resultsPanel) {
+            return;
+          }
+          resultsPanel.hidden = true;
+          resultsState.hidden = true;
+          inputState.hidden = false;
         };
 
         const createRequestPayload = () => {
@@ -650,12 +837,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               renderApiError(payload.error ?? {});
               return;
             }
-            if (resultsJson) {
-              resultsJson.textContent = JSON.stringify(payload, null, 2);
-            }
-            if (resultsPanel) {
-              resultsPanel.hidden = false;
-            }
+            renderResultsState(payload);
           } catch {
             renderApiError({message: "Unable to reach local calculate API."});
           } finally {
@@ -670,6 +852,11 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           event.preventDefault();
           void submitCalculation();
         });
+        if (resultsBackButton) {
+          resultsBackButton.addEventListener("click", () => {
+            closeResultsState();
+          });
+        }
       })();
     </script>
   </body>
@@ -736,80 +923,125 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
         ),
         "content_html": """
           <p class="section-label">Day Inputs</p>
-          <form class="form-stack" data-calculate-form="true">
-            <section class="form-card">
-              <h2>Training Context</h2>
-              <div class="field-grid">
-                <label>Activity
-                  <select name="activity_level" required>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </label>
-                <label>Tomorrow Training Load
-                  <select name="training_load_tomorrow" required>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </label>
-                <label>Training Before Meal
-                  <select name="training_before_meal">
-                    <option value="">No training meal timing</option>
-                    <option value="breakfast">Breakfast</option>
-                    <option value="morning-snack">Morning snack</option>
-                    <option value="lunch">Lunch</option>
-                    <option value="afternoon-snack">Afternoon snack</option>
-                    <option value="dinner">Dinner</option>
-                    <option value="evening-snack">Evening snack</option>
-                  </select>
-                </label>
+          <section class="input-state" data-calculate-input-state="true">
+            <form class="form-stack" data-calculate-form="true">
+              <section class="form-card">
+                <h2>Training Context</h2>
+                <div class="field-grid">
+                  <label>Activity
+                    <select name="activity_level" required>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </label>
+                  <label>Tomorrow Training Load
+                    <select name="training_load_tomorrow" required>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </label>
+                  <label>Training Before Meal
+                    <select name="training_before_meal">
+                      <option value="">No training meal timing</option>
+                      <option value="breakfast">Breakfast</option>
+                      <option value="morning-snack">Morning snack</option>
+                      <option value="lunch">Lunch</option>
+                      <option value="afternoon-snack">Afternoon snack</option>
+                      <option value="dinner">Dinner</option>
+                      <option value="evening-snack">Evening snack</option>
+                    </select>
+                  </label>
+                </div>
+                <p class="hint" data-training-before-guidance="true" hidden>
+                  Select training-before timing whenever any zone minutes are above 0.
+                </p>
+              </section>
+              <section class="form-card">
+                <h2>Zones Minutes</h2>
+                <div class="field-grid">
+                  <label>Zone 1 Minutes
+                    <input
+                      name="zone_1_minutes"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value="0"
+                      required
+                    />
+                  </label>
+                  <label>Zone 2 Minutes
+                    <input
+                      name="zone_2_minutes"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value="0"
+                      required
+                    />
+                  </label>
+                  <label>Zone 3 Minutes
+                    <input
+                      name="zone_3_minutes"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value="0"
+                      required
+                    />
+                  </label>
+                  <label>Zone 4 Minutes
+                    <input
+                      name="zone_4_minutes"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value="0"
+                      required
+                    />
+                  </label>
+                  <label>Zone 5 Minutes
+                    <input
+                      name="zone_5_minutes"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value="0"
+                      required
+                    />
+                  </label>
+                </div>
+              </section>
+              <div class="actions">
+                <button class="primary-button" type="submit" data-calculate-submit="true">
+                  Calculate
+                </button>
+                <span class="status-note" data-calculate-status="true" aria-live="polite"></span>
               </div>
-              <p class="hint" data-training-before-guidance="true" hidden>
-                Select training-before timing whenever any zone minutes are above 0.
+            </form>
+            <section class="alert-card" data-calculate-error-card="true" hidden>
+              <h2>Calculation error</h2>
+              <p data-calculate-error-summary="true">
+                Request could not be completed.
               </p>
+              <ul data-calculate-error-list="true" hidden></ul>
             </section>
-            <section class="form-card">
-              <h2>Zones Minutes</h2>
-              <div class="field-grid">
-                <label>Zone 1 Minutes
-                  <input name="zone_1_minutes" type="number" min="0" step="1" value="0" required />
-                </label>
-                <label>Zone 2 Minutes
-                  <input name="zone_2_minutes" type="number" min="0" step="1" value="0" required />
-                </label>
-                <label>Zone 3 Minutes
-                  <input name="zone_3_minutes" type="number" min="0" step="1" value="0" required />
-                </label>
-                <label>Zone 4 Minutes
-                  <input name="zone_4_minutes" type="number" min="0" step="1" value="0" required />
-                </label>
-                <label>Zone 5 Minutes
-                  <input name="zone_5_minutes" type="number" min="0" step="1" value="0" required />
-                </label>
+          </section>
+          <section class="results-state" data-calculate-results-state="true" hidden>
+            <section class="form-card results-panel" data-calculate-results="true" hidden>
+              <h2>Calculated Meal Plan</h2>
+              <p class="hint">
+                Review totals and meal details, then go back to adjust inputs.
+              </p>
+              <section class="results-totals" data-calculate-results-totals="true"></section>
+              <section class="results-meals" data-calculate-results-meals="true"></section>
+              <div class="actions">
+                <button class="primary-button" type="button" data-calculate-results-back="true">
+                  Back to inputs
+                </button>
               </div>
             </section>
-            <div class="actions">
-              <button class="primary-button" type="submit" data-calculate-submit="true">
-                Calculate
-              </button>
-              <span class="status-note" data-calculate-status="true" aria-live="polite"></span>
-            </div>
-          </form>
-          <section class="alert-card" data-calculate-error-card="true" hidden>
-            <h2>Calculation error</h2>
-            <p data-calculate-error-summary="true">
-              Request could not be completed.
-            </p>
-            <ul data-calculate-error-list="true" hidden></ul>
-          </section>
-          <section class="form-card results-panel" data-calculate-results="true" hidden>
-            <h2>Latest Calculation Result</h2>
-            <p class="hint">
-              Returned payload from the local calculate API.
-            </p>
-            <pre data-calculate-results-json="true"></pre>
           </section>
           <p class="hint">Calculate inputs are saved automatically in this browser.</p>
         """,
