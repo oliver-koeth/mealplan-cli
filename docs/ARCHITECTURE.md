@@ -1,42 +1,54 @@
-# ARCHITECTURE --- `mealplan` (Python CLI)
+# ARCHITECTURE --- `mealplan` (Python CLI + Planned Local Web UI)
 
 ## 1. Purpose & Scope
 - Architectural goals:
   - Provide deterministic, reproducible nutrition calculations from explicit CLI inputs.
   - Keep business rules testable and isolated from CLI and IO concerns.
   - Support stable JSON output for automation workflows.
+  - Preserve one canonical calculation engine that can be driven by both CLI and future local web UI adapters.
 - System boundaries:
-  - In scope: input parsing, validation, calculation engine, periodization logic, JSON/plain output.
+  - In scope: input parsing, validation, calculation engine, periodization logic, JSON/plain output, and a future local-only web server mode that serves both UI assets and REST endpoints.
   - Out of scope: cloud APIs, persistent user accounts, wearable integrations, remote telemetry.
 - Responsibilities:
-  - This CLI is responsible for stateless computation and result formatting.
+  - This package is responsible for stateless computation, local interaction surfaces, and result formatting.
   - This CLI is not responsible for meal recipe generation, grocery planning, or coaching advice.
 - Design constraints:
   - Offline-first execution.
   - Deterministic output for identical input.
   - No hidden mutable global state.
   - No cloud dependency for core functionality.
+  - Future UI mode must run entirely on the local machine and must not require external services for core calculation behavior.
+  - Installed UI mode must work after Python package installation without requiring a Node.js runtime on the target machine.
 
 ## 2. High-Level Architecture Overview
 ```mermaid
 flowchart LR
-  CLI[CLI Layer\narg parsing + UX] --> APP[Application Layer\nuse-case orchestration]
+  CLI[CLI Adapter\narg parsing + terminal UX] --> APP[Application Layer\nuse-case orchestration]
+  WEB[Web Adapter\nlocal HTTP server + REST API] --> APP
+  WEB --> UI[Angular SPA\nbrowser UI]
   APP --> DOM[Domain Layer\nrules + calculations]
-  APP --> INF[Infrastructure Layer\nserialization/logging/config loading]
+  APP --> INF[Infrastructure Layer\nserialization/logging/config loading + static asset serving]
   INF --> CLI
+  INF --> WEB
 ```
 - Component responsibilities:
   - CLI: parse args, call use cases, map exceptions to exit codes, render output.
+  - Web adapter: host local FastAPI server, expose REST endpoints, serve built Angular assets, translate HTTP errors to stable API responses.
+  - Angular UI: collect user input, call REST endpoints, render results using the documented style guide.
   - Application: coordinate validation + domain services, return response DTOs.
   - Domain: entities, value objects, invariants, deterministic calculation logic.
-  - Infrastructure: config file/env loading, JSON/schema adapters, logging setup.
+  - Infrastructure: config file/env loading, JSON/schema adapters, logging setup, static asset loading/serving.
 - Data flow overview:
   - User args -> validated request DTO -> domain computations -> response DTO -> output formatter.
+  - Browser UI -> REST JSON payload -> validated request DTO -> domain computations -> response DTO -> JSON response -> UI rendering.
 - Control flow overview:
   - `main()` -> command handler -> use-case service -> calculation engine -> formatter -> exit code.
+  - Planned UI mode: `main()` -> UI launcher path -> local web server -> REST handler -> use-case service -> JSON response.
 - Separation of concerns:
   - Domain does not import CLI/infrastructure.
   - CLI has no business logic beyond presentation and command wiring.
+  - Web adapter has no business logic beyond transport, asset serving, and API translation.
+  - Angular UI must not embed nutrition rules or duplicate calculation formulas.
 
 ## 3. Architectural Principles
 - Determinism: no randomness, no time-based defaults in calculations, stable ordering for meal allocation.
@@ -44,8 +56,10 @@ flowchart LR
 - Pure domain functions: domain services are side-effect free.
 - Idempotency: same input payload always yields same output payload.
 - Dependency direction: `cli -> application -> domain`; infrastructure is adapter-only.
+- Planned UI dependency direction: `web adapter -> application -> domain`; `angular ui -> rest api`; no UI direct access to domain code.
 - No circular imports: enforce via module conventions and import lints.
 - CLI thin, domain thick: logic in domain/application, not command functions.
+- Transport-thin adapters: both CLI and HTTP adapters stay thin and reuse the same application contracts.
 
 ## 4. Project Structure
 ```text
@@ -60,6 +74,7 @@ mealplan/
     adr/
   src/mealplan/
     cli/
+    web/
     application/
     domain/
       models/
@@ -69,24 +84,31 @@ mealplan/
       config/
       logging/
       output/
+      web/
       validation/
     shared/
       errors.py
       types.py
+  ui/
+    angular/
   tests/
     unit/
     integration/
     cli/
+    api/
     golden/
 ```
 - Module boundaries:
   - `cli/` may import `application` and `shared` only.
+  - `web/` may import `application`, `infrastructure`, and `shared` only.
   - `application/` may import `domain`, `shared`, and boundary interfaces.
   - `domain/` imports only stdlib + internal domain/shared types.
   - `infrastructure/` implements adapters; never imported by `domain`.
 - Boundary restrictions:
   - No direct `cli -> domain` invocation.
+  - No direct `web -> domain` invocation.
   - No domain dependence on third-party frameworks.
+  - Angular UI communicates only through the local REST API; it does not execute Python logic, shell out to the CLI, or parse terminal output.
 
 ## 5. CLI Layer Architecture
 - Parsing strategy: `Typer` for command ergonomics and type-aware help.
@@ -97,6 +119,10 @@ mealplan/
   - `calculate` is the production boundary and accepts the canonical flags:
     - required: `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`
     - optional: `--vo2max`, `--training-zones`, `--training-before`, `--format`, `--debug`
+  - Planned interactive entrypoint:
+    - root flag `mealplan --ui` starts a local web server instead of running a single calculation command.
+    - `--ui` is a mode switch, not a separate calculation engine.
+    - `calculate` remains supported for non-interactive automation and shell workflows.
 - Validation flow:
   - Parse primitive CLI inputs.
   - Convert to request DTO.
@@ -113,6 +139,49 @@ mealplan/
   - Default JSON (machine-readable, stable keys).
   - Optional `--format table|text|json`, with JSON canonical for integrations.
   - Successful outputs stay on stdout for all formats; failures are emitted on stderr.
+
+## 5A. Planned Web UI Mode
+- Purpose:
+  - Provide an interactive browser-based interface for local use without replacing the CLI as the canonical runtime entrypoint.
+- Startup model:
+  - `mealplan --ui` starts a local HTTP server bound to a loopback interface by default.
+  - The same server process serves both static Angular assets and REST API routes.
+  - UI mode must not require a second backend process or a separate manually started Node server in production usage.
+  - Startup prints the local URL for the user to open manually; automatic browser launch is not part of the initial design.
+- Runtime model:
+  - Browser opens a local SPA.
+  - SPA submits canonical JSON request payloads to local REST endpoints.
+  - REST handlers call the same application services used by the CLI.
+  - Responses use the same DTO contracts as CLI JSON mode wherever practical.
+- Architectural rule:
+  - The web mode is another adapter over the same application layer, not a rewrite of orchestration logic.
+- Local-only scope:
+  - Initial UI mode is local desktop/browser usage only.
+  - No authentication, multi-user session management, or remote deployment assumptions are part of the initial design.
+
+## 5B. Planned REST API Boundary
+- API purpose:
+  - Provide a stable local transport boundary between the Angular UI and the Python calculation engine.
+- Initial endpoint set:
+  - `POST /api/v1/calculate`
+  - `GET /api/v1/health`
+  - `GET /api/v1/meta` (optional future endpoint for enums, app version, and UI boot metadata)
+- Calculation contract:
+  - `POST /api/v1/calculate` accepts the canonical `MealPlanRequest` JSON shape from `src/mealplan/application/contracts.py`.
+  - Successful responses return the canonical `MealPlanResponse` JSON shape from `src/mealplan/application/contracts.py`.
+  - Warnings currently emitted on CLI stderr should be exposed in a structured field or response metadata once the enhancement is specified; until then, warning transport remains an open design point.
+- Error contract:
+  - Validation failures map to HTTP `400`.
+  - Domain rule violations map to HTTP `422`.
+  - Unexpected runtime/infrastructure failures map to HTTP `500`.
+  - Error bodies should be structured and machine-readable; they must not depend on terminal-oriented formatting.
+- Transport rules:
+  - JSON is the canonical wire format.
+  - REST handlers must call application services directly in-process.
+  - The API must never shell out to `mealplan calculate` as a subprocess.
+- Versioning:
+  - Prefix HTTP routes with `/api/v1`.
+  - Keep API versioning independent from CLI formatting concerns.
 
 ## 6. Application Layer
 - Responsibilities:
@@ -363,6 +432,9 @@ mealplan/
   - Emit intermediate calculation steps when `--debug` enabled.
 - Traceability:
   - Log key rule applications (e.g., selected high-carb meals) without exposing secrets.
+- Planned web-mode additions:
+  - Include HTTP method, route, and local request id in server logs.
+  - Keep browser-facing error payloads separate from server log detail.
 
 ## 14. Dependency Management
 - Package/dependency manager:
@@ -370,10 +442,15 @@ mealplan/
   - Canonical commands: `uv sync`, `uv run mealplan ...`, `uv run pytest`.
 - Approved external libraries (initial):
   - `typer` (CLI), `pydantic` (contracts/validation), `rich` (optional table output), `pytest` (tests).
+- Planned enhancement dependencies:
+  - `fastapi` for the local server and REST adapter.
+  - An ASGI server dependency for local execution of the FastAPI app.
+  - Angular workspace/toolchain for browser UI authoring and production builds.
 - Dependency injection:
   - Constructor injection at application/infrastructure boundaries.
 - Dependency rules:
   - No third-party dependencies inside `domain/` unless mathematically essential and approved via ADR.
+  - UI and web-server dependencies must not leak into `domain/` or change core calculation contracts.
 
 ## 15. Testing Architecture
 - Unit boundaries:
@@ -384,6 +461,11 @@ mealplan/
   - Application service with in-memory adapters.
 - CLI invocation tests:
   - End-to-end command tests via Typer test runner/subprocess.
+- Planned API tests:
+  - Endpoint-level tests for success, validation failures, domain-rule failures, and structured error payloads.
+- Planned UI tests:
+  - Angular component tests for form and result rendering.
+  - Browser E2E tests for the `--ui` workflow once the enhancement is implemented.
 - Golden-file tests:
   - Snapshot JSON outputs in `tests/golden/` for stable regression checks.
 - Determinism tests:
@@ -398,6 +480,7 @@ mealplan/
   - Minimal; bounded to request/response payload.
 - Startup time:
   - Keep imports lean; avoid heavy optional dependencies on default path.
+  - Keep non-UI CLI startup free from Angular asset discovery/build costs.
 - Scalability:
   - Batch mode possible via repeated invocation or future `--input-file` processing.
 
@@ -410,10 +493,18 @@ mealplan/
   - Never evaluate input (`eval`, dynamic import) from user payloads.
 - Secrets handling:
   - No secrets currently required; if added, read from env and never log.
+- Planned web-mode constraints:
+  - Bind to loopback by default unless a future ADR explicitly broadens exposure.
+  - Serve only packaged static assets and defined API routes; no arbitrary file browsing.
+  - Disable debug tracebacks in HTTP responses by default.
 
 ## 18. Extensibility Model
 - New commands:
   - Add command module in `cli/commands`, register in root Typer app.
+- New REST endpoints:
+  - Add web route handlers that delegate to application services or dedicated read models.
+- New UI screens:
+  - Add Angular routes/pages that consume versioned API endpoints instead of bypassing the API boundary.
 - New carb strategies:
   - Implement `PeriodizationStrategy` and register via application factory.
 - New macro rules:
@@ -436,6 +527,10 @@ mealplan/
   - Console script `mealplan = mealplan.cli.main:app`.
 - Setup configuration:
   - `pyproject.toml` with PEP 621 metadata and optional dependency groups.
+- Planned UI packaging:
+  - Distribute the Python package as the canonical install target.
+  - Bundle production-built Angular assets so `mealplan --ui` works after package installation without a Node.js runtime.
+  - Keep frontend source and build tooling isolated from the default CLI execution path.
 - Binary build:
   - Consider PyInstaller/PEX only if standalone distribution becomes required.
 - Installation footprint:
@@ -450,6 +545,8 @@ mealplan/
   - `docs/` contains PRD, architecture, model spec, ADRs, schemas, and usage examples.
 - Examples:
   - Provide deterministic examples with fixed input/output pairs.
+- Planned UI/API docs:
+  - Document local UI launch workflow, REST endpoints, and packaging assumptions once specified.
 
 ## 22. Anti-Patterns to Avoid
 - Business logic in CLI functions.
@@ -464,20 +561,44 @@ mealplan/
 - Meal suggestion engine:
   - Optional module layered above macro outputs; keep core deterministic.
 - API mode:
-  - Reuse application/domain layers behind FastAPI adapter.
+  - Reuse application/domain layers behind a local FastAPI adapter.
 - Web wrapper:
-  - CLI remains canonical engine; web UI calls same application services.
+  - CLI remains canonical engine; web UI calls the same application services through a local REST API.
 
-## 24. Architecture Decision Records (ADR)
+## 24. Planned UI Enhancement Constraints
+- The Angular UI is a presentation layer only; all nutrition calculations remain in Python application/domain layers.
+- The REST API is the only supported integration path between browser UI and Python backend.
+- UI-facing request and response shapes should reuse existing DTOs first and only diverge with explicit ADR-backed justification.
+- The style guide in [STYLEGUIDE.md](/Users/Oliver.Koeth/work/mealplan-cli/docs/STYLEGUIDE.md) is the visual basis for the Angular implementation.
+- The initial enhancement should support the current `calculate` use case only, but the server architecture must leave room for future commands and screens.
+- FastAPI is the chosen backend framework for the initial local web adapter.
+- `mealplan --ui` prints the local URL for manual browser opening; it does not auto-launch a browser.
+- Production Angular assets are bundled into the Python package so installed UI mode does not depend on Node.js.
+- Command growth model:
+  - Future CLI commands should map cleanly either to REST endpoints, UI routes, or both.
+  - Shared application services remain the source of truth for command behavior.
+
+## 25. Open Technical Decisions For Later Specification
+- UI asset serving strategy:
+  - Decide the concrete build and packaging workflow for embedding Angular production assets into the Python package.
+- Local server lifecycle:
+  - Decide host/port defaults, collision handling, and shutdown behavior.
+- API error schema:
+  - Decide the canonical JSON envelope for success metadata, warnings, and errors.
+- Development workflow:
+  - Decide how Python API dev mode and Angular dev mode will run together during implementation without affecting packaged production mode.
+
+## 26. Architecture Decision Records (ADR)
 - Decision documentation:
   - Record significant architecture choices as ADR markdown files.
 - Location:
   - `docs/adr/` with sequential naming (`0001-...md`).
 - Change approval:
-  - New dependency, boundary relaxation, or contract change requires ADR + review.
+  - New dependency, boundary relaxation, or transport contract change requires ADR + review.
 
-## 25. Definition of Architectural Integrity
+## 27. Definition of Architectural Integrity
 - No cross-layer imports that violate dependency direction.
 - Domain test coverage threshold: >= 90% statement coverage for `domain/`.
 - All business rules represented in executable code + tests (not prose-only comments).
 - No silent fallbacks for invalid inputs, missing required fields, or impossible macro states.
+- UI and API adapters do not duplicate or fork business rules already owned by application/domain layers.
