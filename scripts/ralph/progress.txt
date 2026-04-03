@@ -5,6 +5,7 @@
 - For inline HTML/CSS rendered by the web adapter, prefer `string.Template` over `str.format(...)` so CSS braces are not treated as format keys.
 - For browser-restored UI forms in the inline shell, gate persistence behind a page-specific form marker (`data-settings-form="true"`) and namespace `localStorage` keys as `mealplan.ui.<page>.v1`.
 - For calculate-page readiness, require `training_before_meal` only when aggregate zone minutes (`zone_1_minutes`..`zone_5_minutes`) are greater than zero, with concise inline guidance and no `training` option in the UI dropdown.
+- For calculate submissions, build payloads by merging the latest route form values with the corresponding `localStorage` snapshot (`mealplan.ui.settings.v1` + `mealplan.ui.calculate.v1`) so `/calculate` can submit complete requests without rendering settings controls.
 
 Started: Fri Apr  3 16:29:36 CEST 2026
 ---
@@ -110,4 +111,24 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - When shared script structure changes, update both settings and calculate HTML assertions in `tests/unit/test_web_ui_server.py` to avoid stale string checks.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Calculate page coverage currently validates rendered HTML/script contracts (controls, storage key, readiness logic); browser-interaction behavior can build on this in later stories.
+---
+
+## 2026-04-03 17:31:02 CEST - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented calculate-form submission wiring in the inline UI shell, including payload assembly from settings+calculate snapshots, canonical `training_session.zones_minutes` mapping, and `POST /api/v1/calculate` invocation.
+- Added restrained in-flight UX controls for calculate submit (`requestInFlight` guard, disabled button, and inline status text) to prevent duplicate requests.
+- Added inline API feedback surfaces: concise error card rendering for validation/domain/API failures and a panel-like in-page results state that shows the returned payload on success.
+- Expanded calculate-shell HTML contract assertions to cover submission controls, fetch wiring, duplicate-submission guard, and results/error containers.
+- Files changed:
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- On `/calculate`, submission must merge current form controls with persisted settings snapshot because the settings form is not present on that route.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- When inlined script constants replace literal storage-key strings, update HTML string assertions in `tests/unit/test_web_ui_server.py` to avoid brittle failures.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Current results state is a shell-level panel (`data-calculate-results`) and stores the raw API payload in `pre[data-calculate-results-json]`; later stories can layer structured rendering and back/save controls on top of this marker.
 ---

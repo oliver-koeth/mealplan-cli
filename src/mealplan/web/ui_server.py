@@ -240,6 +240,68 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         padding: 0.45rem 0.55rem;
       }
 
+      .actions {
+        margin-top: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+      }
+
+      .primary-button {
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface);
+        color: var(--text);
+        padding: 0.5rem 0.8rem;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .primary-button[disabled] {
+        cursor: wait;
+        opacity: 0.7;
+      }
+
+      .status-note {
+        font-size: 0.78rem;
+        color: var(--text-subtle);
+      }
+
+      .alert-card {
+        border-radius: 10px;
+        border: 1px solid #dc2626;
+        background: rgba(220, 38, 38, 0.1);
+        padding: 0.75rem;
+      }
+
+      .alert-card h2 {
+        margin: 0;
+        font-size: 0.86rem;
+      }
+
+      .alert-card p,
+      .alert-card ul {
+        margin: 0.45rem 0 0;
+        color: var(--text-muted);
+        font-size: 0.82rem;
+      }
+
+      .alert-card ul {
+        padding-left: 1rem;
+      }
+
+      .results-panel pre {
+        margin: 0.55rem 0 0;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface-muted);
+        padding: 0.65rem;
+        overflow-x: auto;
+        font-size: 0.76rem;
+      }
+
       .hint {
         margin: 0.65rem 0 0;
         color: var(--text-subtle);
@@ -288,6 +350,25 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
     </main>
     <script>
       (() => {
+        const settingsStorageKey = "mealplan.ui.settings.v1";
+        const calculateStorageKey = "mealplan.ui.calculate.v1";
+
+        const readLocalStorageObject = (storageKey) => {
+          const raw = window.localStorage.getItem(storageKey);
+          if (!raw) {
+            return {};
+          }
+          try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== "object") {
+              return {};
+            }
+            return parsed;
+          } catch {
+            return {};
+          }
+        };
+
         const bindLocalStorageForm = (form, storageKey, fields) => {
           if (!form) {
             return;
@@ -305,24 +386,13 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           };
 
           const restoreValues = () => {
-            const raw = window.localStorage.getItem(storageKey);
-            if (!raw) {
-              return;
-            }
-            try {
-              const parsed = JSON.parse(raw);
-              if (!parsed || typeof parsed !== "object") {
-                return;
+            const parsed = readLocalStorageObject(storageKey);
+            for (const name of fields) {
+              const control = form.elements.namedItem(name);
+              const value = parsed[name];
+              if (control && "value" in control && typeof value === "string") {
+                control.value = value;
               }
-              for (const name of fields) {
-                const control = form.elements.namedItem(name);
-                const value = parsed[name];
-                if (control && "value" in control && typeof value === "string") {
-                  control.value = value;
-                }
-              }
-            } catch {
-              // Ignore invalid local storage snapshots.
             }
           };
 
@@ -335,8 +405,38 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           form.addEventListener("change", persistValues);
         };
 
+        const readFormValues = (form, fields) => {
+          if (!form) {
+            return {};
+          }
+          const result = {};
+          for (const name of fields) {
+            const control = form.elements.namedItem(name);
+            if (control && "value" in control) {
+              result[name] = control.value;
+            }
+          }
+          return result;
+        };
+
+        const parseIntegerOrNull = (rawValue) => {
+          const parsed = Number.parseInt(rawValue ?? "", 10);
+          if (!Number.isFinite(parsed)) {
+            return null;
+          }
+          return parsed;
+        };
+
+        const parseNumberOrNull = (rawValue) => {
+          const parsed = Number.parseFloat(rawValue ?? "");
+          if (!Number.isFinite(parsed)) {
+            return null;
+          }
+          return parsed;
+        };
+
         const settingsForm = document.querySelector('[data-settings-form="true"]');
-        bindLocalStorageForm(settingsForm, "mealplan.ui.settings.v1", [
+        bindLocalStorageForm(settingsForm, settingsStorageKey, [
           "age",
           "gender",
           "height_cm",
@@ -346,7 +446,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         ]);
 
         const calculateForm = document.querySelector('[data-calculate-form="true"]');
-        bindLocalStorageForm(calculateForm, "mealplan.ui.calculate.v1", [
+        bindLocalStorageForm(calculateForm, calculateStorageKey, [
           "activity_level",
           "training_load_tomorrow",
           "training_before_meal",
@@ -373,9 +473,18 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           return;
         }
 
+        const calculateButton = calculateForm.querySelector('[data-calculate-submit="true"]');
+        const statusNote = document.querySelector('[data-calculate-status="true"]');
+        const errorCard = document.querySelector('[data-calculate-error-card="true"]');
+        const errorSummary = document.querySelector('[data-calculate-error-summary="true"]');
+        const errorList = document.querySelector('[data-calculate-error-list="true"]');
+        const resultsPanel = document.querySelector('[data-calculate-results="true"]');
+        const resultsJson = document.querySelector('[data-calculate-results-json="true"]');
+        let requestInFlight = false;
+
         const parseMinutes = (rawValue) => {
-          const parsed = Number.parseInt(rawValue ?? "", 10);
-          if (!Number.isFinite(parsed) || parsed < 0) {
+          const parsed = parseIntegerOrNull(rawValue);
+          if (parsed === null || parsed < 0) {
             return 0;
           }
           return parsed;
@@ -416,9 +525,151 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           }
         };
 
+        const renderApiError = (errorPayload) => {
+          if (!errorCard) {
+            return;
+          }
+          if (errorSummary) {
+            errorSummary.textContent = errorPayload.message ?? "Calculation failed.";
+          }
+          if (errorList) {
+            errorList.innerHTML = "";
+            const details = Array.isArray(errorPayload.details) ? errorPayload.details : [];
+            for (const detail of details) {
+              const item = document.createElement("li");
+              if (detail && typeof detail === "object") {
+                const field = typeof detail.field === "string" ? detail.field : "";
+                const message = (
+                  typeof detail.message === "string"
+                    ? detail.message
+                    : "Invalid value."
+                );
+                item.textContent = field ? field + ": " + message : message;
+              } else {
+                item.textContent = "Invalid request.";
+              }
+              errorList.appendChild(item);
+            }
+            errorList.hidden = errorList.children.length === 0;
+          }
+          errorCard.hidden = false;
+        };
+
+        const clearApiFeedback = () => {
+          if (errorCard) {
+            errorCard.hidden = true;
+          }
+          if (resultsPanel) {
+            resultsPanel.hidden = true;
+          }
+        };
+
+        const setSubmissionState = (inFlight) => {
+          requestInFlight = inFlight;
+          if (calculateButton) {
+            calculateButton.disabled = inFlight;
+            calculateButton.textContent = inFlight ? "Calculating..." : "Calculate";
+          }
+          if (statusNote) {
+            statusNote.textContent = inFlight ? "Submitting request..." : "";
+          }
+        };
+
+        const createRequestPayload = () => {
+          const settingsSnapshot = {
+            ...readLocalStorageObject(settingsStorageKey),
+            ...readFormValues(settingsForm, [
+              "age",
+              "gender",
+              "height_cm",
+              "weight_kg",
+              "vo2max",
+              "carb_mode",
+            ]),
+          };
+          const calculateSnapshot = {
+            ...readLocalStorageObject(calculateStorageKey),
+            ...readFormValues(calculateForm, [
+              "activity_level",
+              "training_load_tomorrow",
+              "training_before_meal",
+              "zone_1_minutes",
+              "zone_2_minutes",
+              "zone_3_minutes",
+              "zone_4_minutes",
+              "zone_5_minutes",
+            ]),
+          };
+
+          const requestPayload = {
+            age: parseIntegerOrNull(settingsSnapshot.age),
+            gender: settingsSnapshot.gender ?? "",
+            height_cm: parseIntegerOrNull(settingsSnapshot.height_cm),
+            weight_kg: parseNumberOrNull(settingsSnapshot.weight_kg),
+            carb_mode: settingsSnapshot.carb_mode ?? "",
+            activity_level: calculateSnapshot.activity_level ?? "",
+            training_session: {
+              training_load_tomorrow: calculateSnapshot.training_load_tomorrow ?? "",
+              training_before_meal: calculateSnapshot.training_before_meal || null,
+              zones_minutes: {
+                "1": parseMinutes(calculateSnapshot.zone_1_minutes),
+                "2": parseMinutes(calculateSnapshot.zone_2_minutes),
+                "3": parseMinutes(calculateSnapshot.zone_3_minutes),
+                "4": parseMinutes(calculateSnapshot.zone_4_minutes),
+                "5": parseMinutes(calculateSnapshot.zone_5_minutes),
+              },
+            },
+          };
+
+          const vo2max = parseNumberOrNull(settingsSnapshot.vo2max);
+          if (vo2max !== null) {
+            requestPayload.vo2max = vo2max;
+          }
+          return requestPayload;
+        };
+
+        const submitCalculation = async () => {
+          if (requestInFlight) {
+            return;
+          }
+          updateTrainingBeforeRequirement();
+          if (!calculateForm.reportValidity()) {
+            return;
+          }
+
+          clearApiFeedback();
+          setSubmissionState(true);
+          try {
+            const response = await window.fetch("/api/v1/calculate", {
+              method: "POST",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify(createRequestPayload()),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+              renderApiError(payload.error ?? {});
+              return;
+            }
+            if (resultsJson) {
+              resultsJson.textContent = JSON.stringify(payload, null, 2);
+            }
+            if (resultsPanel) {
+              resultsPanel.hidden = false;
+            }
+          } catch {
+            renderApiError({message: "Unable to reach local calculate API."});
+          } finally {
+            setSubmissionState(false);
+          }
+        };
+
         updateTrainingBeforeRequirement();
         calculateForm.addEventListener("input", updateTrainingBeforeRequirement);
         calculateForm.addEventListener("change", updateTrainingBeforeRequirement);
+        calculateForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          void submitCalculation();
+        });
       })();
     </script>
   </body>
@@ -539,7 +790,27 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                 </label>
               </div>
             </section>
+            <div class="actions">
+              <button class="primary-button" type="submit" data-calculate-submit="true">
+                Calculate
+              </button>
+              <span class="status-note" data-calculate-status="true" aria-live="polite"></span>
+            </div>
           </form>
+          <section class="alert-card" data-calculate-error-card="true" hidden>
+            <h2>Calculation error</h2>
+            <p data-calculate-error-summary="true">
+              Request could not be completed.
+            </p>
+            <ul data-calculate-error-list="true" hidden></ul>
+          </section>
+          <section class="form-card results-panel" data-calculate-results="true" hidden>
+            <h2>Latest Calculation Result</h2>
+            <p class="hint">
+              Returned payload from the local calculate API.
+            </p>
+            <pre data-calculate-results-json="true"></pre>
+          </section>
           <p class="hint">Calculate inputs are saved automatically in this browser.</p>
         """,
     },

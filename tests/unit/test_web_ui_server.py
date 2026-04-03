@@ -139,7 +139,8 @@ def test_ui_server_settings_shell_includes_typed_settings_controls_and_storage_s
     assert '<input name="weight_kg" type="number" min="1" step="0.1" required />' in html
     assert '<input name="vo2max" type="number" min="10" max="100" step="1" />' in html
     assert '<select name="carb_mode" required>' in html
-    assert 'bindLocalStorageForm(settingsForm, "mealplan.ui.settings.v1",' in html
+    assert "const settingsStorageKey = " in html
+    assert 'bindLocalStorageForm(settingsForm, settingsStorageKey,' in html
     assert 'window.localStorage.getItem(storageKey)' in html
     assert 'window.localStorage.setItem(storageKey, JSON.stringify(readValues()));' in html
 
@@ -178,7 +179,17 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert "if (hasTrainingVolume()) {" in html
     assert "trainingBeforeControl.required = true;" in html
     assert "trainingBeforeControl.required = false;" in html
-    assert 'bindLocalStorageForm(calculateForm, "mealplan.ui.calculate.v1",' in html
+    assert "const calculateStorageKey = " in html
+    assert 'bindLocalStorageForm(calculateForm, calculateStorageKey,' in html
+    assert 'data-calculate-submit="true"' in html
+    assert 'class="alert-card" data-calculate-error-card="true" hidden' in html
+    assert 'data-calculate-results="true" hidden' in html
+    assert 'window.fetch("/api/v1/calculate",' in html
+    assert 'if (requestInFlight) {' in html
+    assert 'calculateButton.disabled = inFlight;' in html
+    assert 'resultsJson.textContent = JSON.stringify(payload, null, 2);' in html
+    assert 'training_session: {' in html
+    assert '"1": parseMinutes(calculateSnapshot.zone_1_minutes)' in html
 
 
 def test_ui_server_calculate_maps_validation_error_to_http_400(
