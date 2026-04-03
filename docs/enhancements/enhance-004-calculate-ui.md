@@ -1,0 +1,184 @@
+# Enhancement Brief: enhance-004 Web UI Meal Plan Calculation
+
+## Problem statement
+The project currently exposes meal-plan calculation through the CLI only. That makes repeated day-to-day usage less practical because users must re-enter athlete data and training-day inputs manually, and the current `--training-zones` JSON input is not suitable for a browser-based workflow.
+
+The requested enhancement adds a local web UI, aligned with the existing style guide, for calculating a meal plan through a browser. The UI must split stable athlete settings from day-specific calculation inputs, persist current input values in browser local storage, call a local calculate API, and render the returned meal plan in a dedicated results panel-like view state on the calculate screen that supports simple kcal scaling.
+
+## Goals
+- Add a style-guide-aligned local web UI for the existing meal-plan calculation use case.
+- Split calculation inputs into:
+  - a `Settings` page for stable athlete-related values
+  - a `Calculate` page for day-specific values
+- Persist all current UI input values in browser local storage so fields are restored on return.
+- Replace the CLI-only `--training-zones` JSON interaction with separate zone `1..5` minute inputs in the UI.
+- Add a local calculate API that the browser UI calls instead of shelling out to the CLI.
+- Render the calculation result in a simple panel-like results view state on the calculate screen with a back path to the input form state.
+- Allow the displayed daily meal plan to be scaled up or down in `100 kcal` steps, with proportional meal adjustment.
+
+## In scope
+- Add a browser UI flow for the current `calculate` use case only.
+- Implement a `Settings` page that captures stable inputs and stores them in browser local storage:
+  - `age`
+  - `gender`
+  - `height`
+  - `weight`
+  - `vo2max`
+  - `carbs`
+- Implement a `Calculate` page that captures day-specific inputs and stores them in browser local storage:
+  - `activity`
+  - `training_tomorrow`
+  - `training_before`
+  - training minutes for zones `1`, `2`, `3`, `4`, and `5` as separate controls
+- Use UI controls that match the underlying data types and enums:
+  - numeric inputs for numeric fields
+  - separate integer minute inputs for zones `1..5`
+  - dropdowns for `gender`, `activity`, `carbs`, `training_tomorrow`, and `training_before`
+- Build a calculate action on the `Calculate` page that:
+  - reads current values from both pages
+  - assembles the canonical request payload
+  - calls the local calculate API
+  - opens a results panel-like view state on the calculate screen when the API responds successfully
+- Add a results view that:
+  - shows the returned daily summary and meal plan in a style-guide-aligned layout
+  - includes a back button to return to the input view
+  - includes controls to increase or decrease displayed daily total kcal in `100 kcal` increments
+  - proportionally adjusts individual displayed meal values when the displayed daily total changes
+  - includes a `Save` button that currently performs no persistence and simply closes the results view and returns to the calculate page
+- Add the local API endpoint required for the UI flow:
+  - `POST /api/v1/calculate`
+- Keep the API wired to the existing application service and canonical request/response DTOs wherever practical.
+- Define a canonical structured JSON error response for UI-facing API failures.
+- Show validation and API errors inline using restrained style-guide-consistent messaging.
+
+## Out of scope
+- Changing the nutrition calculation rules or response semantics.
+- Adding user accounts, cloud sync, server-side persistence, or multi-user behavior.
+- Adding browser-side storage beyond local storage for current input values.
+- Adding a real save/export feature; in this enhancement, `Save` is a UI placeholder only.
+- Supporting CLI runtime/output flags such as `--format` or `--debug` in the web UI.
+- Adding additional screens beyond `Settings`, `Calculate`, and the results view for the calculate flow.
+- Exposing a directly navigable standalone route/URL for results.
+
+## Constraints and assumptions
+- The UI must follow [STYLEGUIDE.md](/Users/Oliver.Koeth/work/mealplan-cli/docs/STYLEGUIDE.md), especially:
+  - compact card-based layout
+  - calm utility-first styling
+  - plain, grouped forms with labels above fields
+  - simple buttons and restrained alerts
+  - light/dark theme parity
+- The web UI is a presentation layer only and must not duplicate nutrition logic already owned by the Python application/domain layers.
+- The browser must call the in-process local REST API; the UI must not shell out to `mealplan calculate`.
+- Chosen build/dev workflow for this enhancement:
+  - Development runs Angular dev server and FastAPI as separate local processes.
+  - Angular dev server proxies API requests to the local FastAPI backend.
+  - Release/CI builds Angular production assets and embeds them into the Python package.
+  - Installed/local runtime serves packaged static assets and does not require Angular dev server.
+- Local server lifecycle for UI mode is fixed:
+  - bind host: `127.0.0.1`
+  - preferred port: `8765`
+  - collision fallback: probe `8766..8775` sequentially
+  - startup fails with clear non-zero error if no free port exists in `8765..8775`
+  - startup prints UI URL and health endpoint URL
+  - graceful shutdown handles `SIGINT`/`SIGTERM`, drains in-flight requests for up to `5` seconds, then exits
+- API error responses use canonical JSON with this shape:
+  - `error.code`: stable machine-readable error code
+  - `error.message`: concise user-facing summary
+  - `error.details`: optional list of field or rule issues
+  - `error.request_id`: request identifier for logs/troubleshooting
+- The canonical error-code mapping for this enhancement is:
+  - HTTP `400` => `validation_error`
+  - HTTP `422` => `domain_rule_error`
+  - HTTP `500` => `internal_error`
+- Each `error.details` item should use:
+  - `field`: optional request field path when applicable
+  - `message`: deterministic explanation of the issue
+- The UI must cover all current calculation inputs from the canonical request contract, even if the original user examples listed only a subset of stable athlete fields.
+- `height` is treated as a stable athlete setting and therefore belongs on the `Settings` page.
+- `training_before` dropdown options in the UI must include only semantically valid meal choices:
+  - `breakfast`
+  - `morning-snack`
+  - `lunch`
+  - `afternoon-snack`
+  - `dinner`
+  - `evening-snack`
+- The UI must not expose the CLI-only parseable-but-invalid `training_before=training` option.
+- Local storage should restore the most recent input values for both pages on reload or later return to the UI.
+- Local storage persistence in this enhancement applies to user-entered input fields, not to previously returned result payloads.
+- Training zone minute inputs must map to the canonical request shape as `training_session.zones_minutes` with keys `1..5`.
+- If all zone minutes are `0`, the request may omit `training_before`; if any zone minutes are greater than `0`, the UI must require `training_before` before submitting.
+- `vo2max` remains optional in the UI, consistent with the canonical request contract.
+- Results-page kcal scaling is a display-layer adjustment only in this enhancement:
+  - it does not call the backend again
+  - it does not change the canonical calculation response on the server
+  - it proportionally rescales displayed meal kcal and displayed meal macros from the returned plan
+- Results is a panel-like view state within `Calculate`, not a standalone route:
+  - users always navigate to `Calculate` first
+  - results appears only after pressing `Calculate` with valid inputs
+  - results is not directly navigable via URL or route entry
+  - pressing `Save` clears/acknowledges current result state and returns to calculate input state
+  - acknowledged results do not persist and remain hidden until a new calculation is triggered
+- Kcal scaling uses the API result `total_kcal` as the baseline and adjusts in signed `100 kcal` increments.
+- The results view may round displayed scaled values for presentation, but the scaling behavior must be deterministic.
+- Displayed scaled top-level macros must also be recalculated from the scaled meal plan.
+- After display rounding, a tolerance of `1%` is acceptable between:
+  - the displayed scaled daily total and the sum of displayed meal kcal
+  - the displayed scaled top-level macros and the sums of displayed meal macros
+
+## Definition of done
+- A new enhancement implementation provides a local browser UI for meal-plan calculation that is visually aligned with the style guide.
+- The UI contains a `Settings` page for stable athlete inputs and a `Calculate` page for day-specific inputs.
+- Stable settings include:
+  - `age`
+  - `gender`
+  - `height`
+  - `weight`
+  - `vo2max`
+  - `carbs`
+- Day-specific calculate inputs include:
+  - `activity`
+  - `training_tomorrow`
+  - `training_before`
+  - separate minute inputs for zones `1..5`
+- Each UI control matches its data type:
+  - numeric inputs for numeric values
+  - separate minute fields for zones
+  - dropdowns for enum-like values
+- All current input values from both pages are saved to and restored from browser local storage.
+- The `Calculate` page has a `Calculate` button that combines settings and day inputs into the canonical request payload and submits it to `POST /api/v1/calculate`.
+- The local API endpoint is implemented and delegates to the existing application service instead of invoking the CLI as a subprocess.
+- UI mode server host/port/collision/shutdown behavior matches the fixed lifecycle contract defined for this enhancement.
+- API failures return the canonical structured JSON error body with `error.code`, `error.message`, optional `error.details`, and `error.request_id`.
+- Successful calculation opens a results panel-like view state on the `Calculate` screen that shows:
+  - top-level totals
+  - meal-by-meal plan details
+  - a simple style-guide-aligned layout
+- The results view includes:
+  - a back button returning to the input page
+  - controls to scale displayed daily total kcal in `100 kcal` steps up or down
+  - proportional update of displayed individual meals when scaling changes
+  - proportional update of displayed top-level macros when scaling changes
+  - a `Save` button that currently just closes the results view and returns to the calculate page
+- Results is not directly navigable; it is accessible only after a calculate action from the calculate input state.
+- Validation and API failures are shown inline in the UI with concise actionable copy.
+- Automated tests cover:
+  - API error responses for `400`, `422`, and `500` using the canonical error JSON shape
+  - UI-mode lifecycle behavior for host/port selection and deterministic fallback across `8765..8775`
+  - UI-mode startup failure when all ports in `8765..8775` are occupied
+  - graceful shutdown semantics on `SIGINT`/`SIGTERM` with bounded in-flight drain
+  - settings/day-input local storage restore behavior
+  - request assembly from settings plus calculate inputs
+  - separate zone minute capture and canonical payload mapping
+  - required `training_before` behavior when any zone minutes are greater than `0`
+  - successful API submission and results rendering
+  - results is not directly navigable via route entry and appears only after calculate submit
+  - results back navigation
+  - `100 kcal` increment/decrement scaling behavior
+  - proportional meal and top-level macro adjustment during scaling
+  - 1% tolerance checks for rounded scaled totals vs summed displayed meals/macros
+  - current placeholder behavior of the `Save` action, including result-state dismissal until next calculation
+- Core docs are updated during implementation because this enhancement introduces canonical local UI/API behavior, a new user workflow, and concrete frontend/backend adapter responsibilities.
+- Documentation includes the chosen Option `1+3` workflow: dual-process development and release-time frontend asset embedding into the Python package.
+
+## Open questions
+- None for this enhancement scope after applying the current assumptions.

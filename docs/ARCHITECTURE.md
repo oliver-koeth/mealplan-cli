@@ -175,6 +175,18 @@ mealplan/
   - Domain rule violations map to HTTP `422`.
   - Unexpected runtime/infrastructure failures map to HTTP `500`.
   - Error bodies should be structured and machine-readable; they must not depend on terminal-oriented formatting.
+  - Canonical error response shape:
+    - `error.code`: stable machine-readable code
+    - `error.message`: concise summary suitable for inline UI display
+    - `error.details`: optional list of issue objects
+    - `error.request_id`: request identifier for logs and troubleshooting
+  - Canonical error-code mapping:
+    - HTTP `400` => `validation_error`
+    - HTTP `422` => `domain_rule_error`
+    - HTTP `500` => `internal_error`
+  - Each `error.details` entry should use:
+    - `field`: optional request field path when applicable
+    - `message`: deterministic explanation
 - Transport rules:
   - JSON is the canonical wire format.
   - REST handlers must call application services directly in-process.
@@ -531,6 +543,10 @@ mealplan/
   - Distribute the Python package as the canonical install target.
   - Bundle production-built Angular assets so `mealplan --ui` works after package installation without a Node.js runtime.
   - Keep frontend source and build tooling isolated from the default CLI execution path.
+  - Chosen workflow:
+    - Development uses dual-process mode: Angular dev server (`ng serve`) plus local FastAPI server, with API proxying from Angular to Python.
+    - Release packaging builds Angular production assets in CI/release workflow and embeds them into the Python package before publishing artifacts.
+    - Local runtime serves packaged static assets only; it does not require a running Angular dev server.
 - Binary build:
   - Consider PyInstaller/PEX only if standalone distribution becomes required.
 - Installation footprint:
@@ -547,6 +563,7 @@ mealplan/
   - Provide deterministic examples with fixed input/output pairs.
 - Planned UI/API docs:
   - Document local UI launch workflow, REST endpoints, and packaging assumptions once specified.
+  - Document chosen dev workflow (`ng serve` + FastAPI) and release packaging workflow (CI-built Angular assets bundled into Python package).
 
 ## 22. Anti-Patterns to Avoid
 - Business logic in CLI functions.
@@ -574,19 +591,37 @@ mealplan/
 - FastAPI is the chosen backend framework for the initial local web adapter.
 - `mealplan --ui` prints the local URL for manual browser opening; it does not auto-launch a browser.
 - Production Angular assets are bundled into the Python package so installed UI mode does not depend on Node.js.
+- Local server lifecycle contract for `--ui`:
+  - Default bind host is loopback-only `127.0.0.1`.
+  - Preferred default port is `8765`.
+  - On port collision, probe sequentially `8766..8775` and bind the first free port.
+  - If no port is free in that range, fail startup with a clear error and non-zero exit code.
+  - Startup prints:
+    - `UI available at http://127.0.0.1:<port>/calculate`
+    - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
+  - Graceful shutdown behavior:
+    - Handle `SIGINT` and `SIGTERM`.
+    - Stop accepting new requests immediately.
+    - Allow in-flight requests up to `5` seconds before forced close.
+    - Exit code `0` on normal signal-triggered shutdown.
+- Calculate/results interaction model:
+  - Results for `calculate` are rendered as a panel-like view state inside the `Calculate` screen, not as a standalone route.
+  - Users navigate to `Calculate` first; results state appears only after a successful calculate submit.
+  - Results state is not directly navigable via URL/route entry.
+  - Pressing `Save` acknowledges and clears current results state, returning to calculate input state until a new calculation is triggered.
 - Command growth model:
   - Future CLI commands should map cleanly either to REST endpoints, UI routes, or both.
   - Shared application services remain the source of truth for command behavior.
 
 ## 25. Open Technical Decisions For Later Specification
 - UI asset serving strategy:
-  - Decide the concrete build and packaging workflow for embedding Angular production assets into the Python package.
-- Local server lifecycle:
-  - Decide host/port defaults, collision handling, and shutdown behavior.
+  - Chosen: serve packaged Angular production assets from FastAPI in local runtime.
+  - Chosen: build and embed those assets during release/CI packaging pipeline.
 - API error schema:
-  - Decide the canonical JSON envelope for success metadata, warnings, and errors.
+  - Chosen error envelope for failures is defined in section 5B error contract.
 - Development workflow:
-  - Decide how Python API dev mode and Angular dev mode will run together during implementation without affecting packaged production mode.
+  - Chosen: dual-process development with Angular dev server (`ng serve`) and local FastAPI server.
+  - Chosen: keep this dev flow separate from packaged production-mode runtime behavior.
 
 ## 26. Architecture Decision Records (ADR)
 - Decision documentation:

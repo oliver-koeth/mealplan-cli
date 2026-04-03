@@ -1,0 +1,193 @@
+# Ralph Progress Log
+## Codebase Patterns
+- When adding a new `MealPlanRequest` boundary field, update the contract schema and `CONTRACT_UNITS_POLICY`, the Typer flag-to-request mapping in `src/mealplan/cli/main.py`, and both request-boundary test modules (`tests/unit/test_application_contracts.py`, `tests/cli/test_calculate.py`) in the same iteration.
+- For bounded numeric CLI inputs, enforce the inclusive range on the Pydantic request contract and cover both direct `MealPlanRequest.model_validate(...)` boundaries and end-to-end CLI exit-code behavior.
+- Training-demand formula changes must update both direct domain coverage in `tests/unit/test_domain_services.py` and the application golden snapshots in `tests/golden/application/`, because orchestration flows straight into the canonical response payloads.
+- If a training-demand story only pins formula behavior or physiological regressions, prefer adding focused assertions in `tests/unit/test_domain_services.py` and avoid touching orchestration or goldens unless the public payload changes.
+- For application stages that only need a subset of request data, prefer a dedicated typed context object in `src/mealplan/application/orchestration.py` so the stage boundary receives only normalized, stage-specific inputs.
+- When the public response metric changes but internal fueling stays intact, keep `training_kcal` as the top-level contract field, preserve `training_carbs_g` only inside meal assembly/training-meal logic, and update contracts, renderers, helper tolerances, and success goldens together.
+- For CLI output contract renames, pin both the positive field name and the removed field's absence in real subprocess renderer tests, and use ordered key assertions for JSON output so formatter drift is caught outside mocked service tests.
+- For contract/documentation updates, verify README and the canonical docs (`docs/REQUIREMENTS.md`, `docs/MODEL.md`, `docs/ARCHITECTURE.md`) against the actual request contracts, orchestration contexts, and domain models so request-only fields do not drift into domain-object descriptions.
+- When README contract or golden-policy wording changes, refresh the tracked `src/mealplan_cli.egg-info/PKG-INFO` metadata in the same iteration so packaged metadata stays aligned with repository docs.
+
+Started: Wed Mar 11 21:57:53 CET 2026
+---
+## 2026-03-11 22:00:44 CET - US-001
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Added optional `vo2max` to `MealPlanRequest`, including units metadata, while keeping omission valid.
+- Added `--vo2max` to `mealplan calculate` and threaded it into the request payload without changing current calculation behavior.
+- Added unit and CLI coverage for request parsing, CLI wiring, and help output.
+- Files changed
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/application/contracts.py`
+- `src/mealplan/cli/main.py`
+- `tests/cli/test_calculate.py`
+- `tests/unit/test_application_contracts.py`
+- **Learnings for future iterations:**
+- Patterns discovered: request-boundary field additions require synchronized updates across `CONTRACT_UNITS_POLICY`, Typer option wiring, and both contract/CLI test modules.
+- Gotchas encountered: `make quality` assumes `.venv/bin/uv`; in this environment the equivalent successful invocation was `UV=uv make quality`.
+- Useful context: CLI help text is stable enough to pin new option presence directly through `python -m mealplan calculate --help`.
+---
+## 2026-03-11 22:08:00 CET - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Added inclusive `10..100` validation to `MealPlanRequest.vo2max` so out-of-range values are rejected before calculation runs.
+- Added request-boundary tests for valid `vo2max` edge values and invalid low/high values.
+- Added CLI coverage to confirm `--vo2max` accepts boundary values and returns validation exit code `2` with mapped error text for out-of-range inputs.
+- Files changed
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/application/contracts.py`
+- `tests/cli/test_calculate.py`
+- `tests/unit/test_application_contracts.py`
+- **Learnings for future iterations:**
+- Patterns discovered: bounded numeric flags are best enforced in the request contract so API and CLI callers share one validation rule.
+- Gotchas encountered: Typer already rejects non-integer `--vo2max` values before request parsing, so range regressions need subprocess CLI tests rather than only direct runner mocks.
+- Useful context: the current mapped Pydantic constraint messages surface through `main()` as user-facing stderr, making substring assertions on the bound text stable enough for CLI validation tests.
+---
+## 2026-03-11 22:05:41 CET - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Added `select_vo2max_used(...)` to the domain services layer so explicit VO2max is used when present and the canonical age/gender/weight-in-kg prediction formula is used when omitted.
+- Re-exported the helper through `mealplan.domain` to keep higher layers on the stable public domain surface.
+- Added regression coverage for explicit override, male/female prediction paths, and a kg-vs-pounds guard to pin the no-conversion requirement.
+- Files changed
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/domain/__init__.py`
+- `src/mealplan/domain/services.py`
+- `tests/unit/test_domain_services.py`
+- **Learnings for future iterations:**
+- Patterns discovered: new reusable calculation primitives should live in `src/mealplan/domain/services.py` and be re-exported via `mealplan.domain.__init__` before application-layer wiring changes depend on them.
+- Gotchas encountered: if a long-running `make quality` process starts before a test patch lands, rerun it from a fresh process; the existing session will keep reporting against the earlier file state.
+- Useful context: the canonical predicted VO2max formula yields `45.95` for a 35-year-old 72.5 kg male and `32.25` for the same female profile, which are now pinned in unit tests.
+---
+## 2026-03-11 23:40:30 CET - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Replaced the fixed training-demand helper with the canonical VO2-based zone-weighted kcal formula and added the fixed zone coefficient table in the domain layer.
+- Updated application orchestration so the training-demand stage passes age, gender, weight in kilograms, optional VO2max, and normalized zones into the new helper.
+- Added regression coverage for predicted vs explicit VO2max demand, monotonic zone coefficients, and no-internal-rounding behavior; refreshed application golden snapshots to the new calculated totals.
+- Files changed
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/application/orchestration.py`
+- `src/mealplan/domain/services.py`
+- `tests/golden/application/non_periodized_with_training.golden.json`
+- `tests/golden/application/periodized_with_training.golden.json`
+- `tests/unit/test_application_orchestration.py`
+- `tests/unit/test_domain_services.py`
+- **Learnings for future iterations:**
+- Patterns discovered: training-demand formula changes need paired updates in domain unit tests and application goldens because the calculated demand flows directly into top-level meal payload totals.
+- Gotchas encountered: `calculate_training_calorie_demand_kcal(...)` now keeps full floating-point precision, so assertions should use `pytest.approx(...)` unless they target an emitted rounded field.
+- Useful context: the periodized and non-periodized training goldens now move from `1929.0` total kcal to `1996.71` for the canonical age-20/54kg training scenario under the new VO2-based formula.
+---
+## 2026-03-11 23:42:48 CET - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Added focused regression coverage for predicted VO2-based training demand so age, gender, and weight changes each produce different calorie demand for the same zone workload.
+- Kept the story test-only because the existing implementation already satisfied the zero-minutes, zone-1, and monotonic zone-coefficient behavior.
+- Files changed
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `tests/unit/test_domain_services.py`
+- **Learnings for future iterations:**
+- Patterns discovered: training-demand regression stories that do not alter the public payload can usually be completed entirely in `tests/unit/test_domain_services.py`.
+- Gotchas encountered: the predicted-demand acceptance criterion is broader than the existing VO2 selection tests, so it needs assertions at the `calculate_training_calorie_demand_kcal(...)` level rather than only on `select_vo2max_used(...)`.
+- Useful context: using a fixed `{2: 30}` workload isolates athlete-profile differences cleanly because zone coefficients stay constant while the predicted VO2-based kcal/min changes.
+---
+## 2026-03-12 07:22:24 CET - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Narrowed the application training-demand boundary to a dedicated `TrainingDemandContext` so the stage now receives age, gender, weight, optional VO2max, and normalized canonical zone minutes instead of the full request object.
+- Kept the fueling path unchanged so `training_carbs_g` continues to drive the permanent training-meal behavior while the training-demand stage remains scoped to `training_calorie_demand_kcal`.
+- Added orchestration regression coverage for the explicit stage order and for `calculate(...)` building the normalized training-demand context before calling the stage.
+- Files changed
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/application/orchestration.py`
+- `tests/unit/test_application_orchestration.py`
+- **Learnings for future iterations:**
+- Patterns discovered: when only one stage needs a subset of request fields, a typed stage context keeps the application boundary explicit without disturbing adjacent stages.
+- Gotchas encountered: `US-006` required tightening the orchestration method boundary itself; the existing domain wiring and formula tests were not enough because `_run_training_demand_stage(...)` still accepted the full request.
+- Useful context: the current design still intentionally computes training fueling and training demand separately, with both paths consuming the same normalized `1..5` zone map.
+---
+## 2026-03-12 07:45:21 CET - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Replaced the top-level response field `training_carbs_g` with `training_kcal` in the application contract and domain assembly payload while preserving `training_carbs_g` internally for the fueling model and optional training meal.
+- Added response-contract validation that pins `total_kcal` to both `sum(meals[*].kcal)` and `TDEE + training_kcal`, and refreshed the direct contract/domain/orchestration/CLI assertions to the renamed field.
+- Updated success goldens and renderer expectations so the canonical JSON/text/table outputs now expose `training_kcal`.
+- Files changed
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/application/contracts.py`
+- `src/mealplan/cli/main.py`
+- `src/mealplan/domain/services.py`
+- `tests/cli/test_calculate.py`
+- `tests/golden/application/non_periodized_with_training.golden.json`
+- `tests/golden/application/periodized_with_training.golden.json`
+- `tests/golden/application/periodized_without_training.golden.json`
+- `tests/golden/cli/success_default_json.golden.json`
+- `tests/golden/cli/success_table_format.golden.json`
+- `tests/golden/cli/success_text_format.golden.json`
+- `tests/golden/helpers.py`
+- `tests/unit/conftest.py`
+- `tests/unit/test_application_contracts.py`
+- `tests/unit/test_application_orchestration.py`
+- `tests/unit/test_domain_services.py`
+- **Learnings for future iterations:**
+- Patterns discovered: top-level contract renames in this codebase propagate through `MealPlanResponse`, domain payload assembly, CLI renderers, golden helper numeric tolerances, and both application/CLI success goldens.
+- Gotchas encountered: once `training_kcal` becomes canonical, test fixtures must also satisfy the stricter invariant `total_kcal == TDEE + training_kcal`, not just `sum(meals[*].kcal)`.
+- Useful context: the shipped response now reports training demand calories at the top level, but the optional `training` meal still derives its carbs/kcal solely from internal `training_carbs_g`.
+---
+## 2026-03-12 07:47:40 CET - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Tightened real CLI renderer coverage so JSON output now pins ordered top-level keys with `training_kcal` in place and explicitly rejects top-level `training_carbs_g`.
+- Added explicit absence checks for `training_carbs_g` in text and table renderer subprocess tests, keeping the renderer contract aligned with the updated CLI goldens.
+- Updated the repo agent guidance for hybrid golden comparisons so the documented tolerant numeric fields match the current `training_kcal`/`total_kcal` contract.
+- Files changed
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `tests/cli/test_calculate.py`
+- **Learnings for future iterations:**
+- Patterns discovered: CLI contract rename stories need subprocess assertions for both field presence and removed-field absence, because mocked response-equality tests alone can miss renderer regressions.
+- Gotchas encountered: the latest available Codex transcript file in this workspace is still `scripts/ralph/.codex-last-message-iter-1.txt`, so progress entries may reuse that path when newer iteration files have not been emitted.
+- Useful context: `make quality` passes in this environment via `UV=uv make quality`, covering Ruff, mypy, and the full pytest suite.
+---
+## 2026-03-12 07:51:44 CET - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Updated `docs/REQUIREMENTS.md` to describe the VO2-based zone-weighted training-kcal formula, optional `--vo2max`, and the public `training_kcal` response contract while preserving internal fueling notes for `training_carbs_g`.
+- Updated `docs/MODEL.md` and `docs/ARCHITECTURE.md` so the canonical stage sequence, service signatures, request/response field lists, and examples reflect explicit/derived VO2max handling and top-level `training_kcal`.
+- Updated `README.md` examples and tolerance-policy text to include `--vo2max` and the shipped `training_kcal` output terminology.
+- Files changed
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/MODEL.md`
+- `docs/REQUIREMENTS.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+- Patterns discovered: when docs describe a public metric rename but internal model data remains, keep public-field wording in README/requirements/architecture aligned while leaving explicitly internal `training_carbs_g` references only where fueling or training-meal behavior is being documented.
+- Gotchas encountered: `docs/MODEL.md` should not promote request-only additions like `vo2max` onto the `UserProfile` domain object unless the code model actually changed; verify docs against `src/mealplan/application/contracts.py`, `src/mealplan/application/orchestration.py`, and `src/mealplan/domain/model.py`.
+- Useful context: `UV=uv make quality` remained the reliable quality-gate invocation in this environment and passed with `309` tests after the docs-only update.
+---
+## 2026-03-12 07:55:19 CET - US-010
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Clarified canonical docs and service docstrings so top-level `training_kcal` is consistently described as the public demand metric while `training_carbs_g` is explicitly limited to internal fueling and optional training-meal budgeting.
+- Corrected the documented application/domain stage narrative to include the separate training-demand step and zero-training `training_kcal = 0.0` behavior.
+- Refreshed the tracked package metadata file so its golden-tolerance wording matches the current README/public contract.
+- Files changed
+- `AGENT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/MODEL.md`
+- `docs/REQUIREMENTS.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/application/orchestration.py`
+- `src/mealplan/domain/services.py`
+- `src/mealplan_cli.egg-info/PKG-INFO`
+- **Learnings for future iterations:**
+- Patterns discovered: tracked package metadata in `src/mealplan_cli.egg-info/PKG-INFO` can drift from README contract wording and should be refreshed whenever public output terminology or golden-policy text changes.
+- Gotchas encountered: the canonical docs had already been mostly updated for `training_kcal`; the remaining risk was subtle wording that still made `training_carbs_g` read like a public field rather than an internal fueling value.
+- Useful context: `UV=uv make quality` passed after this cleanup with Ruff, mypy, and all `309` pytest cases green.
+---

@@ -21,8 +21,13 @@ from mealplan.application.stub import run_probe
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, TrainingLoadTomorrow
 from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import map_exception_to_exit_code
+from mealplan.web import run_ui_server
 
-app = typer.Typer(no_args_is_help=True, help="Mealplan command-line interface.")
+app = typer.Typer(
+    no_args_is_help=True,
+    invoke_without_command=True,
+    help="Mealplan command-line interface.",
+)
 _DEBUG_MODE = False
 
 SIMULATED_ERROR_OPTION = typer.Option(
@@ -65,12 +70,22 @@ DEBUG_OPTION = typer.Option(
     "--debug",
     help="Enable debug output placeholder.",
 )
+UI_OPTION = typer.Option(
+    False,
+    "--ui",
+    help="Start local web UI server mode.",
+)
 OutputFormat = Literal["json", "text", "table"]
 
 
 @app.callback()
-def root() -> None:
+def root(ctx: typer.Context, ui: bool = UI_OPTION) -> None:
     """Root CLI namespace for mealplan commands."""
+    if ui:
+        if ctx.invoked_subcommand is not None:
+            raise ValidationError("--ui cannot be combined with subcommands")
+        run_ui_server()
+        raise typer.Exit(code=0)
 
 
 @app.command("probe")

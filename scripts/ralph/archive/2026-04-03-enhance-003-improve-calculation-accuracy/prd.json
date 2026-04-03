@@ -1,0 +1,163 @@
+{
+  "project": "mealplan",
+  "branchName": "ralph/enhance-003-improve-calculation-accuracy",
+  "description": "Replace the fixed training calorie-demand rule with a VO2-based zone-weighted estimate, add optional VO2max input, and expose training_kcal at the top level while permanently preserving training_carbs_g for fueling and the training meal.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add optional vo2max to request and CLI contracts",
+      "description": "As a user, I want to provide VO2max explicitly so the calculator can use my known fitness input instead of always predicting it.",
+      "acceptanceCriteria": [
+        "Add optional vo2max field to the request contract and CLI parsing path.",
+        "Add optional --vo2max integer flag to mealplan calculate help and parsing.",
+        "Omitting --vo2max remains valid.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Validate vo2max range and request parsing",
+      "description": "As a maintainer, I want vo2max validation pinned so invalid input is rejected deterministically before calculation runs.",
+      "acceptanceCriteria": [
+        "Reject non-integer vo2max input through the existing validation path.",
+        "Reject vo2max values outside the inclusive range 10..100.",
+        "Accept representative boundary values inside the valid range.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Implement kg-based VO2max source selection",
+      "description": "As a user, I want the calculator to choose explicit VO2max when provided and otherwise predict it from my profile in kilograms.",
+      "acceptanceCriteria": [
+        "Use explicit vo2max when it is present.",
+        "When vo2max is absent, calculate predicted VO2max as 79.9 - (0.39 * age) - (13.7 * sex) - (0.28 * weight_kg).",
+        "Map male to sex=0 and female to sex=1 for the prediction formula.",
+        "Do not convert weight to pounds anywhere in this logic.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Implement zone-weighted training kcal formula",
+      "description": "As a user, I want training calories to scale with zone intensity and athlete profile so easy and hard sessions are estimated differently.",
+      "acceptanceCriteria": [
+        "Replace the fixed training calorie-demand rule with zone-specific kcal/min = weight_kg * 0.005 * zone_intensity * max(vo2max_used - 3.5, 0).",
+        "Use fixed zone coefficients z1=0.30, z2=0.50, z3=0.65, z4=0.80, z5=0.925.",
+        "Calculate total training_kcal as the sum of zone_minutes * zone_kcal_per_min across zones 1..5.",
+        "Keep full floating-point precision internally and round only emitted training_kcal fields to 2 decimal places.",
+        "Round public emitted training_kcal to 2 decimal places.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Pin training kcal edge cases and monotonicity",
+      "description": "As a maintainer, I want focused regression coverage for the new formula so its coefficients and basic physiological behavior do not drift silently.",
+      "acceptanceCriteria": [
+        "Tests cover all-zero zone minutes producing training_kcal = 0.0.",
+        "Tests cover zone 1 producing non-zero training_kcal when zone 1 minutes are present and VO2max is valid.",
+        "Tests cover higher zones producing higher kcal/min than lower zones for the same athlete.",
+        "Tests cover athlete-difference cases from age, gender, or weight changes when VO2max is predicted.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Thread athlete context into the training-demand stage",
+      "description": "As a maintainer, I want orchestration to pass athlete profile and optional VO2max into the training-demand stage so the new formula can run through the canonical service boundary without changing the permanent fueling model.",
+      "acceptanceCriteria": [
+        "Update the training-demand stage to receive age, gender, weight_kg, optional vo2max, and normalized zone minutes.",
+        "Keep the rollout scoped to replacing training_calorie_demand_kcal without redesigning the current training-meal pipeline.",
+        "Preserve current internal training-fueling behavior where still needed by meal construction as a permanent part of the model.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Rename the top-level response field to training_kcal",
+      "description": "As a consumer of the output, I want the top-level training metric to be calories instead of carb grams so the response matches the new demand model.",
+      "acceptanceCriteria": [
+        "Replace top-level response field training_carbs_g with training_kcal in the structured response contract.",
+        "Do not emit training_carbs_g at the top level after this change.",
+        "Pin top-level total_kcal to TDEE + training_kcal, with rounding applied only at emitted-field boundaries.",
+        "Keep existing optional training-meal behavior intact as a permanent part of the model.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Update CLI renderers and goldens for training_kcal",
+      "description": "As a user, I want JSON, text, and table output to show training_kcal consistently so all interfaces reflect the same top-level contract.",
+      "acceptanceCriteria": [
+        "JSON output includes training_kcal and excludes top-level training_carbs_g.",
+        "Text output renders training_kcal.",
+        "Table output renders training_kcal.",
+        "Update deterministic golden fixtures and output ordering expectations for the renamed field.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Document the new formula and phased contract behavior",
+      "description": "As a maintainer, I want the canonical docs updated so the VO2-based formula and top-level contract change are explicit and durable.",
+      "acceptanceCriteria": [
+        "Update docs/REQUIREMENTS.md with the kg-based VO2 prediction formula, zone coefficients, and training_kcal top-level contract.",
+        "Update docs/MODEL.md and docs/ARCHITECTURE.md to distinguish top-level training_kcal from any preserved internal carb-based training-meal behavior.",
+        "Update README examples and field descriptions to use training_kcal at the top level.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Clean up stale top-level terminology after rollout",
+      "description": "As a maintainer, I want a follow-up cleanup pass so code comments, helper names, and docs distinguish top-level training_kcal from the permanent fueling model.",
+      "acceptanceCriteria": [
+        "Audit internal names, comments, and helper descriptions that still imply top-level training demand is represented by training_carbs_g.",
+        "Rename or clarify stale terminology where safe without removing the permanent training_carbs_g fueling concept or changing the shipped public contract again.",
+        "Update any stale examples that still present the removed fixed kcal-per-minute rule as canonical.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}
