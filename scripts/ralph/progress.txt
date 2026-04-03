@@ -4,6 +4,7 @@
 - For local web API handlers, map `ValidationError`/`DomainRuleError`/unexpected exceptions to HTTP `400`/`422`/`500` with `{ "error": { "code", "message", "request_id", "details"? } }`, and parse `field: message` errors into structured `details`.
 - For inline HTML/CSS rendered by the web adapter, prefer `string.Template` over `str.format(...)` so CSS braces are not treated as format keys.
 - For browser-restored UI forms in the inline shell, gate persistence behind a page-specific form marker (`data-settings-form="true"`) and namespace `localStorage` keys as `mealplan.ui.<page>.v1`.
+- For calculate-page readiness, require `training_before_meal` only when aggregate zone minutes (`zone_1_minutes`..`zone_5_minutes`) are greater than zero, with concise inline guidance and no `training` option in the UI dropdown.
 
 Started: Fri Apr  3 16:29:36 CEST 2026
 ---
@@ -88,4 +89,25 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Presence checks in route HTML tests should assert on form markup, not generic script literals that may exist on multiple pages.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Settings page coverage is in `tests/unit/test_web_ui_server.py` and currently validates control types plus localStorage wiring by inspecting rendered HTML.
+---
+
+## 2026-04-03 17:26:43 CEST - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented a calculate-specific form on `/calculate` with dropdown controls for `activity_level`, `training_load_tomorrow`, and `training_before_meal`, plus separate integer minute inputs for zones 1..5.
+- Added calculate-page local storage restore/persist wiring using `mealplan.ui.calculate.v1`, while keeping shared script behavior safe across routes via marker-based form detection.
+- Added inline readiness logic so `training_before_meal` is required only when any zone minute input is greater than zero, with concise guidance shown only in that state.
+- Expanded UI server tests to validate the new calculate controls, storage key wiring, conditional requirement script presence, and exclusion of invalid `training_before_meal=training`.
+- Files changed:
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Reuse the inline shell's marker-gated storage helper for each page form so route scripts can stay centralized without accidental cross-page behavior.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- When shared script structure changes, update both settings and calculate HTML assertions in `tests/unit/test_web_ui_server.py` to avoid stale string checks.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Calculate page coverage currently validates rendered HTML/script contracts (controls, storage key, readiness logic); browser-interaction behavior can build on this in later stories.
 ---

@@ -124,6 +124,7 @@ When in doubt, update those source docs instead of expanding this file.
 93. For web API adapters, map `ValidationError`/`DomainRuleError`/unexpected exceptions to HTTP `400`/`422`/`500` with canonical envelope `{error:{code,message,request_id,details?}}`, and derive `details[].field`/`message` from deterministic `field: message` error strings.
 94. For inline HTML/CSS shells rendered from Python, use `string.Template` substitution instead of `str.format(...)` so CSS braces remain literal and route rendering cannot fail on template-key lookups.
 95. For inline UI-form local persistence, attach behavior only when a page marker form exists (for example `data-settings-form="true"`) and namespace storage keys with a versioned scope (`mealplan.ui.<page>.v1`) to keep route scripts safe and migration-ready.
+96. For calculate-form readiness, derive `training_before_meal` required state from aggregate zone-minute inputs (`zone_1_minutes`..`zone_5_minutes`): require it only when any zone is greater than zero, and keep the UI dropdown restricted to canonical meal names (exclude CLI-only `training`).
 
 ## Ralph Runner
 

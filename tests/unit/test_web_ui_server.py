@@ -139,7 +139,7 @@ def test_ui_server_settings_shell_includes_typed_settings_controls_and_storage_s
     assert '<input name="weight_kg" type="number" min="1" step="0.1" required />' in html
     assert '<input name="vo2max" type="number" min="10" max="100" step="1" />' in html
     assert '<select name="carb_mode" required>' in html
-    assert 'const storageKey = "mealplan.ui.settings.v1";' in html
+    assert 'bindLocalStorageForm(settingsForm, "mealplan.ui.settings.v1",' in html
     assert 'window.localStorage.getItem(storageKey)' in html
     assert 'window.localStorage.setItem(storageKey, JSON.stringify(readValues()));' in html
 
@@ -154,6 +154,31 @@ def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None
     assert '<a class="nav-link" href="/calculate" aria-current="page">Calculate</a>' in html
     assert "Daily training and meal-plan calculation" in html
     assert '<form class="form-stack" data-settings-form="true">' not in html
+
+
+def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_script() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/calculate")
+
+    assert status == 200
+    assert '<form class="form-stack" data-calculate-form="true">' in html
+    assert '<select name="activity_level" required>' in html
+    assert '<select name="training_load_tomorrow" required>' in html
+    assert '<select name="training_before_meal">' in html
+    assert '<option value="training">' not in html
+    for zone in range(1, 6):
+        assert (
+            f'<input name="zone_{zone}_minutes" type="number" min="0" '
+            'step="1" value="0" required />'
+        ) in html
+    assert (
+        "const guidance = document.querySelector("
+        '\'[data-training-before-guidance="true"]\');'
+    ) in html
+    assert "if (hasTrainingVolume()) {" in html
+    assert "trainingBeforeControl.required = true;" in html
+    assert "trainingBeforeControl.required = false;" in html
+    assert 'bindLocalStorageForm(calculateForm, "mealplan.ui.calculate.v1",' in html
 
 
 def test_ui_server_calculate_maps_validation_error_to_http_400(

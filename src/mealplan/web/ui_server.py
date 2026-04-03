@@ -288,61 +288,137 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
     </main>
     <script>
       (() => {
-        const form = document.querySelector('[data-settings-form="true"]');
-        if (!form) {
-          return;
-        }
+        const bindLocalStorageForm = (form, storageKey, fields) => {
+          if (!form) {
+            return;
+          }
 
-        const storageKey = "mealplan.ui.settings.v1";
-        const fields = [
+          const readValues = () => {
+            const result = {};
+            for (const name of fields) {
+              const control = form.elements.namedItem(name);
+              if (control && "value" in control) {
+                result[name] = control.value;
+              }
+            }
+            return result;
+          };
+
+          const restoreValues = () => {
+            const raw = window.localStorage.getItem(storageKey);
+            if (!raw) {
+              return;
+            }
+            try {
+              const parsed = JSON.parse(raw);
+              if (!parsed || typeof parsed !== "object") {
+                return;
+              }
+              for (const name of fields) {
+                const control = form.elements.namedItem(name);
+                const value = parsed[name];
+                if (control && "value" in control && typeof value === "string") {
+                  control.value = value;
+                }
+              }
+            } catch {
+              // Ignore invalid local storage snapshots.
+            }
+          };
+
+          const persistValues = () => {
+            window.localStorage.setItem(storageKey, JSON.stringify(readValues()));
+          };
+
+          restoreValues();
+          form.addEventListener("input", persistValues);
+          form.addEventListener("change", persistValues);
+        };
+
+        const settingsForm = document.querySelector('[data-settings-form="true"]');
+        bindLocalStorageForm(settingsForm, "mealplan.ui.settings.v1", [
           "age",
           "gender",
           "height_cm",
           "weight_kg",
           "vo2max",
           "carb_mode",
-        ];
+        ]);
 
-        const readValues = () => {
-          const result = {};
-          for (const name of fields) {
-            const control = form.elements.namedItem(name);
-            if (control && "value" in control) {
-              result[name] = control.value;
-            }
+        const calculateForm = document.querySelector('[data-calculate-form="true"]');
+        bindLocalStorageForm(calculateForm, "mealplan.ui.calculate.v1", [
+          "activity_level",
+          "training_load_tomorrow",
+          "training_before_meal",
+          "zone_1_minutes",
+          "zone_2_minutes",
+          "zone_3_minutes",
+          "zone_4_minutes",
+          "zone_5_minutes",
+        ]);
+        if (!calculateForm) {
+          return;
+        }
+
+        const zoneFieldNames = [
+          "zone_1_minutes",
+          "zone_2_minutes",
+          "zone_3_minutes",
+          "zone_4_minutes",
+          "zone_5_minutes",
+        ];
+        const trainingBeforeControl = calculateForm.elements.namedItem("training_before_meal");
+        const guidance = document.querySelector('[data-training-before-guidance="true"]');
+        if (!trainingBeforeControl || !("value" in trainingBeforeControl)) {
+          return;
+        }
+
+        const parseMinutes = (rawValue) => {
+          const parsed = Number.parseInt(rawValue ?? "", 10);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            return 0;
           }
-          return result;
+          return parsed;
         };
 
-        const restoreValues = () => {
-          const raw = window.localStorage.getItem(storageKey);
-          if (!raw) {
-            return;
+        const hasTrainingVolume = () => {
+          for (const fieldName of zoneFieldNames) {
+            const control = calculateForm.elements.namedItem(fieldName);
+            if (!control || !("value" in control)) {
+              continue;
+            }
+            if (parseMinutes(control.value) > 0) {
+              return true;
+            }
           }
-          try {
-            const parsed = JSON.parse(raw);
-            if (!parsed || typeof parsed !== "object") {
+          return false;
+        };
+
+        const updateTrainingBeforeRequirement = () => {
+          if (hasTrainingVolume()) {
+            trainingBeforeControl.required = true;
+            if (!trainingBeforeControl.value) {
+              trainingBeforeControl.setCustomValidity(
+                "Select a meal timing when zone minutes are greater than zero."
+              );
+              if (guidance) {
+                guidance.hidden = false;
+              }
               return;
             }
-            for (const name of fields) {
-              const control = form.elements.namedItem(name);
-              const value = parsed[name];
-              if (control && "value" in control && typeof value === "string") {
-                control.value = value;
-              }
-            }
-          } catch {
-            // Ignore invalid local storage snapshots.
+          } else {
+            trainingBeforeControl.required = false;
+          }
+
+          trainingBeforeControl.setCustomValidity("");
+          if (guidance) {
+            guidance.hidden = true;
           }
         };
 
-        const persistValues = () => {
-          window.localStorage.setItem(storageKey, JSON.stringify(readValues()));
-        };
-
-        restoreValues();
-        form.addEventListener("input", persistValues);
-        form.addEventListener("change", persistValues);
+        updateTrainingBeforeRequirement();
+        calculateForm.addEventListener("input", updateTrainingBeforeRequirement);
+        calculateForm.addEventListener("change", updateTrainingBeforeRequirement);
       })();
     </script>
   </body>
@@ -408,23 +484,63 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
             "calculation against your saved settings."
         ),
         "content_html": """
-          <p class="section-label">Workflow</p>
-          <div class="grid">
-            <div class="muted-card">
-              <h2>Settings</h2>
-              <p>
-                Profile and baseline controls are grouped in compact cards and
-                restored from local storage.
+          <p class="section-label">Day Inputs</p>
+          <form class="form-stack" data-calculate-form="true">
+            <section class="form-card">
+              <h2>Training Context</h2>
+              <div class="field-grid">
+                <label>Activity
+                  <select name="activity_level" required>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label>Tomorrow Training Load
+                  <select name="training_load_tomorrow" required>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label>Training Before Meal
+                  <select name="training_before_meal">
+                    <option value="">No training meal timing</option>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="morning-snack">Morning snack</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="afternoon-snack">Afternoon snack</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="evening-snack">Evening snack</option>
+                  </select>
+                </label>
+              </div>
+              <p class="hint" data-training-before-guidance="true" hidden>
+                Select training-before timing whenever any zone minutes are above 0.
               </p>
-            </div>
-            <div class="muted-card">
-              <h2>Calculate</h2>
-              <p>
-                Day-specific inputs and results stay in one workflow with inline
-                feedback and deterministic API behavior.
-              </p>
-            </div>
-          </div>
+            </section>
+            <section class="form-card">
+              <h2>Zones Minutes</h2>
+              <div class="field-grid">
+                <label>Zone 1 Minutes
+                  <input name="zone_1_minutes" type="number" min="0" step="1" value="0" required />
+                </label>
+                <label>Zone 2 Minutes
+                  <input name="zone_2_minutes" type="number" min="0" step="1" value="0" required />
+                </label>
+                <label>Zone 3 Minutes
+                  <input name="zone_3_minutes" type="number" min="0" step="1" value="0" required />
+                </label>
+                <label>Zone 4 Minutes
+                  <input name="zone_4_minutes" type="number" min="0" step="1" value="0" required />
+                </label>
+                <label>Zone 5 Minutes
+                  <input name="zone_5_minutes" type="number" min="0" step="1" value="0" required />
+                </label>
+              </div>
+            </section>
+          </form>
+          <p class="hint">Calculate inputs are saved automatically in this browser.</p>
         """,
     },
 }
