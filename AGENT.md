@@ -122,6 +122,7 @@ When in doubt, update those source docs instead of expanding this file.
 91. When README contract or golden-policy wording changes, refresh the tracked `src/mealplan_cli.egg-info/PKG-INFO` metadata in the same iteration so packaged metadata does not drift from the repository docs.
 92. For localhost `http.server` adapters, override `HTTPServer.server_bind` to skip reverse-DNS `socket.getfqdn` on loopback and set `server_name`/`server_port` from the bound address to avoid startup stalls.
 93. For web API adapters, map `ValidationError`/`DomainRuleError`/unexpected exceptions to HTTP `400`/`422`/`500` with canonical envelope `{error:{code,message,request_id,details?}}`, and derive `details[].field`/`message` from deterministic `field: message` error strings.
+94. For inline HTML/CSS shells rendered from Python, use `string.Template` substitution instead of `str.format(...)` so CSS braces remain literal and route rendering cannot fail on template-key lookups.
 
 ## Ralph Runner
 

@@ -2,8 +2,29 @@
 ## Codebase Patterns
 - For localhost `http.server` adapters, override `HTTPServer.server_bind` to avoid `socket.getfqdn` stalls on loopback and set `server_name`/`server_port` from the bound address.
 - For local web API handlers, map `ValidationError`/`DomainRuleError`/unexpected exceptions to HTTP `400`/`422`/`500` with `{ "error": { "code", "message", "request_id", "details"? } }`, and parse `field: message` errors into structured `details`.
+- For inline HTML/CSS rendered by the web adapter, prefer `string.Template` over `str.format(...)` so CSS braces are not treated as format keys.
 
 Started: Fri Apr  3 16:29:36 CEST 2026
+---
+
+## 2026-04-03 17:16:30 CEST - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented a style-guide-aligned web app shell with compact sticky header, neutral tokenized card styling, and responsive single-column behavior on small screens.
+- Added route-level navigation for `/settings` and `/calculate` with deterministic active-link state via `aria-current`, while keeping `/` mapped to calculate.
+- Extended UI server tests to validate shell rendering and navigation active states for both pages.
+- Files changed:
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Inline CSS templates in Python should use `string.Template` to avoid `{}` collisions from CSS blocks.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `str.format(...)` against full HTML/CSS templates can crash at runtime with `KeyError` when unescaped CSS braces are present.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Shell coverage lives in `tests/unit/test_web_ui_server.py` and exercises in-process `_UiServer` GET rendering for `/settings` and `/calculate`.
 ---
 
 ## 2026-04-03 17:12:37 CEST - US-002

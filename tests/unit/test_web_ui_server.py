@@ -84,6 +84,15 @@ def _post_json_expect_http_error(port: int, path: str, payload: object) -> tuple
     return http_error.code, parsed
 
 
+def _get_html(port: int, path: str) -> tuple[int, str]:
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
+        return response.status, response.read().decode("utf-8")
+
+
 def test_ui_server_calculate_endpoint_returns_canonical_response_shape(
     monkeypatch: pytest.MonkeyPatch,
     meal_plan_request_payload: dict[str, Any],
@@ -105,6 +114,28 @@ def test_ui_server_calculate_endpoint_returns_canonical_response_shape(
 
     assert status == 200
     assert payload == meal_plan_response_payload
+
+
+def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/settings")
+
+    assert status == 200
+    assert '<header class="app-header">' in html
+    assert '<a class="nav-link" href="/settings" aria-current="page">Settings</a>' in html
+    assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
+    assert "Athlete profile and defaults" in html
+
+
+def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/calculate")
+
+    assert status == 200
+    assert '<header class="app-header">' in html
+    assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="nav-link" href="/calculate" aria-current="page">Calculate</a>' in html
+    assert "Daily training and meal-plan calculation" in html
 
 
 def test_ui_server_calculate_maps_validation_error_to_http_400(

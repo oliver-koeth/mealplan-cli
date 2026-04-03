@@ -11,6 +11,7 @@ import time
 from collections.abc import Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from string import Template
 from uuid import uuid4
 
 from mealplan.application.contracts import MealPlanRequest
@@ -25,7 +26,7 @@ SHUTDOWN_DRAIN_SECONDS = 5.0
 UI_PORT_START_ENV = "MEALPLAN_UI_PORT_START"
 UI_PORT_END_ENV = "MEALPLAN_UI_PORT_END"
 
-_APP_SHELL_HTML = """<!doctype html>
+_APP_SHELL_TEMPLATE = Template("""<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -34,68 +35,244 @@ _APP_SHELL_HTML = """<!doctype html>
     <style>
       :root {
         color-scheme: light dark;
-        --bg: #f4f6f8;
-        --card: #ffffff;
+        --canvas: #f8fafc;
+        --surface: #ffffff;
+        --surface-muted: #f1f5f9;
+        --border: #e2e8f0;
         --text: #1e293b;
-        --muted: #475569;
-        --border: #cbd5e1;
+        --text-muted: #475569;
+        --text-subtle: #64748b;
+        --shadow: rgba(15, 23, 42, 0.06);
+        --header: rgba(248, 250, 252, 0.9);
+        --link-active: #0f172a;
       }
 
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #0b1220;
-          --card: #111827;
+          --canvas: #020617;
+          --surface: #0f172a;
+          --surface-muted: #1e293b;
+          --border: #1f2937;
           --text: #e2e8f0;
-          --muted: #94a3b8;
-          --border: #334155;
+          --text-muted: #cbd5e1;
+          --text-subtle: #94a3b8;
+          --shadow: rgba(2, 6, 23, 0.5);
+          --header: rgba(2, 6, 23, 0.85);
+          --link-active: #f8fafc;
         }
+      }
+
+      * {
+        box-sizing: border-box;
       }
 
       body {
         margin: 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
-        background:
-          radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 55%),
-          var(--bg);
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(14, 165, 233, 0.1), transparent 45%),
+          var(--canvas);
       }
 
-      main {
-        max-width: 720px;
-        margin: 2rem auto;
-        padding: 0 1rem;
+      .app-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--border);
+        background: var(--header);
       }
 
-      .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 14px;
+      .header-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+      }
+
+      .brand strong {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .brand span {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-subtle);
+      }
+
+      nav {
+        display: flex;
+        gap: 0.25rem;
+      }
+
+      .nav-link {
+        text-decoration: none;
+        color: var(--text-muted);
+        font-size: 0.88rem;
+        padding: 0.35rem 0.6rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+      }
+
+      .nav-link[aria-current="page"] {
+        color: var(--link-active);
+        border-color: var(--border);
+        background: var(--surface);
+        font-weight: 600;
+      }
+
+      .shell {
+        max-width: 1280px;
+        margin: 0 auto;
         padding: 1rem;
       }
 
-      h1 {
+      .stack {
+        max-width: 880px;
+        margin: 0 auto;
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        box-shadow: 0 1px 2px var(--shadow);
+        padding: 1rem;
+      }
+
+      .section-label {
         margin: 0;
-        font-size: 1.35rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-subtle);
+      }
+
+      h1 {
+        margin: 0.45rem 0 0;
+        font-size: 1.15rem;
       }
 
       p {
-        margin-bottom: 0;
-        color: var(--muted);
+        margin: 0.75rem 0 0;
+        color: var(--text-muted);
+        line-height: 1.45;
+        font-size: 0.92rem;
+      }
+
+      .grid {
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .muted-card {
+        border-radius: 10px;
+        background: var(--surface-muted);
+        border: 1px solid var(--border);
+        padding: 0.75rem;
+      }
+
+      .muted-card h2 {
+        margin: 0;
+        font-size: 0.88rem;
+      }
+
+      .muted-card p {
+        margin-top: 0.35rem;
+        font-size: 0.82rem;
+      }
+
+      @media (max-width: 720px) {
+        .shell {
+          padding: 0.75rem;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <main>
-      <section class="card">
-        <h1>Mealplan Calculate</h1>
-        <p>
-          Local UI shell is running. Settings and calculate flow are enabled in upcoming stories.
-        </p>
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="brand">
+          <strong>Mealplan</strong>
+          <span>Local UI</span>
+        </div>
+        <nav aria-label="Primary">
+          <a class="nav-link" href="/settings" aria-current="$settings_current">Settings</a>
+          <a class="nav-link" href="/calculate" aria-current="$calculate_current">Calculate</a>
+        </nav>
+      </div>
+    </header>
+    <main class="shell">
+      <section class="stack">
+        <article class="card">
+          <p class="section-label">$section_label</p>
+          <h1>$title</h1>
+          <p>$description</p>
+        </article>
+        <article class="card">
+          <p class="section-label">Workflow</p>
+          <div class="grid">
+            <div class="muted-card">
+              <h2>Settings</h2>
+              <p>
+                Profile and baseline controls are grouped in compact cards and
+                restored from local storage.
+              </p>
+            </div>
+            <div class="muted-card">
+              <h2>Calculate</h2>
+              <p>
+                Day-specific inputs and results stay in one workflow with inline
+                feedback and deterministic API behavior.
+              </p>
+            </div>
+          </div>
+        </article>
       </section>
     </main>
   </body>
 </html>
-"""
+""")
+
+
+_PAGE_CONTENT: dict[str, dict[str, str]] = {
+    "settings": {
+        "section_label": "Settings",
+        "title": "Athlete profile and defaults",
+        "description": (
+            "Capture stable profile details here. Calculation inputs and meal-plan results are "
+            "managed separately on the calculate page."
+        ),
+    },
+    "calculate": {
+        "section_label": "Calculate",
+        "title": "Daily training and meal-plan calculation",
+        "description": (
+            "Use this page for day-specific training context and run the meal-plan "
+            "calculation against your saved settings."
+        ),
+    },
+}
 
 
 class _UiServer(ThreadingHTTPServer):
@@ -149,7 +326,10 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path in ("/", "/calculate"):
-            self._write_html(_APP_SHELL_HTML)
+            self._write_html(_render_app_shell("calculate"))
+            return
+        if self.path == "/settings":
+            self._write_html(_render_app_shell("settings"))
             return
         if self.path == "/api/v1/health":
             self._write_json(HTTPStatus.OK, {"status": "ok"})
@@ -254,6 +434,17 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
+
+
+def _render_app_shell(active_page: str) -> str:
+    content = _PAGE_CONTENT[active_page]
+    return _APP_SHELL_TEMPLATE.substitute(
+        section_label=content["section_label"],
+        title=content["title"],
+        description=content["description"],
+        settings_current="page" if active_page == "settings" else "false",
+        calculate_current="page" if active_page == "calculate" else "false",
+    )
 
 
 def _error_detail_from_exception(error: Exception) -> dict[str, str]:
