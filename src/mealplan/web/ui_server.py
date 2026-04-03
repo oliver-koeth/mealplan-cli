@@ -8,8 +8,15 @@ import signal
 import socketserver
 import threading
 import time
+from collections.abc import Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from uuid import uuid4
+
+from mealplan.application.contracts import MealPlanRequest
+from mealplan.application.orchestration import MealPlanCalculationService
+from mealplan.application.parsing import parse_contract
+from mealplan.shared.errors import DomainRuleError, ValidationError
 
 UI_HOST = "127.0.0.1"
 UI_PORT_START = 8765
@@ -147,7 +154,90 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/api/v1/health":
             self._write_json(HTTPStatus.OK, {"status": "ok"})
             return
-        self._write_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+        self._write_json(
+            HTTPStatus.NOT_FOUND,
+            {"error": {"code": "not_found", "message": "Not found"}},
+        )
+
+    def do_POST(self) -> None:  # noqa: N802
+        if self.path != "/api/v1/calculate":
+            self._write_json(
+                HTTPStatus.NOT_FOUND,
+                {"error": {"code": "not_found", "message": "Not found"}},
+            )
+            return
+
+        request_id = str(uuid4())
+        try:
+            payload = self._read_json_payload()
+            request = parse_contract(MealPlanRequest, payload)
+            service = MealPlanCalculationService()
+            response = service.calculate(request)
+        except ValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.BAD_REQUEST,
+                code="validation_error",
+                message="Request validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except DomainRuleError as error:
+            self._write_api_error(
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                code="domain_rule_error",
+                message="Meal-plan domain rule failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except Exception:  # noqa: BLE001
+            self._write_api_error(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                code="internal_error",
+                message="Internal server error.",
+                request_id=request_id,
+            )
+            return
+
+        self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
+
+    def _read_json_payload(self) -> object:
+        content_length_value = self.headers.get("Content-Length", "0")
+        try:
+            content_length = int(content_length_value)
+        except ValueError as error:
+            raise ValidationError("body: invalid Content-Length header") from error
+        if content_length <= 0:
+            raise ValidationError("body: request JSON body is required")
+
+        raw_body = self.rfile.read(content_length)
+        try:
+            parsed = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValidationError("body: invalid JSON payload") from error
+
+        if not isinstance(parsed, Mapping):
+            raise ValidationError("body: expected JSON object")
+        return parsed
+
+    def _write_api_error(
+        self,
+        *,
+        status: HTTPStatus,
+        code: str,
+        message: str,
+        request_id: str,
+        details: list[dict[str, str]] | None = None,
+    ) -> None:
+        error_payload: dict[str, object] = {
+            "code": code,
+            "message": message,
+            "request_id": request_id,
+        }
+        if details:
+            error_payload["details"] = details
+        self._write_json(status, {"error": error_payload})
 
     def _write_html(self, html: str) -> None:
         encoded = html.encode("utf-8")
@@ -164,6 +254,16 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
+
+
+def _error_detail_from_exception(error: Exception) -> dict[str, str]:
+    message = str(error).strip()
+    if ": " not in message:
+        return {"message": message or "Invalid request."}
+    field, detail = message.split(": ", maxsplit=1)
+    if not field:
+        return {"message": detail or "Invalid request."}
+    return {"field": field, "message": detail or "Invalid request."}
 
 
 def run_ui_server() -> None:

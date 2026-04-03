@@ -1,8 +1,29 @@
 # Ralph Progress Log
 ## Codebase Patterns
 - For localhost `http.server` adapters, override `HTTPServer.server_bind` to avoid `socket.getfqdn` stalls on loopback and set `server_name`/`server_port` from the bound address.
+- For local web API handlers, map `ValidationError`/`DomainRuleError`/unexpected exceptions to HTTP `400`/`422`/`500` with `{ "error": { "code", "message", "request_id", "details"? } }`, and parse `field: message` errors into structured `details`.
 
 Started: Fri Apr  3 16:29:36 CEST 2026
+---
+
+## 2026-04-03 17:12:37 CEST - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented `POST /api/v1/calculate` in the local UI web adapter, wired directly to in-process `MealPlanCalculationService` using canonical `MealPlanRequest` parsing and `MealPlanResponse` serialization.
+- Added canonical API error mapping and JSON envelope for validation (`400`/`validation_error`), domain (`422`/`domain_rule_error`), and unexpected failures (`500`/`internal_error`) with per-request UUID `request_id` and optional structured `details`.
+- Added unit coverage for calculate endpoint success and all error classes, alongside existing UI server configuration tests.
+- Files changed:
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Keep web-handler error payloads deterministic by mapping first `field: message` failure into `error.details[]` to avoid leaking raw exception text formats to UI clients.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `parse_contract(MealPlanRequest, payload)` can short-circuit before service invocation, so tests targeting service-level exception mapping must send a fully valid request payload fixture.
+- Useful context (e.g., "the evaluation panel is in component X")
+- `tests/unit/test_web_ui_server.py` now includes an in-process `_UiServer((UI_HOST, 0))` fixture pattern for endpoint assertions without subprocess overhead.
 ---
 
 ## 2026-04-03 17:09:13 CEST - US-001
