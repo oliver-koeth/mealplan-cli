@@ -198,12 +198,64 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         font-size: 0.82rem;
       }
 
+      .form-stack {
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .form-card {
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--surface-muted);
+        padding: 0.85rem;
+      }
+
+      .form-card h2 {
+        margin: 0;
+        font-size: 0.9rem;
+      }
+
+      .field-grid {
+        margin-top: 0.65rem;
+        display: grid;
+        gap: 0.65rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      label {
+        display: grid;
+        gap: 0.35rem;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+      }
+
+      input,
+      select {
+        width: 100%;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        padding: 0.45rem 0.55rem;
+      }
+
+      .hint {
+        margin: 0.65rem 0 0;
+        color: var(--text-subtle);
+        font-size: 0.78rem;
+      }
+
       @media (max-width: 720px) {
         .shell {
           padding: 0.75rem;
         }
 
         .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .field-grid {
           grid-template-columns: 1fr;
         }
       }
@@ -230,6 +282,132 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           <p>$description</p>
         </article>
         <article class="card">
+          $content_html
+        </article>
+      </section>
+    </main>
+    <script>
+      (() => {
+        const form = document.querySelector('[data-settings-form="true"]');
+        if (!form) {
+          return;
+        }
+
+        const storageKey = "mealplan.ui.settings.v1";
+        const fields = [
+          "age",
+          "gender",
+          "height_cm",
+          "weight_kg",
+          "vo2max",
+          "carb_mode",
+        ];
+
+        const readValues = () => {
+          const result = {};
+          for (const name of fields) {
+            const control = form.elements.namedItem(name);
+            if (control && "value" in control) {
+              result[name] = control.value;
+            }
+          }
+          return result;
+        };
+
+        const restoreValues = () => {
+          const raw = window.localStorage.getItem(storageKey);
+          if (!raw) {
+            return;
+          }
+          try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== "object") {
+              return;
+            }
+            for (const name of fields) {
+              const control = form.elements.namedItem(name);
+              const value = parsed[name];
+              if (control && "value" in control && typeof value === "string") {
+                control.value = value;
+              }
+            }
+          } catch {
+            // Ignore invalid local storage snapshots.
+          }
+        };
+
+        const persistValues = () => {
+          window.localStorage.setItem(storageKey, JSON.stringify(readValues()));
+        };
+
+        restoreValues();
+        form.addEventListener("input", persistValues);
+        form.addEventListener("change", persistValues);
+      })();
+    </script>
+  </body>
+</html>
+""")
+
+
+_PAGE_CONTENT: dict[str, dict[str, str]] = {
+    "settings": {
+        "section_label": "Settings",
+        "title": "Athlete profile and defaults",
+        "description": (
+            "Capture stable profile details here. Calculation inputs and meal-plan results are "
+            "managed separately on the calculate page."
+        ),
+        "content_html": """
+          <p class="section-label">Athlete Settings</p>
+          <form class="form-stack" data-settings-form="true">
+            <section class="form-card">
+              <h2>Profile</h2>
+              <div class="field-grid">
+                <label>Age
+                  <input name="age" type="number" min="1" step="1" required />
+                </label>
+                <label>Gender
+                  <select name="gender" required>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </label>
+                <label>Height (cm)
+                  <input name="height_cm" type="number" min="1" step="1" required />
+                </label>
+                <label>Weight (kg)
+                  <input name="weight_kg" type="number" min="1" step="0.1" required />
+                </label>
+              </div>
+            </section>
+            <section class="form-card">
+              <h2>Planning Defaults</h2>
+              <div class="field-grid">
+                <label>VO2max (optional)
+                  <input name="vo2max" type="number" min="10" max="100" step="1" />
+                </label>
+                <label>Carbs
+                  <select name="carb_mode" required>
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="periodized">Periodized</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+          </form>
+          <p class="hint">Settings are saved automatically in this browser.</p>
+        """,
+    },
+    "calculate": {
+        "section_label": "Calculate",
+        "title": "Daily training and meal-plan calculation",
+        "description": (
+            "Use this page for day-specific training context and run the meal-plan "
+            "calculation against your saved settings."
+        ),
+        "content_html": """
           <p class="section-label">Workflow</p>
           <div class="grid">
             <div class="muted-card">
@@ -247,30 +425,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               </p>
             </div>
           </div>
-        </article>
-      </section>
-    </main>
-  </body>
-</html>
-""")
-
-
-_PAGE_CONTENT: dict[str, dict[str, str]] = {
-    "settings": {
-        "section_label": "Settings",
-        "title": "Athlete profile and defaults",
-        "description": (
-            "Capture stable profile details here. Calculation inputs and meal-plan results are "
-            "managed separately on the calculate page."
-        ),
-    },
-    "calculate": {
-        "section_label": "Calculate",
-        "title": "Daily training and meal-plan calculation",
-        "description": (
-            "Use this page for day-specific training context and run the meal-plan "
-            "calculation against your saved settings."
-        ),
+        """,
     },
 }
 
@@ -442,6 +597,7 @@ def _render_app_shell(active_page: str) -> str:
         section_label=content["section_label"],
         title=content["title"],
         description=content["description"],
+        content_html=content["content_html"],
         settings_current="page" if active_page == "settings" else "false",
         calculate_current="page" if active_page == "calculate" else "false",
     )

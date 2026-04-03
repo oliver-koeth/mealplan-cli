@@ -127,6 +127,23 @@ def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
     assert "Athlete profile and defaults" in html
 
 
+def test_ui_server_settings_shell_includes_typed_settings_controls_and_storage_script() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/settings")
+
+    assert status == 200
+    assert '<form class="form-stack" data-settings-form="true">' in html
+    assert '<input name="age" type="number" min="1" step="1" required />' in html
+    assert '<select name="gender" required>' in html
+    assert '<input name="height_cm" type="number" min="1" step="1" required />' in html
+    assert '<input name="weight_kg" type="number" min="1" step="0.1" required />' in html
+    assert '<input name="vo2max" type="number" min="10" max="100" step="1" />' in html
+    assert '<select name="carb_mode" required>' in html
+    assert 'const storageKey = "mealplan.ui.settings.v1";' in html
+    assert 'window.localStorage.getItem(storageKey)' in html
+    assert 'window.localStorage.setItem(storageKey, JSON.stringify(readValues()));' in html
+
+
 def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None:
     with _running_test_server() as port:
         status, html = _get_html(port, "/calculate")
@@ -136,6 +153,7 @@ def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None
     assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="nav-link" href="/calculate" aria-current="page">Calculate</a>' in html
     assert "Daily training and meal-plan calculation" in html
+    assert '<form class="form-stack" data-settings-form="true">' not in html
 
 
 def test_ui_server_calculate_maps_validation_error_to_http_400(

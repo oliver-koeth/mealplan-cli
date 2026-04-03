@@ -123,6 +123,7 @@ When in doubt, update those source docs instead of expanding this file.
 92. For localhost `http.server` adapters, override `HTTPServer.server_bind` to skip reverse-DNS `socket.getfqdn` on loopback and set `server_name`/`server_port` from the bound address to avoid startup stalls.
 93. For web API adapters, map `ValidationError`/`DomainRuleError`/unexpected exceptions to HTTP `400`/`422`/`500` with canonical envelope `{error:{code,message,request_id,details?}}`, and derive `details[].field`/`message` from deterministic `field: message` error strings.
 94. For inline HTML/CSS shells rendered from Python, use `string.Template` substitution instead of `str.format(...)` so CSS braces remain literal and route rendering cannot fail on template-key lookups.
+95. For inline UI-form local persistence, attach behavior only when a page marker form exists (for example `data-settings-form="true"`) and namespace storage keys with a versioned scope (`mealplan.ui.<page>.v1`) to keep route scripts safe and migration-ready.
 
 ## Ralph Runner
 

@@ -3,6 +3,7 @@
 - For localhost `http.server` adapters, override `HTTPServer.server_bind` to avoid `socket.getfqdn` stalls on loopback and set `server_name`/`server_port` from the bound address.
 - For local web API handlers, map `ValidationError`/`DomainRuleError`/unexpected exceptions to HTTP `400`/`422`/`500` with `{ "error": { "code", "message", "request_id", "details"? } }`, and parse `field: message` errors into structured `details`.
 - For inline HTML/CSS rendered by the web adapter, prefer `string.Template` over `str.format(...)` so CSS braces are not treated as format keys.
+- For browser-restored UI forms in the inline shell, gate persistence behind a page-specific form marker (`data-settings-form="true"`) and namespace `localStorage` keys as `mealplan.ui.<page>.v1`.
 
 Started: Fri Apr  3 16:29:36 CEST 2026
 ---
@@ -68,4 +69,23 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - `make quality` assumes `.venv/bin/uv`; in this environment, run `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` directly.
 - Useful context (e.g., "the evaluation panel is in component X")
 - UI-mode tests are deterministic when port windows are injected via `MEALPLAN_UI_PORT_START`/`MEALPLAN_UI_PORT_END`.
+---
+
+## 2026-04-03 17:23:15 CEST - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented a settings-specific form on `/settings` with required typed controls for age, gender, height, weight, optional vo2max, and carb mode in grouped low-noise cards.
+- Added inline browser persistence behavior that restores settings from local storage on load and saves current values on input/change using a namespaced key.
+- Kept calculate-page shell behavior intact while moving page-specific body content into a render-time content slot.
+- Files changed:
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For inline shell forms, use a page marker (`data-settings-form`) so shared scripts can no-op safely on routes that do not render the form.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- Presence checks in route HTML tests should assert on form markup, not generic script literals that may exist on multiple pages.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Settings page coverage is in `tests/unit/test_web_ui_server.py` and currently validates control types plus localStorage wiring by inspecting rendered HTML.
 ---
