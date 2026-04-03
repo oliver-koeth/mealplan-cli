@@ -8,6 +8,7 @@
 - For calculate submissions, build payloads by merging the latest route form values with the corresponding `localStorage` snapshot (`mealplan.ui.settings.v1` + `mealplan.ui.calculate.v1`) so `/calculate` can submit complete requests without rendering settings controls.
 - For calculate results, keep output as a hidden in-page state (`data-calculate-results-state`) that is only shown after successful submit, and return to editable inputs via `data-calculate-input-state` instead of adding a separate results route.
 - For display-only kcal scaling in calculate results, keep the API response as the immutable baseline and apply proportional scaling during render from a signed +/-100 kcal offset; `Save` should clear transient results state and return to inputs without persistence.
+- For install-smoke validation of packaged releases, launch installed `mealplan --ui` and assert `/calculate`, `/api/v1/health`, and `POST /api/v1/calculate` so UI runtime packaging is verified without any Node.js dependency.
 
 Started: Fri Apr  3 16:29:36 CEST 2026
 ---
@@ -176,4 +177,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Because shell tests are string-contract based, new UI controls must add stable `data-*` markers and matching script identifier assertions to avoid regressions from template refactors.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Results scaling/save behavior lives entirely in the inline script/template of `src/mealplan/web/ui_server.py` and is covered by `tests/unit/test_web_ui_server.py` marker assertions.
+---
+## 2026-04-03 18:02:00 CEST - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Added end-to-end UI-mode regression coverage by extending CLI subprocess tests to post canonical calculate payloads against live `mealplan --ui` server instances.
+- Expanded installed-wheel smoke verification to launch packaged `mealplan --ui` and assert shell route, health endpoint, and calculate API behavior from the installed artifact.
+- Aligned canonical docs to the shipped local UI architecture by documenting `--ui` mode/runtime/API contracts and packaged UI verification workflow.
+- Files changed:
+- `AGENT.md`
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PLAN.md`
+- `docs/REQUIREMENTS.md`
+- `scripts/checks/verify_install_workflow.py`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `tests/cli/test_ui_mode.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Packaging readiness for UI work should be validated from installed wheel execution (`mealplan --ui`), not only source-tree tests, to catch missing runtime packaging assumptions early.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `make quality` can fail in this environment when `.venv/bin/uv` is absent; run equivalent gates directly with `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest`.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Installed-runtime validation lives in `scripts/checks/verify_install_workflow.py`, while local UI subprocess behavior coverage lives in `tests/cli/test_ui_mode.py`.
 ---

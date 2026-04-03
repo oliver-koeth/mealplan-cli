@@ -21,6 +21,8 @@ src/mealplan/infrastructure/__init__.py
 src/mealplan/shared/__init__.py
 src/mealplan/shared/errors.py
 src/mealplan/shared/exit_codes.py
+src/mealplan/web/__init__.py
+src/mealplan/web/ui_server.py
 src/mealplan_cli.egg-info/PKG-INFO
 src/mealplan_cli.egg-info/SOURCES.txt
 src/mealplan_cli.egg-info/dependency_links.txt

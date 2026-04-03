@@ -66,8 +66,34 @@ The tool must be fully machine-executable without ambiguity.
 
   Parameter      Type    Description
   -------------- ------- -----------------------------------------------
+  `--ui`         flag    Starts local browser UI server mode
   `--format`     enum    json / text / table (default: json)
   `--debug`      flag    Enables traceback output on errors (stderr only)
+
+
+## 3A. Local UI and API Mode
+
+-   `mealplan --ui` starts a loopback-only local server and does not run a one-off CLI calculation.
+-   Default bind host is `127.0.0.1`.
+-   Default preferred port is `8765`; on collision, probe sequentially through `8775`.
+-   If all ports in `8765..8775` are occupied, startup fails with non-zero exit and clear messaging.
+-   Startup output includes:
+    - `UI available at http://127.0.0.1:<port>/calculate`
+    - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
+-   The server does not auto-launch a browser.
+-   On `SIGINT`/`SIGTERM`, stop accepting new requests immediately, drain in-flight requests up to 5 seconds, and exit with code `0`.
+-   The same process serves both shell routes and API routes.
+
+### 3A.1 Local API Endpoints
+
+-   `GET /api/v1/health` returns `{ "status": "ok" }`.
+-   `POST /api/v1/calculate` accepts canonical `MealPlanRequest` JSON and returns canonical `MealPlanResponse` JSON.
+-   Error mapping:
+    - HTTP `400` with `error.code=validation_error` for validation failures
+    - HTTP `422` with `error.code=domain_rule_error` for domain rule failures
+    - HTTP `500` with `error.code=internal_error` for unexpected failures
+-   Error payload shape:
+    `{ "error": { "code": string, "message": string, "request_id": string, "details"?: [{ "field"?: string, "message": string }] } }`
 
 ------------------------------------------------------------------------
 
