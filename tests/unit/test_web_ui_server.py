@@ -268,6 +268,13 @@ def test_ui_server_settings_shell_includes_typed_settings_controls_and_storage_s
     assert '<input name="weight_kg" type="number" min="1" step="0.1" required />' in html
     assert '<input name="vo2max" type="number" min="10" max="100" step="1" />' in html
     assert '<select name="carb_mode" required>' in html
+    assert '<select name="activity_level" required>' in html
+    assert '<select name="training_load_tomorrow" required>' in html
+    assert '<select name="training_before_meal">' in html
+    assert '<option value="morning-snack">Morning snack</option>' in html
+    assert '<option value="afternoon-snack">Afternoon snack</option>' in html
+    assert '<option value="evening-snack">Evening snack</option>' in html
+    assert '<option value="training">' not in html
     assert "<h2>UI Settings</h2>" in html
     assert '<select name="ui_theme" required>' in html
     assert '<option value="light">Light</option>' in html
@@ -279,6 +286,9 @@ def test_ui_server_settings_shell_includes_typed_settings_controls_and_storage_s
     assert "applyTheme(persistedTheme);" in html
     assert "documentElement.dataset.theme = resolvedTheme;" in html
     assert 'bindLocalStorageForm(settingsForm, settingsStorageKey,' in html
+    assert '"activity_level",' in html
+    assert '"training_load_tomorrow",' in html
+    assert '"training_before_meal",' in html
     assert '"ui_theme",' in html
     assert '"ui_language",' in html
     assert 'window.localStorage.getItem(storageKey)' in html
@@ -319,6 +329,10 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert "trainingBeforeControl.required = false;" in html
     assert "const calculateStorageKey = " in html
     assert 'bindLocalStorageForm(calculateForm, calculateStorageKey,' in html
+    assert "const applyCalculateDefaultsFromSettings = () => {" in html
+    assert "const persistedSettings = readLocalStorageObject(settingsStorageKey);" in html
+    assert "const defaultFieldNames = [" in html
+    assert "applyCalculateDefaultsFromSettings();" in html
     assert 'data-calculate-submit="true"' in html
     assert 'class="alert-card" data-calculate-error-card="true" hidden' in html
     assert 'data-calculate-input-state="true"' in html
@@ -353,8 +367,10 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert "const meals = [...rawMeals].sort" in html
     assert '["TDEE", scaledResults.TDEE, "kcal"]' in html
     assert "Displayed total: " in html
-    assert 'training_load_tomorrow: calculateSnapshot.training_load_tomorrow ?? "",' in html
+    assert "training_load_tomorrow: (" in html
+    assert "|| settingsSnapshot.training_load_tomorrow" in html
     assert "training_session: {" in html
+    assert "|| settingsSnapshot.training_before_meal" in html
     assert "training_session: {\n              training_load_tomorrow:" not in html
     assert 'training_session: {' in html
     assert '"1": parseMinutes(calculateSnapshot.zone_1_minutes)' in html

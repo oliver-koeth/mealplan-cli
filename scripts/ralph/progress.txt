@@ -4,6 +4,7 @@
 - CLI calendar persistence should resolve storage from `MEALPLAN_CALENDAR_STORE_PATH` when set and otherwise use `~/.mealplan/calendar.json` so saves are stable across working directories and easily isolated in tests.
 - CLI calendar retrieval should parse persisted payloads via `parse_contract(MealPlanResponse, payload)` before rendering with shared `_render_output(...)` so `calendar` and `calculate` stay format-consistent (`json|text|table`).
 - UI calendar API routes should parse `/api/v1/calendar/{date}` path segments, normalize dates to canonical `YYYYMMDD` before store access, and map missing-date `DomainRuleError` to HTTP `404` with canonical `calendar_not_found` error envelope details.
+- Calculate page defaults should reuse settings-storage keys (`activity_level`, `training_load_tomorrow`, `training_before_meal`) and only backfill from `mealplan.ui.settings.v1` when no day-specific value exists in `mealplan.ui.calculate.v1`.
 
 Started: Mon Apr  6 17:09:55 CEST 2026
 ---
@@ -93,4 +94,25 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Calendar endpoint date validation must happen before store calls so invalid path params consistently map to the canonical HTTP `400` `validation_error` envelope.
 - Useful context (e.g., "the evaluation panel is in component X")
 - `parse_contract(MealPlanResponse, payload)` should be used on both calendar writes and reads to keep persisted payload contracts aligned with UI/API expectations.
+---
+## 2026-04-06 17:35:19 CEST - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- What was implemented
+- Extended Settings -> Planning Defaults to persist `activity_level`, `training_load_tomorrow`, and `training_before_meal` using the existing `mealplan.ui.settings.v1` local-storage flow.
+- Added calculate-page initialization fallback logic that applies those settings defaults only when `mealplan.ui.calculate.v1` has no day-specific value for the same fields.
+- Updated request payload assembly to fall back to settings defaults for activity/training context when day-specific values are unset.
+- Expanded UI server shell tests to verify new defaults controls, shared allowed values, settings storage binding, and calculate fallback wiring.
+- Files changed
+- src/mealplan/web/ui_server.py
+- tests/unit/test_web_ui_server.py
+- AGENT.md
+- scripts/ralph/prd.json
+- scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- The UI shell prefers shared field names across settings and calculate forms so defaults can flow via local-storage snapshots without extra mapping logic.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- When adding inline JS behavior in `ui_server.py`, keep `tests/unit/test_web_ui_server.py` string assertions synchronized or tests will fail despite runtime-valid scripts.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Calculate defaults are intentionally one-way at initialization: settings backfill only when day-specific values are absent, preserving per-day overrides in calculate storage.
 ---

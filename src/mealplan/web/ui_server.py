@@ -563,6 +563,9 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           "weight_kg",
           "vo2max",
           "carb_mode",
+          "activity_level",
+          "training_load_tomorrow",
+          "training_before_meal",
           "ui_theme",
           "ui_language",
         ]);
@@ -587,6 +590,37 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           "zone_4_minutes",
           "zone_5_minutes",
         ]);
+
+        const applyCalculateDefaultsFromSettings = () => {
+          if (!calculateForm) {
+            return;
+          }
+          const persistedCalculate = readLocalStorageObject(calculateStorageKey);
+          const persistedSettings = readLocalStorageObject(settingsStorageKey);
+          const defaultFieldNames = [
+            "activity_level",
+            "training_load_tomorrow",
+            "training_before_meal",
+          ];
+          for (const fieldName of defaultFieldNames) {
+            const control = calculateForm.elements.namedItem(fieldName);
+            if (!control || !("value" in control)) {
+              continue;
+            }
+            const hasDayValue = (
+              typeof persistedCalculate[fieldName] === "string"
+              && persistedCalculate[fieldName].length > 0
+            );
+            if (hasDayValue) {
+              continue;
+            }
+            const settingsDefault = persistedSettings[fieldName];
+            if (typeof settingsDefault === "string") {
+              control.value = settingsDefault;
+            }
+          }
+        };
+        applyCalculateDefaultsFromSettings();
         if (!calculateForm) {
           return;
         }
@@ -956,10 +990,22 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             height_cm: parseIntegerOrNull(settingsSnapshot.height_cm),
             weight_kg: parseNumberOrNull(settingsSnapshot.weight_kg),
             carb_mode: settingsSnapshot.carb_mode ?? "",
-            activity_level: calculateSnapshot.activity_level ?? "",
-            training_load_tomorrow: calculateSnapshot.training_load_tomorrow ?? "",
+            activity_level: (
+              calculateSnapshot.activity_level
+              || settingsSnapshot.activity_level
+              || ""
+            ),
+            training_load_tomorrow: (
+              calculateSnapshot.training_load_tomorrow
+              || settingsSnapshot.training_load_tomorrow
+              || ""
+            ),
             training_session: {
-              training_before_meal: calculateSnapshot.training_before_meal || null,
+              training_before_meal: (
+                calculateSnapshot.training_before_meal
+                || settingsSnapshot.training_before_meal
+                || null
+              ),
               zones_minutes: {
                 "1": parseMinutes(calculateSnapshot.zone_1_minutes),
                 "2": parseMinutes(calculateSnapshot.zone_2_minutes),
@@ -1086,6 +1132,31 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                     <option value="low">Low</option>
                     <option value="normal">Normal</option>
                     <option value="periodized">Periodized</option>
+                  </select>
+                </label>
+                <label>Default Activity
+                  <select name="activity_level" required>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label>Default Tomorrow Training Load
+                  <select name="training_load_tomorrow" required>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label>Default Training Before Meal
+                  <select name="training_before_meal">
+                    <option value="">No training meal timing</option>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="morning-snack">Morning snack</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="afternoon-snack">Afternoon snack</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="evening-snack">Evening snack</option>
                   </select>
                 </label>
               </div>
