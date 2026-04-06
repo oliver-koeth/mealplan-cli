@@ -253,6 +253,7 @@ def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
     assert '<header class="app-header">' in html
     assert '<a class="nav-link" href="/settings" aria-current="page">Settings</a>' in html
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
+    assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
     assert "Athlete profile and defaults" in html
 
 
@@ -303,8 +304,21 @@ def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None
     assert '<header class="app-header">' in html
     assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="nav-link" href="/calculate" aria-current="page">Calculate</a>' in html
+    assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
     assert "Daily training and meal-plan calculation" in html
     assert '<form class="form-stack" data-settings-form="true">' not in html
+
+
+def test_ui_server_calendar_shell_exposes_navigation_and_active_state() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/calendar")
+
+    assert status == 200
+    assert '<header class="app-header">' in html
+    assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
+    assert '<a class="nav-link" href="/calendar" aria-current="page">Calendar</a>' in html
+    assert "Date-based meal-plan lookup" in html
 
 
 def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_script() -> None:
@@ -388,6 +402,36 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert 'training_session: {' in html
     assert '"1": parseMinutes(calculateSnapshot.zone_1_minutes)' in html
     assert 'data-calculate-save-status="true"' in html
+
+
+def test_ui_server_calendar_shell_includes_date_controls_and_read_only_result_wiring() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/calendar")
+
+    assert status == 200
+    assert '<form class="form-stack" data-calendar-form="true">' in html
+    assert 'data-calendar-date-prev="true"' in html
+    assert 'data-calendar-date-next="true"' in html
+    assert 'name="calendar_date"' in html
+    assert 'type="date"' in html
+    assert 'data-calendar-load="true"' in html
+    assert 'data-calendar-status="true"' in html
+    assert 'data-calendar-error-card="true" hidden' in html
+    assert 'data-calendar-missing-card="true" hidden' in html
+    assert 'No meal plan exists, you first need to <a href="/calculate">calculate</a> one.' in html
+    assert 'class="results-state" data-calendar-results-state="true" hidden' in html
+    assert 'data-calendar-results="true" hidden' in html
+    assert 'data-calendar-results-totals="true"' in html
+    assert 'data-calendar-results-meals="true"' in html
+    assert "const calendarForm = document.querySelector('[data-calendar-form=\"true\"]');" in html
+    assert "if (!calendarDateControl.value) {" in html
+    assert "calendarDateControl.value = toIsoDate(new Date());" in html
+    assert "const canonicalDate = normalizeCalendarDate(calendarDateControl.value);" in html
+    assert "window.fetch(\"/api/v1/calendar/\" + canonicalDate, {" in html
+    assert 'method: "GET"' in html
+    assert "if (response.status === 404) {" in html
+    assert "showCalendarMissing();" in html
+    assert "This calendar view is read-only." in html
 
 
 def test_ui_server_calculate_maps_validation_error_to_http_400(

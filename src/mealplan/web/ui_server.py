@@ -452,6 +452,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         <nav aria-label="Primary">
           <a class="nav-link" href="/settings" aria-current="$settings_current">Settings</a>
           <a class="nav-link" href="/calculate" aria-current="$calculate_current">Calculate</a>
+          <a class="nav-link" href="/calendar" aria-current="$calendar_current">Calendar</a>
         </nav>
       </div>
     </header>
@@ -612,6 +613,233 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         }
 
         const calculateForm = document.querySelector('[data-calculate-form="true"]');
+        const calendarForm = document.querySelector('[data-calendar-form="true"]');
+
+        if (calendarForm) {
+          const calendarDateControl = calendarForm.elements.namedItem("calendar_date");
+          const calendarPreviousDayButton = calendarForm.querySelector(
+            '[data-calendar-date-prev="true"]'
+          );
+          const calendarNextDayButton = calendarForm.querySelector(
+            '[data-calendar-date-next="true"]'
+          );
+          const calendarLoadButton = calendarForm.querySelector('[data-calendar-load="true"]');
+          const calendarStatusNote = document.querySelector('[data-calendar-status="true"]');
+          const calendarErrorCard = document.querySelector('[data-calendar-error-card="true"]');
+          const calendarErrorSummary = document.querySelector(
+            '[data-calendar-error-summary="true"]'
+          );
+          const calendarMissingCard = document.querySelector('[data-calendar-missing-card="true"]');
+          const calendarResultsState = document.querySelector(
+            '[data-calendar-results-state="true"]'
+          );
+          const calendarResultsPanel = document.querySelector('[data-calendar-results="true"]');
+          const calendarTotalsGrid = document.querySelector(
+            '[data-calendar-results-totals="true"]'
+          );
+          const calendarMealsGrid = document.querySelector('[data-calendar-results-meals="true"]');
+          if (
+            calendarDateControl
+            && "value" in calendarDateControl
+            && calendarLoadButton
+            && calendarStatusNote
+            && calendarErrorCard
+            && calendarErrorSummary
+            && calendarMissingCard
+            && calendarResultsState
+            && calendarResultsPanel
+            && calendarTotalsGrid
+            && calendarMealsGrid
+          ) {
+            if (!calendarDateControl.value) {
+              calendarDateControl.value = toIsoDate(new Date());
+            }
+            const mealOrder = [
+              "breakfast",
+              "morning-snack",
+              "lunch",
+              "afternoon-snack",
+              "dinner",
+              "evening-snack",
+            ];
+            const formatNumber = (value) => {
+              if (!Number.isFinite(value)) {
+                return "-";
+              }
+              return Number(value).toFixed(2);
+            };
+            const formatMealName = (value) => {
+              if (typeof value !== "string") {
+                return "Meal";
+              }
+              return value
+                .split("-")
+                .map((part) => part ? part.charAt(0).toUpperCase() + part.slice(1) : "")
+                .join(" ");
+            };
+
+            const setCalendarLoadingState = (inFlight) => {
+              if (calendarLoadButton) {
+                calendarLoadButton.disabled = inFlight;
+                calendarLoadButton.textContent = inFlight ? "Loading..." : "Load plan";
+              }
+              if (calendarDateControl) {
+                calendarDateControl.disabled = inFlight;
+              }
+              if (calendarPreviousDayButton) {
+                calendarPreviousDayButton.disabled = inFlight;
+              }
+              if (calendarNextDayButton) {
+                calendarNextDayButton.disabled = inFlight;
+              }
+              calendarStatusNote.textContent = inFlight ? "Loading plan..." : "";
+            };
+
+            const hideCalendarFeedback = () => {
+              calendarErrorCard.hidden = true;
+              calendarMissingCard.hidden = true;
+            };
+
+            const hideCalendarResults = () => {
+              calendarResultsPanel.hidden = true;
+              calendarResultsState.hidden = true;
+              calendarTotalsGrid.innerHTML = "";
+              calendarMealsGrid.innerHTML = "";
+            };
+
+            const showCalendarError = (message) => {
+              hideCalendarResults();
+              calendarMissingCard.hidden = true;
+              calendarErrorSummary.textContent = message;
+              calendarErrorCard.hidden = false;
+            };
+
+            const showCalendarMissing = () => {
+              hideCalendarResults();
+              calendarErrorCard.hidden = true;
+              calendarMissingCard.hidden = false;
+            };
+
+            const renderCalendarResults = (payload) => {
+              const totals = [
+                ["TDEE", Number(payload?.TDEE), "kcal"],
+                ["Training kcal", Number(payload?.training_kcal), "kcal"],
+                ["Protein", Number(payload?.protein_g), "g"],
+                ["Carbs", Number(payload?.carbs_g), "g"],
+                ["Fat", Number(payload?.fat_g), "g"],
+                ["Total kcal", Number(payload?.total_kcal), "kcal"],
+              ];
+              calendarTotalsGrid.innerHTML = "";
+              for (const [label, value, unit] of totals) {
+                const card = document.createElement("article");
+                card.className = "results-total";
+                const title = document.createElement("strong");
+                title.textContent = label;
+                const valueNode = document.createElement("span");
+                valueNode.textContent = formatNumber(value) + " " + unit;
+                card.appendChild(title);
+                card.appendChild(valueNode);
+                calendarTotalsGrid.appendChild(card);
+              }
+
+              const rawMeals = Array.isArray(payload?.meals) ? payload.meals : [];
+              const meals = [...rawMeals].sort((left, right) => {
+                const leftName = typeof left?.meal === "string" ? left.meal : "";
+                const rightName = typeof right?.meal === "string" ? right.meal : "";
+                const leftIndex = mealOrder.indexOf(leftName);
+                const rightIndex = mealOrder.indexOf(rightName);
+                const normalizedLeft = leftIndex === -1 ? mealOrder.length : leftIndex;
+                const normalizedRight = rightIndex === -1 ? mealOrder.length : rightIndex;
+                return normalizedLeft - normalizedRight;
+              });
+              calendarMealsGrid.innerHTML = "";
+              for (const meal of meals) {
+                const card = document.createElement("article");
+                card.className = "meal-result-card";
+                const strategy = typeof meal?.carbs_strategy === "string"
+                  ? meal.carbs_strategy
+                  : "n/a";
+                card.innerHTML = (
+                  '<div class="meal-result-head">'
+                  + '<h3>' + formatMealName(meal?.meal) + '</h3>'
+                  + '<span>' + strategy + '</span>'
+                  + "</div>"
+                  + '<div class="meal-result-grid">'
+                  + "<p>Calories: " + formatNumber(Number(meal?.kcal)) + " kcal</p>"
+                  + "<p>Protein: " + formatNumber(Number(meal?.protein_g)) + " g</p>"
+                  + "<p>Carbs: " + formatNumber(Number(meal?.carbs_g)) + " g</p>"
+                  + "<p>Fat: " + formatNumber(Number(meal?.fat_g)) + " g</p>"
+                  + "</div>"
+                );
+                calendarMealsGrid.appendChild(card);
+              }
+              hideCalendarFeedback();
+              calendarResultsPanel.hidden = false;
+              calendarResultsState.hidden = false;
+            };
+
+            const shiftCalendarDate = (deltaDays) => {
+              if (!Number.isFinite(deltaDays)) {
+                return;
+              }
+              const baseIso = calendarDateControl.value || toIsoDate(new Date());
+              const parsedBase = new Date(baseIso + "T00:00:00");
+              if (Number.isNaN(parsedBase.getTime())) {
+                calendarDateControl.value = toIsoDate(new Date());
+                return;
+              }
+              parsedBase.setDate(parsedBase.getDate() + deltaDays);
+              calendarDateControl.value = toIsoDate(parsedBase);
+            };
+
+            const loadCalendarPlan = async () => {
+              const canonicalDate = normalizeCalendarDate(calendarDateControl.value);
+              if (!canonicalDate) {
+                showCalendarError("Select a valid date before loading.");
+                return;
+              }
+              hideCalendarFeedback();
+              setCalendarLoadingState(true);
+              try {
+                const response = await window.fetch("/api/v1/calendar/" + canonicalDate, {
+                  method: "GET",
+                });
+                if (response.status === 404) {
+                  showCalendarMissing();
+                  return;
+                }
+                const payload = await response.json();
+                if (!response.ok) {
+                  showCalendarError(
+                    payload?.error?.message ?? "Unable to load plan for selected date."
+                  );
+                  return;
+                }
+                renderCalendarResults(payload);
+              } catch {
+                showCalendarError("Unable to reach local calendar API.");
+              } finally {
+                setCalendarLoadingState(false);
+              }
+            };
+
+            if (calendarPreviousDayButton) {
+              calendarPreviousDayButton.addEventListener("click", () => {
+                shiftCalendarDate(-1);
+              });
+            }
+            if (calendarNextDayButton) {
+              calendarNextDayButton.addEventListener("click", () => {
+                shiftCalendarDate(1);
+              });
+            }
+            calendarForm.addEventListener("submit", (event) => {
+              event.preventDefault();
+              void loadCalendarPlan();
+            });
+          }
+        }
+
         bindLocalStorageForm(calculateForm, calculateStorageKey, [
           "activity_level",
           "training_load_tomorrow",
@@ -1497,6 +1725,73 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
           <p class="hint">Calculate inputs are saved automatically in this browser.</p>
         """,
     },
+    "calendar": {
+        "section_label": "Calendar",
+        "title": "Date-based meal-plan lookup",
+        "description": (
+            "Load saved plans by date without recalculation. This view is read-only and mirrors "
+            "the calculate results structure."
+        ),
+        "content_html": """
+          <p class="section-label calculate-section-label">Calendar Lookup</p>
+          <form class="form-stack" data-calendar-form="true">
+            <section class="form-card">
+              <h2>Lookup Date</h2>
+              <div class="date-controls">
+                <button
+                  class="primary-button secondary-button"
+                  type="button"
+                  data-calendar-date-prev="true"
+                >
+                  &lt;
+                </button>
+                <label>Date
+                  <input
+                    name="calendar_date"
+                    type="date"
+                    required
+                  />
+                </label>
+                <button
+                  class="primary-button secondary-button"
+                  type="button"
+                  data-calendar-date-next="true"
+                >
+                  &gt;
+                </button>
+              </div>
+              <div class="actions">
+                <button class="primary-button" type="submit" data-calendar-load="true">
+                  Load plan
+                </button>
+                <span class="status-note" data-calendar-status="true" aria-live="polite"></span>
+              </div>
+            </section>
+          </form>
+          <section class="alert-card" data-calendar-error-card="true" hidden>
+            <h2>Calendar lookup error</h2>
+            <p data-calendar-error-summary="true">
+              Unable to load plan for selected date.
+            </p>
+          </section>
+          <section class="alert-card" data-calendar-missing-card="true" hidden>
+            <h2>No meal plan for selected date</h2>
+            <p>
+              No meal plan exists, you first need to <a href="/calculate">calculate</a> one.
+            </p>
+          </section>
+          <section class="results-state" data-calendar-results-state="true" hidden>
+            <section class="form-card results-panel" data-calendar-results="true" hidden>
+              <h2>Saved Meal Plan</h2>
+              <p class="hint">
+                This calendar view is read-only.
+              </p>
+              <section class="results-totals" data-calendar-results-totals="true"></section>
+              <section class="results-meals" data-calendar-results-meals="true"></section>
+            </section>
+          </section>
+        """,
+    },
 }
 
 
@@ -1553,6 +1848,9 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         path = self._request_path()
         if path in ("/", "/calculate"):
             self._write_html(_render_app_shell("calculate"))
+            return
+        if path == "/calendar":
+            self._write_html(_render_app_shell("calendar"))
             return
         if path == "/settings":
             self._write_html(_render_app_shell("settings"))
@@ -1780,6 +2078,7 @@ def _render_app_shell(active_page: str) -> str:
         content_html=content["content_html"],
         settings_current="page" if active_page == "settings" else "false",
         calculate_current="page" if active_page == "calculate" else "false",
+        calendar_current="page" if active_page == "calendar" else "false",
     )
 
 

@@ -6,6 +6,7 @@
 - UI calendar API routes should parse `/api/v1/calendar/{date}` path segments, normalize dates to canonical `YYYYMMDD` before store access, and map missing-date `DomainRuleError` to HTTP `404` with canonical `calendar_not_found` error envelope details.
 - Calculate page defaults should reuse settings-storage keys (`activity_level`, `training_load_tomorrow`, `training_before_meal`) and only backfill from `mealplan.ui.settings.v1` when no day-specific value exists in `mealplan.ui.calculate.v1`.
 - In `ui_server.py` `_APP_SHELL_TEMPLATE`, escape literal JavaScript regex end anchors as `$$` (not `$`) so `string.Template` placeholder substitution does not crash HTML rendering.
+- In `ui_server.py`, when adding a new top-level page, update `_PAGE_CONTENT`, `do_GET` route dispatch, and `_render_app_shell` active-nav substitutions together so navigation and routing stay in sync.
 
 Started: Mon Apr  6 17:09:55 CEST 2026
 ---
@@ -138,4 +139,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - `_APP_SHELL_TEMPLATE` is backed by `string.Template`; unescaped JavaScript regex `$` anchors must be written as `$$` or route rendering fails at runtime.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Browser-level behavior was verified via existing HTTP shell/UI regression tests (`tests/unit/test_web_ui_server.py` and `tests/cli/test_ui_mode.py`) because no dedicated browser automation harness is present in this repo.
+---
+## 2026-04-06 17:43:47 CEST - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
+- What was implemented
+- Added a new top-level `/calendar` web view in `src/mealplan/web/ui_server.py` and exposed Calendar in primary navigation alongside Settings and Calculate with correct active-state highlighting.
+- Implemented Calendar page UI with date picker plus `<`/`>` day navigation controls, current-local-date initialization, canonical date normalization before backend lookup, and read-only results rendering using the same totals/meal information structure as calculate results.
+- Wired calendar page client flow to `GET /api/v1/calendar/{date}` with explicit missing-plan handling that shows the exact message `No meal plan exists, you first need to calculate one.` and links `calculate` to `/calculate`.
+- Kept Calendar display read-only by omitting calculate-only adjustment/save controls.
+- Added/updated UI server tests for Calendar route navigation state and shell wiring, including date controls, canonical fetch path, missing-plan message/link, and read-only view contract.
+- Verified frontend behavior through repository-available checks: unit HTML/JS shell assertions plus live `mealplan --ui` request validation of `/calendar` content.
+- Files changed
+- src/mealplan/web/ui_server.py
+- tests/unit/test_web_ui_server.py
+- AGENT.md
+- scripts/ralph/prd.json
+- scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Top-level UI pages in `ui_server.py` are a 3-point change: page template content, route dispatch, and nav active-state substitution must all be updated together.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- In this environment `make quality` fails because `.venv/bin/uv` is absent; run `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` directly.
+- Useful context (e.g., "the evaluation panel is in component X")
+- This repo currently verifies frontend stories through HTML/JS server-shell tests and local UI server HTTP checks, not dedicated browser automation tooling.
 ---

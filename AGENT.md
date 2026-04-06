@@ -135,6 +135,7 @@ When in doubt, update those source docs instead of expanding this file.
 104. For UI calendar API handlers (`/api/v1/calendar/{date}`), normalize the path segment to canonical `YYYYMMDD` before store access, persist/retrieve via `JsonCalendarStore`, and map missing dates to HTTP `404` with canonical envelope code `calendar_not_found` plus `details` derived from `calendar.<date>: meal plan not found`.
 105. For calculate-form defaults sourced from settings, reuse the same field names (`activity_level`, `training_load_tomorrow`, `training_before_meal`) under `mealplan.ui.settings.v1`, and only apply them when `mealplan.ui.calculate.v1` has no day-specific value for that field.
 106. In `_APP_SHELL_TEMPLATE` JavaScript snippets, escape literal dollar signs as `$$` (for example regex end anchors) so `string.Template.substitute(...)` does not treat them as placeholders and break HTML rendering.
+107. For each new top-level UI page in `web/ui_server.py`, update all three together: `_PAGE_CONTENT` entry, `_render_app_shell(...)` active-nav `aria-current` substitution, and `do_GET` route handling so navigation state and routing remain consistent.
 
 ## Ralph Runner
 
