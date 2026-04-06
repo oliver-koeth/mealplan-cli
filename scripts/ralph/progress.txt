@@ -2,6 +2,7 @@
 ## Codebase Patterns
 - Calendar persistence uses `JsonCalendarStore` with a JSON object root keyed by canonical `YYYYMMDD`; missing entries should raise deterministic `DomainRuleError` (`calendar.<date>: meal plan not found`) instead of returning `None`.
 - CLI calendar persistence should resolve storage from `MEALPLAN_CALENDAR_STORE_PATH` when set and otherwise use `~/.mealplan/calendar.json` so saves are stable across working directories and easily isolated in tests.
+- CLI calendar retrieval should parse persisted payloads via `parse_contract(MealPlanResponse, payload)` before rendering with shared `_render_output(...)` so `calendar` and `calculate` stay format-consistent (`json|text|table`).
 
 Started: Mon Apr  6 17:09:55 CEST 2026
 ---
@@ -48,4 +49,25 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - Some subprocess/golden fixtures build calculate args inline, so helper updates alone do not cover all required-flag callsites.
 - Useful context (e.g., "the evaluation panel is in component X")
 - `JsonCalendarStore.save(...)` already enforces canonical date validation and overwrite behavior, so CLI command logic can delegate date-key rules directly to infrastructure.
+---
+## 2026-04-06 17:27:47 CEST - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- What was implemented
+- Added `mealplan calendar` in `src/mealplan/cli/main.py` with required `--date` and shared `--format` (`json|text|table`) support.
+- Wired calendar retrieval through `JsonCalendarStore.get(...)`, then validated persisted payloads with `parse_contract(MealPlanResponse, ...)` before rendering.
+- Implemented missing-date behavior through the existing deterministic domain error pathway so `main()` maps it to exit code `3`.
+- Added CLI coverage in `tests/cli/test_calendar.py` for JSON retrieval, text/table rendering, help text, invalid date validation (`exit 2`), and missing-date domain exit behavior (`exit 3`).
+- Files changed
+- src/mealplan/cli/main.py
+- tests/cli/test_calendar.py
+- scripts/ralph/prd.json
+- scripts/ralph/progress.txt
+- AGENT.md
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Keep `calendar` output parity by routing both commands through the same `_render_output(...)` path and `OutputFormat` literal options.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- Exit code `3` for missing calendar dates is produced only when invoking `main()`/module entrypoint (for example via subprocess), not by command-only function tests.
+- Useful context (e.g., "the evaluation panel is in component X")
+- `calendar --help` automatically documents `--date`/`--format` behavior from shared Typer option constants, so reuse existing option definitions to keep docs synchronized.
 ---

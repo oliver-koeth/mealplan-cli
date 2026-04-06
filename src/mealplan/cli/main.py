@@ -152,6 +152,18 @@ def calculate_command(
     typer.echo(_render_output(response=response, output_format=output_format))
 
 
+@app.command("calendar")
+def calendar_command(
+    date: str = DATE_OPTION,
+    output_format: OutputFormat = OUTPUT_FORMAT_OPTION,
+) -> None:
+    """Retrieve a persisted meal plan by date."""
+    store = JsonCalendarStore(_calendar_store_path())
+    persisted_payload = store.get(date_key=date)
+    response = parse_contract(MealPlanResponse, persisted_payload)
+    typer.echo(_render_output(response=response, output_format=output_format))
+
+
 def _persist_calendar_entry(*, date_key: str, response: MealPlanResponse) -> None:
     store = JsonCalendarStore(_calendar_store_path())
     store.save(date_key=date_key, payload=response.model_dump(mode="json"))

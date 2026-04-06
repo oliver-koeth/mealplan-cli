@@ -131,6 +131,7 @@ When in doubt, update those source docs instead of expanding this file.
 100. For installability checks, verify packaged `--ui` behavior from the installed wheel by launching `mealplan --ui` and asserting `/calculate`, `/api/v1/health`, and `POST /api/v1/calculate` succeed without any Node.js runtime.
 101. For date-keyed meal-plan persistence, reuse `src/mealplan/infrastructure/calendar_store.py::JsonCalendarStore`; it enforces canonical `YYYYMMDD` keys, auto-creates the JSON file with `{}` root, overwrites existing date payloads, and raises `DomainRuleError` (`calendar.<date>: meal plan not found`) for missing entries.
 102. For CLI calendar persistence wiring, resolve the storage path via `MEALPLAN_CALENDAR_STORE_PATH` when set (useful for tests/overrides) and otherwise default to `~/.mealplan/calendar.json` so date saves are stable across working directories.
+103. For CLI calendar retrieval, parse persisted payloads through `parse_contract(MealPlanResponse, payload)` and render with `_render_output(...)` so `calendar --format` stays behaviorally aligned with `calculate --format` across `json|text|table`.
 
 ## Ralph Runner
 
