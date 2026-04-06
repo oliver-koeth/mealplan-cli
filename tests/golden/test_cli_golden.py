@@ -36,6 +36,8 @@ def _required_calculate_args() -> list[str]:
         "low",
         "--training-tomorrow",
         "high",
+        "--date",
+        "20260406",
     ]
 
 
@@ -160,6 +162,8 @@ def _assert_cli_json_golden_matches(*, fixture_name: str, actual: str) -> None:
                 "low",
                 "--training-tomorrow",
                 "high",
+                "--date",
+                "20260406",
             ],
             False,
         ),
@@ -181,6 +185,8 @@ def _assert_cli_json_golden_matches(*, fixture_name: str, actual: str) -> None:
                 "low",
                 "--training-tomorrow",
                 "high",
+                "--date",
+                "20260406",
             ],
             False,
         ),
@@ -202,6 +208,8 @@ def _assert_cli_json_golden_matches(*, fixture_name: str, actual: str) -> None:
                 "low",
                 "--training-tomorrow",
                 "high",
+                "--date",
+                "20260406",
                 "--format",
                 "xml",
             ],

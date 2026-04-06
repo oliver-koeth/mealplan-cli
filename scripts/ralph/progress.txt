@@ -1,6 +1,7 @@
 # Ralph Progress Log
 ## Codebase Patterns
 - Calendar persistence uses `JsonCalendarStore` with a JSON object root keyed by canonical `YYYYMMDD`; missing entries should raise deterministic `DomainRuleError` (`calendar.<date>: meal plan not found`) instead of returning `None`.
+- CLI calendar persistence should resolve storage from `MEALPLAN_CALENDAR_STORE_PATH` when set and otherwise use `~/.mealplan/calendar.json` so saves are stable across working directories and easily isolated in tests.
 
 Started: Mon Apr  6 17:09:55 CEST 2026
 ---
@@ -24,4 +25,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - This environment lacks `.venv/bin/uv`, so `make quality` fails; use `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` directly for reliable local quality checks.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Deterministic not-found behavior is encoded as `DomainRuleError`, which aligns with future CLI `ExitCode.DOMAIN` handling for missing calendar dates.
+---
+## 2026-04-06 17:24:47 CEST - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
+- What was implemented
+- Extended `mealplan calculate` with required `--date` input (`YYYYMMDD`) and persisted successful calculation responses under that date via `JsonCalendarStore`.
+- Added CLI storage-path resolution using `MEALPLAN_CALENDAR_STORE_PATH` override and default fallback `~/.mealplan/calendar.json`.
+- Preserved calculate output behavior for `json|text|table` while adding save-on-success overwrite semantics for existing date entries.
+- Added CLI coverage for persistence save, overwrite behavior, and invalid `--date` validation (`exit code 2`).
+- Files changed
+- src/mealplan/cli/main.py
+- tests/cli/test_calculate.py
+- tests/cli/test_error_handling.py
+- tests/golden/test_cli_golden.py
+- scripts/ralph/prd.json
+- scripts/ralph/progress.txt
+- AGENT.md
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- CLI-related test suites centralize required command args in `_required_calculate_args()` helpers; update those first when introducing required flags.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- Some subprocess/golden fixtures build calculate args inline, so helper updates alone do not cover all required-flag callsites.
+- Useful context (e.g., "the evaluation panel is in component X")
+- `JsonCalendarStore.save(...)` already enforces canonical date validation and overwrite behavior, so CLI command logic can delegate date-key rules directly to infrastructure.
 ---

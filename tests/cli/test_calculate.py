@@ -6,12 +6,13 @@ import json
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
-from mealplan.cli.main import app
+from mealplan.cli.main import CALENDAR_STORE_PATH_ENV, app
 from mealplan.domain.model import CANONICAL_MEAL_ORDER
 
 runner = CliRunner()
@@ -39,6 +40,8 @@ def _required_calculate_args() -> list[str]:
         "low",
         "--training-tomorrow",
         "high",
+        "--date",
+        "20260406",
     ]
 
 
@@ -146,6 +149,62 @@ def test_calculate_output_uses_service_response_payload(monkeypatch) -> None:
     assert json.loads(result.stdout) == expected.model_dump(mode="json")
 
 
+def test_calculate_command_persists_response_payload_by_date(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "calendar.json"
+    expected = MealPlanResponse.placeholder()
+
+    class FakeCalculationService:
+        def calculate(self, request: object) -> MealPlanResponse:
+            _ = request
+            return expected
+
+    monkeypatch.setenv(CALENDAR_STORE_PATH_ENV, str(storage_path))
+    monkeypatch.setattr(
+        "mealplan.cli.main.MealPlanCalculationService",
+        FakeCalculationService,
+    )
+
+    result = runner.invoke(app, _required_calculate_args())
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == expected.model_dump(mode="json")
+    persisted = json.loads(storage_path.read_text(encoding="utf-8"))
+    assert persisted == {"20260406": expected.model_dump(mode="json")}
+
+
+def test_calculate_command_overwrites_existing_date_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "calendar.json"
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    storage_path.write_text(
+        json.dumps({"20260406": {"old": "value"}}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    expected = MealPlanResponse.placeholder()
+
+    class FakeCalculationService:
+        def calculate(self, request: object) -> MealPlanResponse:
+            _ = request
+            return expected
+
+    monkeypatch.setenv(CALENDAR_STORE_PATH_ENV, str(storage_path))
+    monkeypatch.setattr(
+        "mealplan.cli.main.MealPlanCalculationService",
+        FakeCalculationService,
+    )
+
+    result = runner.invoke(app, _required_calculate_args())
+
+    assert result.exit_code == 0
+    persisted = json.loads(storage_path.read_text(encoding="utf-8"))
+    assert persisted["20260406"] == expected.model_dump(mode="json")
+
+
 def test_calculate_command_emits_non_fatal_warnings_to_stderr(monkeypatch) -> None:
     warning = (
         "meal_assembly.protein_reduction: reduced breakfast protein from 40.00g to 33.33g "
@@ -195,6 +254,8 @@ def test_calculate_command_runs_with_canonical_flags() -> None:
             "low",
             "--training-tomorrow",
             "high",
+            "--date",
+            "20260406",
             "--training-zones",
             '{"1": 20, "2": 40, "3": 0, "4": 0, "5": 0}',
             "--training-before",
@@ -348,6 +409,8 @@ def test_calculate_missing_required_option_returns_validation_exit_code() -> Non
             "low",
             "--training-tomorrow",
             "high",
+            "--date",
+            "20260406",
         ],
         check=False,
         capture_output=True,
@@ -381,6 +444,8 @@ def test_calculate_invalid_enum_option_returns_validation_exit_code() -> None:
             "low",
             "--training-tomorrow",
             "high",
+            "--date",
+            "20260406",
         ],
         check=False,
         capture_output=True,
@@ -459,6 +524,8 @@ def test_calculate_invalid_format_choice_returns_validation_exit_code() -> None:
             "low",
             "--training-tomorrow",
             "high",
+            "--date",
+            "20260406",
             "--format",
             "xml",
         ],
@@ -471,6 +538,39 @@ def test_calculate_invalid_format_choice_returns_validation_exit_code() -> None:
     stderr = _normalized_stderr(result.stderr)
     assert "Invalid value" in stderr
     assert "--format" in stderr
+
+
+def test_calculate_invalid_date_format_returns_validation_exit_code() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "calculate",
+            "--age",
+            "40",
+            "--gender",
+            "male",
+            "--height",
+            "180",
+            "--weight",
+            "75",
+            "--activity",
+            "medium",
+            "--carbs",
+            "low",
+            "--training-tomorrow",
+            "high",
+            "--date",
+            "2026-04-06",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "Error: date: expected YYYYMMDD" in result.stderr
 
 
 def test_calculate_training_fields_are_parsed_then_validated_by_application() -> None:
@@ -494,6 +594,8 @@ def test_calculate_training_fields_are_parsed_then_validated_by_application() ->
             "low",
             "--training-tomorrow",
             "high",
+            "--date",
+            "20260406",
             "--training-zones",
             '{"2": 45}',
         ],
@@ -530,6 +632,8 @@ def test_calculate_training_before_training_is_semantic_validation_error() -> No
             "low",
             "--training-tomorrow",
             "high",
+            "--date",
+            "20260406",
             "--training-before",
             "training",
         ],
@@ -563,6 +667,8 @@ def test_calculate_training_zones_accepts_json_string_input() -> None:
             "low",
             "--training-tomorrow",
             "high",
+            "--date",
+            "20260406",
             "--training-zones",
             '{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}',
             "--format",
@@ -599,6 +705,8 @@ def test_calculate_training_zones_invalid_json_returns_validation_exit_code() ->
             "low",
             "--training-tomorrow",
             "high",
+            "--date",
+            "20260406",
             "--training-zones",
             "{",
         ],
