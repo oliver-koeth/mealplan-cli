@@ -139,8 +139,19 @@ def test_ui_server_settings_shell_includes_typed_settings_controls_and_storage_s
     assert '<input name="weight_kg" type="number" min="1" step="0.1" required />' in html
     assert '<input name="vo2max" type="number" min="10" max="100" step="1" />' in html
     assert '<select name="carb_mode" required>' in html
+    assert "<h2>UI Settings</h2>" in html
+    assert '<select name="ui_theme" required>' in html
+    assert '<option value="light">Light</option>' in html
+    assert '<option value="dark">Dark</option>' in html
+    assert '<select name="ui_language" required>' in html
+    assert '<option value="en">English</option>' in html
     assert "const settingsStorageKey = " in html
+    assert 'const supportedThemes = new Set(["light", "dark"]);' in html
+    assert "applyTheme(persistedTheme);" in html
+    assert "documentElement.dataset.theme = resolvedTheme;" in html
     assert 'bindLocalStorageForm(settingsForm, settingsStorageKey,' in html
+    assert '"ui_theme",' in html
+    assert '"ui_language",' in html
     assert 'window.localStorage.getItem(storageKey)' in html
     assert 'window.localStorage.setItem(storageKey, JSON.stringify(readValues()));' in html
 
@@ -213,6 +224,9 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert "const meals = [...rawMeals].sort" in html
     assert '["TDEE", scaledResults.TDEE, "kcal"]' in html
     assert "Displayed total: " in html
+    assert 'training_load_tomorrow: calculateSnapshot.training_load_tomorrow ?? "",' in html
+    assert "training_session: {" in html
+    assert "training_session: {\n              training_load_tomorrow:" not in html
     assert 'training_session: {' in html
     assert '"1": parseMinutes(calculateSnapshot.zone_1_minutes)' in html
 
@@ -294,3 +308,121 @@ def test_ui_server_calculate_maps_unexpected_error_to_http_500(
     assert payload["error"]["message"] == "Internal server error."
     assert isinstance(payload["error"]["request_id"], str)
     assert "details" not in payload["error"]
+
+
+def test_ui_server_calculate_maps_response_validation_error_to_http_422(
+    monkeypatch: pytest.MonkeyPatch,
+    meal_plan_request_payload: dict[str, Any],
+) -> None:
+    invalid_response_payload = {
+        "TDEE": 1997.19,
+        "training_kcal": 512.66,
+        "protein_g": 120.0,
+        "carbs_g": 240.0,
+        "fat_g": 90.0,
+        "total_kcal": 2509.84,
+        "meals": [
+            {
+                "meal": "training",
+                "carbs_strategy": "high",
+                "carbs_g": 60.0,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "kcal": 240.0,
+            },
+            {
+                "meal": "breakfast",
+                "carbs_strategy": "low",
+                "carbs_g": 30.0,
+                "protein_g": 20.0,
+                "fat_g": 15.0,
+                "kcal": 450.0,
+            },
+            {
+                "meal": "morning-snack",
+                "carbs_strategy": "low",
+                "carbs_g": 20.0,
+                "protein_g": 10.0,
+                "fat_g": 10.0,
+                "kcal": 225.0,
+            },
+            {
+                "meal": "lunch",
+                "carbs_strategy": "low",
+                "carbs_g": 30.0,
+                "protein_g": 20.0,
+                "fat_g": 15.0,
+                "kcal": 450.0,
+            },
+            {
+                "meal": "afternoon-snack",
+                "carbs_strategy": "low",
+                "carbs_g": 20.0,
+                "protein_g": 10.0,
+                "fat_g": 10.0,
+                "kcal": 225.0,
+            },
+            {
+                "meal": "dinner",
+                "carbs_strategy": "low",
+                "carbs_g": 30.0,
+                "protein_g": 20.0,
+                "fat_g": 15.0,
+                "kcal": 450.0,
+            },
+            {
+                "meal": "evening-snack",
+                "carbs_strategy": "low",
+                "carbs_g": 20.0,
+                "protein_g": 10.0,
+                "fat_g": 25.0,
+                "kcal": 469.84,
+            },
+        ],
+    }
+
+    class RaisingCalculationService:
+        def calculate(self, request: object) -> MealPlanResponse:
+            _ = request
+            return MealPlanResponse.model_validate(invalid_response_payload)
+
+    monkeypatch.setattr(ui_server, "MealPlanCalculationService", RaisingCalculationService)
+
+    with _running_test_server() as port:
+        status, payload = _post_json_expect_http_error(
+            port,
+            "/api/v1/calculate",
+            meal_plan_request_payload,
+        )
+
+    assert status == 422
+    assert payload["error"]["code"] == "response_validation_error"
+    assert payload["error"]["message"] == "Calculation response validation failed."
+    assert isinstance(payload["error"]["request_id"], str)
+    assert payload["error"]["details"] == [
+        {"message": "Value error, total_kcal must equal TDEE + training_kcal"}
+    ]
+
+
+def test_ui_server_calculate_accepts_medium_activity_regression() -> None:
+    payload = {
+        "age": 18,
+        "gender": "male",
+        "height_cm": 150,
+        "weight_kg": 60.0,
+        "activity_level": "medium",
+        "carb_mode": "low",
+        "training_load_tomorrow": "low",
+        "training_session": {
+            "zones_minutes": {"1": 10, "2": 20, "3": 30, "4": 0, "5": 0},
+            "training_before_meal": "breakfast",
+        },
+    }
+
+    with _running_test_server() as port:
+        status, response = _post_json(port, "/api/v1/calculate", payload)
+
+    assert status == 200
+    assert response["TDEE"] == 1997.19
+    assert response["training_kcal"] == 512.66
+    assert response["total_kcal"] == 2509.85

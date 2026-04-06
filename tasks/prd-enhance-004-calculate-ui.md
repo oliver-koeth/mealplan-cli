@@ -39,7 +39,7 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - [ ] The browser app shell loads successfully from the local server in both light and dark themes.
 - [ ] Typecheck passes.
 - [ ] Tests pass.
-- [ ] Verify in browser using dev-browser skill.
+- [ ] Verify in local browser.
 
 ### US-002: Expose the calculate API through the local web adapter
 **Description:** As the web UI, I want a local calculate endpoint that reuses the existing application service so that browser requests return the same canonical meal-plan response as the CLI.
@@ -67,7 +67,7 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - [ ] The app shell supports both light and dark mode without changing component structure.
 - [ ] Typecheck passes.
 - [ ] Tests pass.
-- [ ] Verify in browser using dev-browser skill.
+- [ ] Verify in local browser.
 
 ### US-004: Capture stable athlete settings with local storage restore
 **Description:** As a repeat user, I want stable athlete settings stored separately and restored automatically so that I do not have to re-enter profile data each time I open the UI.
@@ -81,7 +81,7 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - [ ] The page uses grouped, low-noise form cards consistent with the style guide.
 - [ ] Typecheck passes.
 - [ ] Tests pass.
-- [ ] Verify in browser using dev-browser skill.
+- [ ] Verify in local browser.
 
 ### US-005: Capture day-specific calculation inputs with type-appropriate controls
 **Description:** As a user planning a specific day, I want a calculate form with day-only inputs and explicit zone-minute fields so that I can enter the day’s training context without JSON or guesswork.
@@ -97,7 +97,7 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - [ ] The UI does not expose the semantically invalid CLI-only value `training_before=training`.
 - [ ] Typecheck passes.
 - [ ] Tests pass.
-- [ ] Verify in browser using dev-browser skill.
+- [ ] Verify in local browser.
 
 ### US-006: Submit combined settings and day inputs to the calculate API
 **Description:** As a user, I want the calculate action to combine both forms and call the local API so that one click produces a meal plan from all current inputs.
@@ -111,7 +111,7 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - [ ] Validation and API errors are rendered inline in concise card or panel form consistent with the style guide.
 - [ ] Typecheck passes.
 - [ ] Tests pass.
-- [ ] Verify in browser using dev-browser skill.
+- [ ] Verify in local browser.
 
 ### US-007: Render the meal-plan results panel state with totals and meal cards
 **Description:** As a user, I want a dedicated panel-like results view state inside calculate that shows the returned plan clearly so that I can review totals and meal details without leaving the calculate workflow.
@@ -125,7 +125,7 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - [ ] Results cannot be directly navigated to by route/URL entry and are only available after a successful calculate submit.
 - [ ] Typecheck passes.
 - [ ] Tests pass.
-- [ ] Verify in browser using dev-browser skill.
+- [ ] Verify in local browser.
 
 ### US-008: Add display-only kcal scaling and placeholder save behavior
 **Description:** As a user, I want to inspect the plan at slightly higher or lower calorie totals so that I can evaluate simple adjustments before a real save/export workflow exists.
@@ -141,22 +141,21 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - [ ] After `Save`, the current results state is cleared and remains hidden until a new calculation is triggered.
 - [ ] Typecheck passes.
 - [ ] Tests pass.
-- [ ] Verify in browser using dev-browser skill.
+- [ ] Verify in local browser.
 
 ### US-009: Keep web UI tests, packaging, and canonical docs aligned
 **Description:** As a maintainer, I want the new UI workflow documented and regression-tested so that the web adapter and browser flow remain stable after rollout.
 
 **Acceptance Criteria:**
 - [ ] Add automated coverage for the local web adapter and calculate API behavior.
-- [ ] Add automated frontend coverage for settings restore, calculate-form submission, results rendering, and scaling behavior.
-- [ ] Production UI assets are served through the Python package so installed UI mode does not require a separate Node server at runtime.
-- [ ] Development workflow is documented and supported as dual-process mode: Angular dev server (`ng serve`) plus local FastAPI backend.
-- [ ] Angular dev server uses API proxying to the local FastAPI backend in development.
-- [ ] Release/CI workflow builds Angular production assets and embeds them into Python package artifacts.
+- [ ] Add automated UI-shell coverage for settings restore, calculate-form submission, results rendering, and scaling behavior.
+- [ ] Installed UI mode runs via the Python package without requiring a separate frontend runtime.
+- [ ] Development workflow is documented as the Python `mealplan --ui` flow with local REST API served in-process.
+- [ ] User-facing launch docs describe the `Settings`/`Calculate` routes and local API routes.
 - [ ] Update `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `docs/PLAN.md`, and any user-facing launch documentation to describe the new UI/API workflow.
 - [ ] Typecheck passes.
 - [ ] Tests pass.
-- [ ] Verify in browser using dev-browser skill.
+- [ ] Verify in local browser.
 
 ## 4. Functional Requirements
 
@@ -196,10 +195,10 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - FR-34: Results state must be visible only after a successful calculate action and must be cleared after `Save`.
 - FR-35: The UI must follow the visual direction defined in `docs/STYLEGUIDE.md`.
 - FR-36: The UI must support both light and dark themes.
-- FR-37: Installed UI mode must not require a separate manually started Node runtime in production usage.
-- FR-38: Development workflow must support dual-process mode with Angular dev server and local FastAPI backend.
-- FR-39: Development workflow must support API proxying from Angular dev server to local FastAPI.
-- FR-40: Release/CI workflow must build Angular production assets and embed them into Python package artifacts before publish/install usage.
+- FR-37: Installed UI mode must not require a separate manually started frontend runtime in production usage.
+- FR-38: Development workflow must support running the UI via `mealplan --ui` with local API routes served in-process.
+- FR-39: User-facing launch documentation must describe `Settings`/`Calculate` UI routes and `/api/v1/health` plus `/api/v1/calculate`.
+- FR-40: CI/install smoke validation must include packaged UI-mode startup and local API health checks.
 - FR-41: UI mode server bind host must default to `127.0.0.1`.
 - FR-42: UI mode server must prefer port `8765`.
 - FR-43: On collision at `8765`, UI mode server must probe `8766..8775` sequentially and bind the first free port.
@@ -236,8 +235,8 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - The browser should store only input state in local storage; result payload persistence is explicitly out of scope.
 - The app must bridge the current CLI/application request contract to a browser-friendly form model, especially for separate zone-minute fields.
 - `height` belongs on the `Settings` page even though it was not explicitly listed in the original request examples, because it is a required stable athlete input in the canonical request contract.
-- Runtime packaging must support installed UI usage without a separate Node server process.
-- Chosen workflow is Option `1+3`: dual-process local development and release-time frontend asset embedding.
+- Runtime packaging must support installed UI usage without a separate frontend server process.
+- Chosen workflow is single-process Python UI serving for both development and installed runtime.
 
 ## 8. Success Metrics
 
@@ -246,7 +245,7 @@ The enhancement must preserve the existing Python calculation engine as the sing
 - Training-zone entry in the browser is done through separate zone fields rather than JSON text.
 - The browser UI uses the canonical API and returns the same structured response semantics as the CLI path.
 - The results panel state clearly presents totals and meals, is entered only after calculate submit, and supports deterministic `100 kcal` scaling with scaled top-level macros and a 1% rounding tolerance.
-- Type checking, automated tests, and browser verification pass for the delivered workflow.
+- Type checking, automated tests, and local browser verification pass for the delivered workflow.
 
 ## 9. Open Questions
 
@@ -287,10 +286,9 @@ The enhancement must preserve the existing Python calculation engine as the sing
 
 ### Phase E: Hardening and Documentation
 
-1. Add backend and frontend automated tests for the browser flow.
-2. Add browser verification coverage for the key UI stories.
-3. Package production UI assets for installed local runtime use.
-4. Implement and document the dual-process dev workflow (`ng serve` + FastAPI with API proxy).
-5. Implement and document release/CI asset build and embedding into Python package artifacts.
-6. Update canonical docs and launch guidance for the new UI/API workflow.
-7. Run full quality gates: typecheck and tests.
+1. Add automated tests for local web adapter and UI-shell browser-flow behavior.
+2. Add local browser verification coverage for the key UI stories.
+3. Validate packaged local runtime usage through `mealplan --ui` install-smoke checks.
+4. Implement and document the Python single-process dev workflow (`mealplan --ui`).
+5. Update canonical docs and launch guidance for the new UI/API workflow.
+6. Run full quality gates: typecheck and tests.

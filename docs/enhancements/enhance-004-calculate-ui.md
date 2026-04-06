@@ -70,10 +70,10 @@ The requested enhancement adds a local web UI, aligned with the existing style g
 - The web UI is a presentation layer only and must not duplicate nutrition logic already owned by the Python application/domain layers.
 - The browser must call the in-process local REST API; the UI must not shell out to `mealplan calculate`.
 - Chosen build/dev workflow for this enhancement:
-  - Development runs Angular dev server and FastAPI as separate local processes.
-  - Angular dev server proxies API requests to the local FastAPI backend.
-  - Release/CI builds Angular production assets and embeds them into the Python package.
-  - Installed/local runtime serves packaged static assets and does not require Angular dev server.
+  - Development and runtime use the Python `mealplan --ui` local server directly.
+  - The same Python process serves UI routes and local API routes.
+  - No separate frontend runtime (for example Node/Angular dev server) is required.
+  - Release/CI validation uses the packaged Python CLI/UI paths.
 - Local server lifecycle for UI mode is fixed:
   - bind host: `127.0.0.1`
   - preferred port: `8765`
@@ -178,7 +178,7 @@ The requested enhancement adds a local web UI, aligned with the existing style g
   - 1% tolerance checks for rounded scaled totals vs summed displayed meals/macros
   - current placeholder behavior of the `Save` action, including result-state dismissal until next calculation
 - Core docs are updated during implementation because this enhancement introduces canonical local UI/API behavior, a new user workflow, and concrete frontend/backend adapter responsibilities.
-- Documentation includes the chosen Option `1+3` workflow: dual-process development and release-time frontend asset embedding into the Python package.
+- Documentation describes the implemented single-process Python-served UI/API workflow and packaged CLI/UI runtime behavior.
 
 ## Open questions
 - None for this enhancement scope after applying the current assumptions.

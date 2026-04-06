@@ -14,6 +14,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from string import Template
 from uuid import uuid4
 
+from pydantic import ValidationError as PydanticValidationError
+
 from mealplan.application.contracts import MealPlanRequest
 from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
@@ -34,7 +36,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
     <title>Mealplan UI</title>
     <style>
       :root {
-        color-scheme: light dark;
+        color-scheme: light;
         --canvas: #f8fafc;
         --surface: #ffffff;
         --surface-muted: #f1f5f9;
@@ -47,19 +49,22 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         --link-active: #0f172a;
       }
 
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --canvas: #020617;
-          --surface: #0f172a;
-          --surface-muted: #1e293b;
-          --border: #1f2937;
-          --text: #e2e8f0;
-          --text-muted: #cbd5e1;
-          --text-subtle: #94a3b8;
-          --shadow: rgba(2, 6, 23, 0.5);
-          --header: rgba(2, 6, 23, 0.85);
-          --link-active: #f8fafc;
-        }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --canvas: #020617;
+        --surface: #0f172a;
+        --surface-muted: #1e293b;
+        --border: #1f2937;
+        --text: #e2e8f0;
+        --text-muted: #cbd5e1;
+        --text-subtle: #94a3b8;
+        --shadow: rgba(2, 6, 23, 0.5);
+        --header: rgba(2, 6, 23, 0.85);
+        --link-active: #f8fafc;
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
       }
 
       * {
@@ -71,7 +76,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         color: var(--text);
         background:
-          radial-gradient(circle at top left, rgba(14, 165, 233, 0.1), transparent 45%),
+          linear-gradient(180deg, rgba(148, 163, 184, 0.12), transparent 240px),
           var(--canvas);
       }
 
@@ -161,6 +166,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--text-subtle);
+      }
+
+      .calculate-section-label {
+        margin-bottom: 0.7rem;
       }
 
       h1 {
@@ -444,6 +453,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       (() => {
         const settingsStorageKey = "mealplan.ui.settings.v1";
         const calculateStorageKey = "mealplan.ui.calculate.v1";
+        const supportedThemes = new Set(["light", "dark"]);
 
         const readLocalStorageObject = (storageKey) => {
           const raw = window.localStorage.getItem(storageKey);
@@ -497,6 +507,18 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           form.addEventListener("change", persistValues);
         };
 
+        const applyTheme = (themeValue) => {
+          const documentElement = document.documentElement;
+          const resolvedTheme = supportedThemes.has(themeValue) ? themeValue : "light";
+          documentElement.dataset.theme = resolvedTheme;
+        };
+
+        const settingsSnapshot = readLocalStorageObject(settingsStorageKey);
+        const persistedTheme = (
+          typeof settingsSnapshot.ui_theme === "string" ? settingsSnapshot.ui_theme : ""
+        );
+        applyTheme(persistedTheme);
+
         const readFormValues = (form, fields) => {
           if (!form) {
             return {};
@@ -535,7 +557,18 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           "weight_kg",
           "vo2max",
           "carb_mode",
+          "ui_theme",
+          "ui_language",
         ]);
+        if (settingsForm) {
+          const themeControl = settingsForm.elements.namedItem("ui_theme");
+          if (themeControl && "value" in themeControl) {
+            applyTheme(themeControl.value);
+            settingsForm.addEventListener("change", () => {
+              applyTheme(themeControl.value);
+            });
+          }
+        }
 
         const calculateForm = document.querySelector('[data-calculate-form="true"]');
         bindLocalStorageForm(calculateForm, calculateStorageKey, [
@@ -918,8 +951,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             weight_kg: parseNumberOrNull(settingsSnapshot.weight_kg),
             carb_mode: settingsSnapshot.carb_mode ?? "",
             activity_level: calculateSnapshot.activity_level ?? "",
+            training_load_tomorrow: calculateSnapshot.training_load_tomorrow ?? "",
             training_session: {
-              training_load_tomorrow: calculateSnapshot.training_load_tomorrow ?? "",
               training_before_meal: calculateSnapshot.training_before_meal || null,
               zones_minutes: {
                 "1": parseMinutes(calculateSnapshot.zone_1_minutes),
@@ -1051,6 +1084,22 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                 </label>
               </div>
             </section>
+            <section class="form-card">
+              <h2>UI Settings</h2>
+              <div class="field-grid">
+                <label>Theme
+                  <select name="ui_theme" required>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </label>
+                <label>Language
+                  <select name="ui_language" required>
+                    <option value="en">English</option>
+                  </select>
+                </label>
+              </div>
+            </section>
           </form>
           <p class="hint">Settings are saved automatically in this browser.</p>
         """,
@@ -1063,7 +1112,7 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
             "calculation against your saved settings."
         ),
         "content_html": """
-          <p class="section-label">Day Inputs</p>
+          <p class="section-label calculate-section-label">Day Inputs/Results</p>
           <section class="input-state" data-calculate-input-state="true">
             <form class="form-stack" data-calculate-form="true">
               <section class="form-card">
@@ -1306,6 +1355,15 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
                 details=[_error_detail_from_exception(error)],
             )
             return
+        except PydanticValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                code="response_validation_error",
+                message="Calculation response validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_pydantic_validation(error)],
+            )
+            return
         except Exception:  # noqa: BLE001
             self._write_api_error(
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -1391,6 +1449,15 @@ def _error_detail_from_exception(error: Exception) -> dict[str, str]:
     if not field:
         return {"message": detail or "Invalid request."}
     return {"field": field, "message": detail or "Invalid request."}
+
+
+def _error_detail_from_pydantic_validation(error: PydanticValidationError) -> dict[str, str]:
+    first_error = error.errors()[0]
+    path = ".".join(str(part) for part in first_error.get("loc", ()))
+    message = str(first_error.get("msg", "Invalid response.")).strip()
+    if path:
+        return {"field": path, "message": message or "Invalid response."}
+    return {"message": message or "Invalid response."}
 
 
 def run_ui_server() -> None:
