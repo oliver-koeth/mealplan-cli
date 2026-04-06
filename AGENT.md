@@ -129,6 +129,7 @@ When in doubt, update those source docs instead of expanding this file.
 98. For calculate results UX, keep rendering in a hidden in-page state (`data-calculate-results-state`) toggled from the input state (`data-calculate-input-state`) after successful submit; do not expose a direct results route.
 99. For display-only kcal scaling in calculate results, keep the API payload as an immutable baseline (`total_kcal` reference), apply proportional scaling only at render time in +/-100 kcal steps, and let `Save` clear transient results state without persisting data.
 100. For installability checks, verify packaged `--ui` behavior from the installed wheel by launching `mealplan --ui` and asserting `/calculate`, `/api/v1/health`, and `POST /api/v1/calculate` succeed without any Node.js runtime.
+101. For date-keyed meal-plan persistence, reuse `src/mealplan/infrastructure/calendar_store.py::JsonCalendarStore`; it enforces canonical `YYYYMMDD` keys, auto-creates the JSON file with `{}` root, overwrites existing date payloads, and raises `DomainRuleError` (`calendar.<date>: meal plan not found`) for missing entries.
 
 ## Ralph Runner
 
