@@ -114,7 +114,8 @@ def test_ui_mode_starts_on_fallback_port_serves_shell_and_health_then_gracefully
                 shell_html = shell_response.read().decode("utf-8")
                 assert shell_response.status == 200
             assert "Mealplan UI" in shell_html
-            assert "prefers-color-scheme: dark" in shell_html
+            assert ':root[data-theme="dark"]' in shell_html
+            assert 'documentElement.dataset.theme = resolvedTheme;' in shell_html
 
             with urllib.request.urlopen(  # noqa: S310
                 f"http://{UI_HOST}:{port}/api/v1/health", timeout=2
