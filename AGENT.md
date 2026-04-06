@@ -132,6 +132,7 @@ When in doubt, update those source docs instead of expanding this file.
 101. For date-keyed meal-plan persistence, reuse `src/mealplan/infrastructure/calendar_store.py::JsonCalendarStore`; it enforces canonical `YYYYMMDD` keys, auto-creates the JSON file with `{}` root, overwrites existing date payloads, and raises `DomainRuleError` (`calendar.<date>: meal plan not found`) for missing entries.
 102. For CLI calendar persistence wiring, resolve the storage path via `MEALPLAN_CALENDAR_STORE_PATH` when set (useful for tests/overrides) and otherwise default to `~/.mealplan/calendar.json` so date saves are stable across working directories.
 103. For CLI calendar retrieval, parse persisted payloads through `parse_contract(MealPlanResponse, payload)` and render with `_render_output(...)` so `calendar --format` stays behaviorally aligned with `calculate --format` across `json|text|table`.
+104. For UI calendar API handlers (`/api/v1/calendar/{date}`), normalize the path segment to canonical `YYYYMMDD` before store access, persist/retrieve via `JsonCalendarStore`, and map missing dates to HTTP `404` with canonical envelope code `calendar_not_found` plus `details` derived from `calendar.<date>: meal plan not found`.
 
 ## Ralph Runner
 

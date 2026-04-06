@@ -9,16 +9,20 @@ import socketserver
 import threading
 import time
 from collections.abc import Mapping
+from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from string import Template
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from pydantic import ValidationError as PydanticValidationError
 
-from mealplan.application.contracts import MealPlanRequest
+from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
 from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
+from mealplan.infrastructure import JsonCalendarStore
 from mealplan.shared.errors import DomainRuleError, ValidationError
 
 UI_HOST = "127.0.0.1"
@@ -27,6 +31,8 @@ UI_PORT_END = 8775
 SHUTDOWN_DRAIN_SECONDS = 5.0
 UI_PORT_START_ENV = "MEALPLAN_UI_PORT_START"
 UI_PORT_END_ENV = "MEALPLAN_UI_PORT_END"
+CALENDAR_STORE_PATH_ENV = "MEALPLAN_CALENDAR_STORE_PATH"
+_DATE_KEY_FORMAT = "%Y%m%d"
 
 _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 <html lang="en">
@@ -1309,14 +1315,19 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
             self.server.note_request_finished()
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path in ("/", "/calculate"):
+        path = self._request_path()
+        if path in ("/", "/calculate"):
             self._write_html(_render_app_shell("calculate"))
             return
-        if self.path == "/settings":
+        if path == "/settings":
             self._write_html(_render_app_shell("settings"))
             return
-        if self.path == "/api/v1/health":
+        if path == "/api/v1/health":
             self._write_json(HTTPStatus.OK, {"status": "ok"})
+            return
+        calendar_date = _calendar_date_from_path(path)
+        if calendar_date is not None:
+            self._handle_calendar_get(calendar_date)
             return
         self._write_json(
             HTTPStatus.NOT_FOUND,
@@ -1324,7 +1335,8 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         )
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path != "/api/v1/calculate":
+        path = self._request_path()
+        if path != "/api/v1/calculate":
             self._write_json(
                 HTTPStatus.NOT_FOUND,
                 {"error": {"code": "not_found", "message": "Not found"}},
@@ -1374,6 +1386,101 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
             return
 
         self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
+
+    def do_PUT(self) -> None:  # noqa: N802
+        path = self._request_path()
+        calendar_date = _calendar_date_from_path(path)
+        if calendar_date is None:
+            self._write_json(
+                HTTPStatus.NOT_FOUND,
+                {"error": {"code": "not_found", "message": "Not found"}},
+            )
+            return
+
+        self._handle_calendar_put(calendar_date)
+
+    def _handle_calendar_get(self, date_key: str) -> None:
+        request_id = str(uuid4())
+        store = JsonCalendarStore(_calendar_store_path())
+        try:
+            canonical_date = _normalize_calendar_date(date_key)
+            response_payload = store.get(date_key=canonical_date)
+            response = parse_contract(MealPlanResponse, response_payload)
+        except ValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.BAD_REQUEST,
+                code="validation_error",
+                message="Request validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except DomainRuleError as error:
+            if _is_calendar_not_found_error(error):
+                self._write_api_error(
+                    status=HTTPStatus.NOT_FOUND,
+                    code="calendar_not_found",
+                    message="Meal plan not found for requested date.",
+                    request_id=request_id,
+                    details=[_error_detail_from_exception(error)],
+                )
+                return
+            self._write_api_error(
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                code="domain_rule_error",
+                message="Meal-plan domain rule failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except Exception:  # noqa: BLE001
+            self._write_api_error(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                code="internal_error",
+                message="Internal server error.",
+                request_id=request_id,
+            )
+            return
+        self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
+
+    def _handle_calendar_put(self, date_key: str) -> None:
+        request_id = str(uuid4())
+        store = JsonCalendarStore(_calendar_store_path())
+        try:
+            payload = self._read_json_payload()
+            response = parse_contract(MealPlanResponse, payload)
+            canonical_date = _normalize_calendar_date(date_key)
+            store.save(date_key=canonical_date, payload=response.model_dump(mode="json"))
+        except ValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.BAD_REQUEST,
+                code="validation_error",
+                message="Request validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except DomainRuleError as error:
+            self._write_api_error(
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                code="domain_rule_error",
+                message="Meal-plan domain rule failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except Exception:  # noqa: BLE001
+            self._write_api_error(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                code="internal_error",
+                message="Internal server error.",
+                request_id=request_id,
+            )
+            return
+        self._write_json(HTTPStatus.OK, {"date": canonical_date})
+
+    def _request_path(self) -> str:
+        return urlsplit(self.path).path
 
     def _read_json_payload(self) -> object:
         content_length_value = self.headers.get("Content-Length", "0")
@@ -1458,6 +1565,39 @@ def _error_detail_from_pydantic_validation(error: PydanticValidationError) -> di
     if path:
         return {"field": path, "message": message or "Invalid response."}
     return {"message": message or "Invalid response."}
+
+
+def _calendar_store_path() -> Path:
+    configured_path = os.environ.get(CALENDAR_STORE_PATH_ENV)
+    if configured_path:
+        return Path(configured_path).expanduser()
+    return Path.home() / ".mealplan" / "calendar.json"
+
+
+def _calendar_date_from_path(path: str) -> str | None:
+    prefix = "/api/v1/calendar/"
+    if not path.startswith(prefix):
+        return None
+    date_key = path.removeprefix(prefix)
+    if not date_key or "/" in date_key:
+        return None
+    return date_key
+
+
+def _is_calendar_not_found_error(error: DomainRuleError) -> bool:
+    message = str(error).strip()
+    return message.startswith("calendar.") and message.endswith(": meal plan not found")
+
+
+def _normalize_calendar_date(date_key: str) -> str:
+    try:
+        parsed = datetime.strptime(date_key, _DATE_KEY_FORMAT)
+    except ValueError as error:
+        raise ValidationError("date: expected YYYYMMDD") from error
+    canonical = parsed.strftime(_DATE_KEY_FORMAT)
+    if canonical != date_key:
+        raise ValidationError("date: expected YYYYMMDD")
+    return canonical
 
 
 def run_ui_server() -> None:

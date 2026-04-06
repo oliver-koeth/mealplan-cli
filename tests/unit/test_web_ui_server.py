@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -84,6 +85,52 @@ def _post_json_expect_http_error(port: int, path: str, payload: object) -> tuple
     return http_error.code, parsed
 
 
+def _put_json(port: int, path: str, payload: dict[str, Any]) -> tuple[int, object]:
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="PUT",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
+        return response.status, json.loads(response.read().decode("utf-8"))
+
+
+def _put_json_expect_http_error(port: int, path: str, payload: object) -> tuple[int, object]:
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="PUT",
+    )
+    with pytest.raises(urllib.error.HTTPError) as error_info:
+        urllib.request.urlopen(request, timeout=2)  # noqa: S310
+    http_error = error_info.value
+    parsed = json.loads(http_error.read().decode("utf-8"))
+    return http_error.code, parsed
+
+
+def _get_json(port: int, path: str) -> tuple[int, object]:
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
+        return response.status, json.loads(response.read().decode("utf-8"))
+
+
+def _get_json_expect_http_error(port: int, path: str) -> tuple[int, object]:
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        method="GET",
+    )
+    with pytest.raises(urllib.error.HTTPError) as error_info:
+        urllib.request.urlopen(request, timeout=2)  # noqa: S310
+    http_error = error_info.value
+    parsed = json.loads(http_error.read().decode("utf-8"))
+    return http_error.code, parsed
+
+
 def _get_html(port: int, path: str) -> tuple[int, str]:
     request = urllib.request.Request(  # noqa: S310
         url=f"http://{ui_server.UI_HOST}:{port}{path}",
@@ -114,6 +161,88 @@ def test_ui_server_calculate_endpoint_returns_canonical_response_shape(
 
     assert status == 200
     assert payload == meal_plan_response_payload
+
+
+def test_ui_server_calendar_put_and_get_round_trip(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    meal_plan_response_payload: dict[str, Any],
+) -> None:
+    store_path = tmp_path / "calendar.json"
+    monkeypatch.setenv(ui_server.CALENDAR_STORE_PATH_ENV, str(store_path))
+
+    with _running_test_server() as port:
+        put_status, put_payload = _put_json(
+            port,
+            "/api/v1/calendar/20260406",
+            meal_plan_response_payload,
+        )
+        get_status, get_payload = _get_json(port, "/api/v1/calendar/20260406")
+
+    assert put_status == 200
+    assert put_payload == {"date": "20260406"}
+    assert get_status == 200
+    assert get_payload == meal_plan_response_payload
+    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    assert stored == {"20260406": meal_plan_response_payload}
+
+
+def test_ui_server_calendar_put_overwrites_existing_date_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    meal_plan_response_payload: dict[str, Any],
+) -> None:
+    store_path = tmp_path / "calendar.json"
+    monkeypatch.setenv(ui_server.CALENDAR_STORE_PATH_ENV, str(store_path))
+    first_payload = meal_plan_response_payload
+    second_payload = json.loads(json.dumps(meal_plan_response_payload))
+    second_payload["meals"][0]["carbs_strategy"] = "medium"
+
+    with _running_test_server() as port:
+        _put_json(port, "/api/v1/calendar/20260406", first_payload)
+        _put_json(port, "/api/v1/calendar/20260406", second_payload)
+        _, get_payload = _get_json(port, "/api/v1/calendar/20260406")
+
+    assert get_payload == second_payload
+
+
+def test_ui_server_calendar_invalid_date_returns_validation_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    meal_plan_response_payload: dict[str, Any],
+) -> None:
+    monkeypatch.setenv(ui_server.CALENDAR_STORE_PATH_ENV, str(tmp_path / "calendar.json"))
+
+    with _running_test_server() as port:
+        status, payload = _put_json_expect_http_error(
+            port,
+            "/api/v1/calendar/2026-04-06",
+            meal_plan_response_payload,
+        )
+
+    assert status == 400
+    assert payload["error"]["code"] == "validation_error"
+    assert payload["error"]["message"] == "Request validation failed."
+    assert isinstance(payload["error"]["request_id"], str)
+    assert payload["error"]["details"] == [{"field": "date", "message": "expected YYYYMMDD"}]
+
+
+def test_ui_server_calendar_missing_date_returns_structured_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(ui_server.CALENDAR_STORE_PATH_ENV, str(tmp_path / "calendar.json"))
+
+    with _running_test_server() as port:
+        status, payload = _get_json_expect_http_error(port, "/api/v1/calendar/20260406")
+
+    assert status == 404
+    assert payload["error"]["code"] == "calendar_not_found"
+    assert payload["error"]["message"] == "Meal plan not found for requested date."
+    assert isinstance(payload["error"]["request_id"], str)
+    assert payload["error"]["details"] == [
+        {"field": "calendar.20260406", "message": "meal plan not found"}
+    ]
 
 
 def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
