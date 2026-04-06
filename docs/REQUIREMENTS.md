@@ -25,6 +25,7 @@ Provide a deterministic CLI tool that calculates:
 -   Absolute macronutrient targets
 -   Distribution into 6 meals per day
 -   Carb periodization based on training timing and next-day load
+-   Date-keyed persistence so results can be saved and retrieved by calendar day
 
 The tool must be fully machine-executable without ambiguity.
 
@@ -70,6 +71,13 @@ The tool must be fully machine-executable without ambiguity.
   `--format`     enum    json / text / table (default: json)
   `--debug`      flag    Enables traceback output on errors (stderr only)
 
+### Command-Specific Required Parameters
+
+  Command                Required Parameter   Type    Description
+  ---------------------- -------------------- ------- -------------------------------------------
+  `mealplan calculate`   `--date`             string  Target plan date in canonical `YYYYMMDD`
+  `mealplan calendar`    `--date`             string  Lookup date in canonical `YYYYMMDD`
+
 
 ## 3A. Local UI and API Mode
 
@@ -88,6 +96,10 @@ The tool must be fully machine-executable without ambiguity.
 
 -   `GET /api/v1/health` returns `{ "status": "ok" }`.
 -   `POST /api/v1/calculate` accepts canonical `MealPlanRequest` JSON and returns canonical `MealPlanResponse` JSON.
+-   `PUT /api/v1/calendar/{date}` persists a canonical `MealPlanResponse` payload for the requested canonical date.
+-   `GET /api/v1/calendar/{date}` returns the canonical stored meal plan for that date.
+-   Date path parameters are validated/normalized to canonical `YYYYMMDD`.
+-   Calendar retrieval for a missing date returns HTTP `404` with `error.code=calendar_not_found`.
 -   Error mapping:
     - HTTP `400` with `error.code=validation_error` for validation failures
     - HTTP `422` with `error.code=domain_rule_error` for domain rule failures
@@ -338,6 +350,9 @@ JSON structure:
 ### 9.3 Phase 9 CLI Contract Clarifications
 
 -   Canonical production invocation path is `mealplan calculate`.
+-   `mealplan calculate` requires `--date` in canonical `YYYYMMDD` and saves successful results for that date (overwrite-on-save).
+-   `mealplan calendar` retrieves persisted plans by required `--date` and supports `--format json|text|table`.
+-   `mealplan calendar` missing-date retrieval is a domain-class failure and must map to exit code `3`.
 -   `--training-zones` accepts a JSON string only (for example `--training-zones '{"2": 45}'`).
 -   Invalid `--training-zones` JSON is a validation-class failure and must map to exit code `2`.
 -   `--format` supports only `json`, `text`, and `table`; default is `json`.

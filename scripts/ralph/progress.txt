@@ -7,6 +7,7 @@
 - Calculate page defaults should reuse settings-storage keys (`activity_level`, `training_load_tomorrow`, `training_before_meal`) and only backfill from `mealplan.ui.settings.v1` when no day-specific value exists in `mealplan.ui.calculate.v1`.
 - In `ui_server.py` `_APP_SHELL_TEMPLATE`, escape literal JavaScript regex end anchors as `$$` (not `$`) so `string.Template` placeholder substitution does not crash HTML rendering.
 - In `ui_server.py`, when adding a new top-level page, update `_PAGE_CONTENT`, `do_GET` route dispatch, and `_render_app_shell` active-nav substitutions together so navigation and routing stay in sync.
+- Keep calendar-persistence documentation synchronized in the same iteration: update `README.md`, `docs/REQUIREMENTS.md`, and `docs/ARCHITECTURE.md` together whenever CLI `--date`/`calendar`, UI `/calendar`, or `/api/v1/calendar/{date}` contracts change.
 
 Started: Mon Apr  6 17:09:55 CEST 2026
 ---
@@ -162,4 +163,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - In this environment `make quality` fails because `.venv/bin/uv` is absent; run `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` directly.
 - Useful context (e.g., "the evaluation panel is in component X")
 - This repo currently verifies frontend stories through HTML/JS server-shell tests and local UI server HTTP checks, not dedicated browser automation tooling.
+---
+## 2026-04-06 17:47:46 CEST - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
+- What was implemented
+- Updated `README.md` CLI/UI documentation to include canonical date-keyed behavior: required `--date` for `calculate`, new `calendar` command usage, default persistence path/override, and expanded UI/API route lists including `/calendar` and `/api/v1/calendar/{date}`.
+- Updated canonical requirements docs in `docs/REQUIREMENTS.md` to capture date-keyed persistence scope, command-specific required `--date`, calendar API endpoints (`PUT`/`GET`), and CLI exit semantics for missing calendar entries.
+- Updated `docs/ARCHITECTURE.md` to align command model and adapter contracts with implemented behavior (`mealplan calendar`, canonical `YYYYMMDD` date handling, calendar REST endpoints, and read-only Calendar view retrieval flow).
+- Added a reusable documentation-sync convention to `AGENT.md` for all future calendar contract updates.
+- Verified regression stability with quality checks: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (349 passed).
+- Files changed
+- README.md
+- docs/REQUIREMENTS.md
+- docs/ARCHITECTURE.md
+- AGENT.md
+- scripts/ralph/prd.json
+- scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Calendar contract updates are cross-cutting across CLI, UI, and API surfaces; documentation must be treated as part of the contract and updated in lockstep across README and canonical docs.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `make quality` still relies on `.venv/bin/uv` and fails in this environment; run `uv run ...` commands directly for reliable local verification.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Existing regression suites already cover calendar behavior across CLI/API/UI (`tests/cli/test_calculate.py`, `tests/cli/test_calendar.py`, `tests/unit/test_web_ui_server.py`), so this iteration focused on contract-document alignment.
 ---
