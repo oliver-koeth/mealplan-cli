@@ -176,11 +176,13 @@ Completion criteria:
 
 Scope:
 - Add golden-file regression tests for deterministic outputs.
+- Add local web adapter regression coverage for shell routes, API behavior, form state restore wiring, calculate submission flow, and results scaling controls.
 - Finalize docs/examples and package metadata.
-- Verify pip-installable workflow and local invocation.
+- Verify pip-installable workflow, local invocation, and packaged `mealplan --ui` runtime behavior.
 
 Deliverables:
 - Golden snapshots for critical scenarios.
+- UI-mode smoke checks from installed wheel for `/calculate`, `/api/v1/health`, and `POST /api/v1/calculate`.
 - Updated usage docs and release checklist.
 
 Completion criteria:

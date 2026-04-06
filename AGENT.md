@@ -120,6 +120,15 @@ When in doubt, update those source docs instead of expanding this file.
 89. For staged calculation boundaries that need only a subset of request data, build a dedicated typed context in `application/orchestration.py` and pass normalized values into the stage method instead of the full `MealPlanRequest`.
 90. When the public response distinguishes training demand from fueling, keep top-level `training_kcal` sourced from `training_calorie_demand_kcal`, preserve `training_carbs_g` only for the optional training meal/internal budgeting, and update contracts, CLI renderers, and application/CLI goldens together.
 91. When README contract or golden-policy wording changes, refresh the tracked `src/mealplan_cli.egg-info/PKG-INFO` metadata in the same iteration so packaged metadata does not drift from the repository docs.
+92. For localhost `http.server` adapters, override `HTTPServer.server_bind` to skip reverse-DNS `socket.getfqdn` on loopback and set `server_name`/`server_port` from the bound address to avoid startup stalls.
+93. For web API adapters, map `ValidationError`/`DomainRuleError`/unexpected exceptions to HTTP `400`/`422`/`500` with canonical envelope `{error:{code,message,request_id,details?}}`, and derive `details[].field`/`message` from deterministic `field: message` error strings.
+94. For inline HTML/CSS shells rendered from Python, use `string.Template` substitution instead of `str.format(...)` so CSS braces remain literal and route rendering cannot fail on template-key lookups.
+95. For inline UI-form local persistence, attach behavior only when a page marker form exists (for example `data-settings-form="true"`) and namespace storage keys with a versioned scope (`mealplan.ui.<page>.v1`) to keep route scripts safe and migration-ready.
+96. For calculate-form readiness, derive `training_before_meal` required state from aggregate zone-minute inputs (`zone_1_minutes`..`zone_5_minutes`): require it only when any zone is greater than zero, and keep the UI dropdown restricted to canonical meal names (exclude CLI-only `training`).
+97. For `/calculate` submit wiring, assemble the API payload from a merged snapshot of calculate-form control values plus persisted settings (`mealplan.ui.settings.v1`) so calculation can run even though settings controls are rendered on a separate route.
+98. For calculate results UX, keep rendering in a hidden in-page state (`data-calculate-results-state`) toggled from the input state (`data-calculate-input-state`) after successful submit; do not expose a direct results route.
+99. For display-only kcal scaling in calculate results, keep the API payload as an immutable baseline (`total_kcal` reference), apply proportional scaling only at render time in +/-100 kcal steps, and let `Save` clear transient results state without persisting data.
+100. For installability checks, verify packaged `--ui` behavior from the installed wheel by launching `mealplan --ui` and asserting `/calculate`, `/api/v1/health`, and `POST /api/v1/calculate` succeed without any Node.js runtime.
 
 ## Ralph Runner
 

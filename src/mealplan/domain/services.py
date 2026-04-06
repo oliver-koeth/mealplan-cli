@@ -138,8 +138,13 @@ def calculate_normal_meal_calorie_pool_kcal(
     training_carbs_g: float,
 ) -> float:
     """Return calories budgeted across the six canonical non-training meals."""
+    displayed_tdee_kcal = round(tdee_kcal, 2)
+    displayed_training_kcal = round(training_calorie_demand_kcal, 2)
     training_calorie_supply_kcal = round(training_carbs_g * 4.0, 2)
-    return round(tdee_kcal + training_calorie_demand_kcal - training_calorie_supply_kcal, 2)
+    return round(
+        displayed_tdee_kcal + displayed_training_kcal - training_calorie_supply_kcal,
+        2,
+    )
 
 
 def calculate_periodized_carb_allocation(
@@ -329,7 +334,7 @@ def _assemble_meal_split_response_payload(
     meals: list[MealPayloadRow],
 ) -> dict[str, object]:
     return {
-        "TDEE": tdee_kcal,
+        "TDEE": round(tdee_kcal, 2),
         "training_kcal": training_kcal,
         "protein_g": protein_g,
         "carbs_g": carbs_g,

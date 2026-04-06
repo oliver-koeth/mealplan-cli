@@ -55,6 +55,7 @@ Use this workflow to validate installability outside the source tree:
    `/tmp/mealplan-smoke-venv/bin/mealplan --help`
    `/tmp/mealplan-smoke-venv/bin/python -m mealplan --help`
    `/tmp/mealplan-smoke-venv/bin/mealplan calculate --age 40 --gender male --height 180 --weight 75 --activity medium --carbs low --training-tomorrow high --format json`
+   `/tmp/mealplan-smoke-venv/bin/mealplan --ui` (then verify `/calculate` and `/api/v1/health`)
 
 ## Packaged Execution Paths
 
@@ -135,6 +136,20 @@ uv run mealplan calculate \
   --format table
 ```
 
+## Local UI Mode
+
+- Start local UI mode:
+  `uv run mealplan --ui`
+- Startup behavior:
+  - Binds to `127.0.0.1` and prefers port `8765` (falls back sequentially through `8775`)
+  - Prints:
+    - `UI available at http://127.0.0.1:<port>/calculate`
+    - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
+  - Does not auto-launch a browser
+- Local endpoints:
+  - UI routes: `/settings`, `/calculate`
+  - API routes: `GET /api/v1/health`, `POST /api/v1/calculate`
+
 ## Exit Codes and Debug Behavior
 
 - `0`: success
@@ -175,7 +190,7 @@ GitHub Actions runs on every `push` and `pull_request` with three dependent jobs
   - uploads `dist/*` as workflow artifacts
 - `install-smoke` (needs `package-build`)
   - downloads `dist/*` artifacts
-  - `uv run python scripts/checks/verify_install_workflow.py`
+  - `uv run python scripts/checks/verify_install_workflow.py` (console/module commands + packaged `--ui` shell/API smoke)
 
 ## Release Readiness
 
