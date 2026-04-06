@@ -134,6 +134,7 @@ When in doubt, update those source docs instead of expanding this file.
 103. For CLI calendar retrieval, parse persisted payloads through `parse_contract(MealPlanResponse, payload)` and render with `_render_output(...)` so `calendar --format` stays behaviorally aligned with `calculate --format` across `json|text|table`.
 104. For UI calendar API handlers (`/api/v1/calendar/{date}`), normalize the path segment to canonical `YYYYMMDD` before store access, persist/retrieve via `JsonCalendarStore`, and map missing dates to HTTP `404` with canonical envelope code `calendar_not_found` plus `details` derived from `calendar.<date>: meal plan not found`.
 105. For calculate-form defaults sourced from settings, reuse the same field names (`activity_level`, `training_load_tomorrow`, `training_before_meal`) under `mealplan.ui.settings.v1`, and only apply them when `mealplan.ui.calculate.v1` has no day-specific value for that field.
+106. In `_APP_SHELL_TEMPLATE` JavaScript snippets, escape literal dollar signs as `$$` (for example regex end anchors) so `string.Template.substitute(...)` does not treat them as placeholders and break HTML rendering.
 
 ## Ralph Runner
 

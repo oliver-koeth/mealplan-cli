@@ -263,6 +263,18 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         flex-wrap: wrap;
       }
 
+      .date-controls {
+        margin-top: 0.75rem;
+        display: flex;
+        align-items: flex-end;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+      }
+
+      .date-controls label {
+        min-width: 220px;
+      }
+
       .primary-button {
         border: 1px solid var(--border);
         border-radius: 9px;
@@ -555,6 +567,26 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           return parsed;
         };
 
+        const toIsoDate = (dateValue) => {
+          const year = dateValue.getFullYear();
+          const month = String(dateValue.getMonth() + 1).padStart(2, "0");
+          const day = String(dateValue.getDate()).padStart(2, "0");
+          return year + "-" + month + "-" + day;
+        };
+
+        const normalizeCalendarDate = (rawValue) => {
+          if (typeof rawValue !== "string") {
+            return null;
+          }
+          const trimmed = rawValue.trim();
+          const isoMatch = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$$/.exec(trimmed);
+          if (!isoMatch) {
+            return null;
+          }
+          const [, year, month, day] = isoMatch;
+          return year + month + day;
+        };
+
         const settingsForm = document.querySelector('[data-settings-form="true"]');
         bindLocalStorageForm(settingsForm, settingsStorageKey, [
           "age",
@@ -633,9 +665,21 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           "zone_5_minutes",
         ];
         const trainingBeforeControl = calculateForm.elements.namedItem("training_before_meal");
+        const dateControl = calculateForm.elements.namedItem("plan_date");
+        const previousDayButton = calculateForm.querySelector('[data-calculate-date-prev="true"]');
+        const nextDayButton = calculateForm.querySelector('[data-calculate-date-next="true"]');
         const guidance = document.querySelector('[data-training-before-guidance="true"]');
-        if (!trainingBeforeControl || !("value" in trainingBeforeControl)) {
+        const saveStatusNote = document.querySelector('[data-calculate-save-status="true"]');
+        if (
+          !trainingBeforeControl
+          || !("value" in trainingBeforeControl)
+          || !dateControl
+          || !("value" in dateControl)
+        ) {
           return;
+        }
+        if (!dateControl.value) {
+          dateControl.value = toIsoDate(new Date());
         }
 
         const calculateButton = calculateForm.querySelector('[data-calculate-submit="true"]');
@@ -751,8 +795,26 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             calculateButton.disabled = inFlight;
             calculateButton.textContent = inFlight ? "Calculating..." : "Calculate";
           }
+          if (resultsSaveButton) {
+            resultsSaveButton.disabled = inFlight;
+          }
+          if (previousDayButton) {
+            previousDayButton.disabled = inFlight;
+          }
+          if (nextDayButton) {
+            nextDayButton.disabled = inFlight;
+          }
+          if (dateControl) {
+            dateControl.disabled = inFlight;
+          }
           if (statusNote) {
             statusNote.textContent = inFlight ? "Submitting request..." : "";
+          }
+        };
+
+        const setSaveStatus = (message) => {
+          if (saveStatusNote) {
+            saveStatusNote.textContent = message;
           }
         };
 
@@ -1023,6 +1085,36 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           return requestPayload;
         };
 
+        const shiftPlanDate = (deltaDays) => {
+          if (!Number.isFinite(deltaDays)) {
+            return;
+          }
+          const baseIso = dateControl.value || toIsoDate(new Date());
+          const parsedBase = new Date(baseIso + "T00:00:00");
+          if (Number.isNaN(parsedBase.getTime())) {
+            dateControl.value = toIsoDate(new Date());
+            return;
+          }
+          parsedBase.setDate(parsedBase.getDate() + deltaDays);
+          dateControl.value = toIsoDate(parsedBase);
+        };
+
+        const createCalendarSavePayload = () => {
+          if (!baselineResultsPayload) {
+            return null;
+          }
+          const scaledResults = buildScaledResults(baselineResultsPayload);
+          return {
+            TDEE: scaledResults.TDEE,
+            training_kcal: scaledResults.training_kcal,
+            protein_g: scaledResults.protein_g,
+            carbs_g: scaledResults.carbs_g,
+            fat_g: scaledResults.fat_g,
+            total_kcal: scaledResults.total_kcal,
+            meals: scaledResults.meals,
+          };
+        };
+
         const submitCalculation = async () => {
           if (requestInFlight) {
             return;
@@ -1033,6 +1125,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           }
 
           clearApiFeedback();
+          setSaveStatus("");
           setSubmissionState(true);
           try {
             const response = await window.fetch("/api/v1/calculate", {
@@ -1055,9 +1148,56 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           }
         };
 
+        const saveDisplayedResults = async () => {
+          if (!baselineResultsPayload || requestInFlight) {
+            return;
+          }
+          const canonicalDate = normalizeCalendarDate(dateControl.value);
+          if (!canonicalDate) {
+            setSaveStatus("Save failed: select a valid date.");
+            return;
+          }
+          const payload = createCalendarSavePayload();
+          if (!payload) {
+            setSaveStatus("Save failed: no calculated plan to persist.");
+            return;
+          }
+
+          setSubmissionState(true);
+          setSaveStatus("Saving plan...");
+          try {
+            const response = await window.fetch("/api/v1/calendar/" + canonicalDate, {
+              method: "PUT",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+              setSaveStatus("Save failed: backend rejected the request.");
+              return;
+            }
+            setSaveStatus("Saved for " + canonicalDate + ".");
+            clearResultsState();
+            closeResultsState();
+          } catch {
+            setSaveStatus("Save failed: unable to reach local calendar API.");
+          } finally {
+            setSubmissionState(false);
+          }
+        };
+
         updateTrainingBeforeRequirement();
         calculateForm.addEventListener("input", updateTrainingBeforeRequirement);
         calculateForm.addEventListener("change", updateTrainingBeforeRequirement);
+        if (previousDayButton) {
+          previousDayButton.addEventListener("click", () => {
+            shiftPlanDate(-1);
+          });
+        }
+        if (nextDayButton) {
+          nextDayButton.addEventListener("click", () => {
+            shiftPlanDate(1);
+          });
+        }
         calculateForm.addEventListener("submit", (event) => {
           event.preventDefault();
           void submitCalculation();
@@ -1069,8 +1209,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         }
         if (resultsSaveButton) {
           resultsSaveButton.addEventListener("click", () => {
-            clearResultsState();
-            closeResultsState();
+            void saveDisplayedResults();
           });
         }
         if (scaleDownButton) {
@@ -1194,6 +1333,29 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
             <form class="form-stack" data-calculate-form="true">
               <section class="form-card">
                 <h2>Training Context</h2>
+                <div class="date-controls">
+                  <button
+                    class="primary-button secondary-button"
+                    type="button"
+                    data-calculate-date-prev="true"
+                  >
+                    &lt;
+                  </button>
+                  <label>Date
+                    <input
+                      name="plan_date"
+                      type="date"
+                      required
+                    />
+                  </label>
+                  <button
+                    class="primary-button secondary-button"
+                    type="button"
+                    data-calculate-date-next="true"
+                  >
+                    &gt;
+                  </button>
+                </div>
                 <div class="field-grid">
                   <label>Activity
                     <select name="activity_level" required>
@@ -1327,6 +1489,8 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                 <button class="primary-button" type="button" data-calculate-results-save="true">
                   Save
                 </button>
+                <span class="status-note" data-calculate-save-status="true" aria-live="polite">
+                </span>
               </div>
             </section>
           </section>

@@ -316,6 +316,10 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert '<select name="activity_level" required>' in html
     assert '<select name="training_load_tomorrow" required>' in html
     assert '<select name="training_before_meal">' in html
+    assert 'data-calculate-date-prev="true"' in html
+    assert 'data-calculate-date-next="true"' in html
+    assert 'name="plan_date"' in html
+    assert 'type="date"' in html
     assert '<option value="training">' not in html
     for zone in range(1, 6):
         assert f'name="zone_{zone}_minutes"' in html
@@ -333,6 +337,11 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert "const persistedSettings = readLocalStorageObject(settingsStorageKey);" in html
     assert "const defaultFieldNames = [" in html
     assert "applyCalculateDefaultsFromSettings();" in html
+    assert "const normalizeCalendarDate = (rawValue) => {" in html
+    assert "const isoMatch = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(trimmed);" in html
+    assert "if (!dateControl.value) {" in html
+    assert "dateControl.value = toIsoDate(new Date());" in html
+    assert "const shiftPlanDate = (deltaDays) => {" in html
     assert 'data-calculate-submit="true"' in html
     assert 'class="alert-card" data-calculate-error-card="true" hidden' in html
     assert 'data-calculate-input-state="true"' in html
@@ -362,6 +371,10 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert "const adjustDisplayedTotalKcal = (deltaKcal) => {" in html
     assert "resultsBackButton.addEventListener" in html
     assert "resultsSaveButton.addEventListener" in html
+    assert "void saveDisplayedResults();" in html
+    assert "window.fetch(\"/api/v1/calendar/\" + canonicalDate, {" in html
+    assert "method: \"PUT\"," in html
+    assert "setSaveStatus(\"Saved for \" + canonicalDate + \".\");" in html
     assert "closeResultsState();" in html
     assert "const totals = [" in html
     assert "const meals = [...rawMeals].sort" in html
@@ -374,6 +387,7 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert "training_session: {\n              training_load_tomorrow:" not in html
     assert 'training_session: {' in html
     assert '"1": parseMinutes(calculateSnapshot.zone_1_minutes)' in html
+    assert 'data-calculate-save-status="true"' in html
 
 
 def test_ui_server_calculate_maps_validation_error_to_http_400(

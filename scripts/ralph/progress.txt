@@ -5,6 +5,7 @@
 - CLI calendar retrieval should parse persisted payloads via `parse_contract(MealPlanResponse, payload)` before rendering with shared `_render_output(...)` so `calendar` and `calculate` stay format-consistent (`json|text|table`).
 - UI calendar API routes should parse `/api/v1/calendar/{date}` path segments, normalize dates to canonical `YYYYMMDD` before store access, and map missing-date `DomainRuleError` to HTTP `404` with canonical `calendar_not_found` error envelope details.
 - Calculate page defaults should reuse settings-storage keys (`activity_level`, `training_load_tomorrow`, `training_before_meal`) and only backfill from `mealplan.ui.settings.v1` when no day-specific value exists in `mealplan.ui.calculate.v1`.
+- In `ui_server.py` `_APP_SHELL_TEMPLATE`, escape literal JavaScript regex end anchors as `$$` (not `$`) so `string.Template` placeholder substitution does not crash HTML rendering.
 
 Started: Mon Apr  6 17:09:55 CEST 2026
 ---
@@ -115,4 +116,26 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - When adding inline JS behavior in `ui_server.py`, keep `tests/unit/test_web_ui_server.py` string assertions synchronized or tests will fail despite runtime-valid scripts.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Calculate defaults are intentionally one-way at initialization: settings backfill only when day-specific values are absent, preserving per-day overrides in calculate storage.
+---
+## 2026-04-06 17:39:14 CEST - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
+- What was implemented
+- Added date controls to the Calculate page (native `type="date"` picker plus `<`/`>` day-shift buttons) in the Day Inputs/Results row and defaulted the control to current local date when unset.
+- Added client-side canonical date normalization (`YYYY-MM-DD` -> `YYYYMMDD`) before backend persistence calls.
+- Wired Calculate Results `Save` to persist the currently displayed meal-plan payload (including active +/-100 kcal display scaling) to `PUT /api/v1/calendar/{date}` with overwrite semantics and status feedback.
+- Kept calculate request/output behavior intact while disabling date/save controls during in-flight backend calls.
+- Expanded UI shell tests to assert date controls, canonical date conversion wiring, calendar save fetch flow, and save-status UI hooks.
+- Files changed
+- src/mealplan/web/ui_server.py
+- tests/unit/test_web_ui_server.py
+- AGENT.md
+- scripts/ralph/prd.json
+- scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For inline UI save workflows in `ui_server.py`, derive calendar save payloads from the same rendered results model (`buildScaledResults`) to keep saved data aligned with what the user sees.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `_APP_SHELL_TEMPLATE` is backed by `string.Template`; unescaped JavaScript regex `$` anchors must be written as `$$` or route rendering fails at runtime.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Browser-level behavior was verified via existing HTTP shell/UI regression tests (`tests/unit/test_web_ui_server.py` and `tests/cli/test_ui_mode.py`) because no dedicated browser automation harness is present in this repo.
 ---
