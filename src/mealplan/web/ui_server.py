@@ -1122,7 +1122,9 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         const guidance = document.querySelector('[data-training-before-guidance="true"]');
         const saveStatusNote = document.querySelector('[data-calculate-save-status="true"]');
         const saveErrorCard = document.querySelector('[data-calculate-save-error-card="true"]');
-        const saveErrorSummary = document.querySelector('[data-calculate-save-error-summary="true"]');
+        const saveErrorSummary = document.querySelector(
+          '[data-calculate-save-error-summary="true"]'
+        );
         if (
           !trainingBeforeControl
           || !("value" in trainingBeforeControl)
