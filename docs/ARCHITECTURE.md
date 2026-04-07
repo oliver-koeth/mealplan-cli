@@ -112,15 +112,21 @@ mealplan/
 - Parsing strategy: `Typer` for command ergonomics and type-aware help.
 - Command model:
   - Root command: `mealplan`.
-  - Stable subcommands in Phase 9: `mealplan probe` and `mealplan calculate`.
-  - `probe` remains a deterministic scaffolding command and must not change behavior when evolving `calculate`.
-  - `calculate` is the production boundary and accepts the canonical flags:
-    - required: `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`
+  - Stable subcommands in Phase 9: `mealplan probe`, `mealplan calculate`, and `mealplan calendar`.
+  - `probe` remains a deterministic scaffolding command and must not change behavior when evolving `calculate`/`calendar`.
+  - `calculate` is a production boundary and accepts the canonical flags:
+    - required: `--date`, `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`
     - optional: `--vo2max`, `--training-zones`, `--training-before`, `--format`, `--debug`
+  - `calendar` is a production boundary for retrieval and accepts:
+    - required: `--date`
+    - optional: `--format`
+  - `--date` for both commands must be canonical `YYYYMMDD`.
+  - Successful `calculate` persists the response payload by date key; later saves for the same date overwrite.
+  - `calculate`/`calendar` share output rendering behavior for `json|text|table`.
   - Interactive entrypoint:
     - root flag `mealplan --ui` starts a local web server instead of running a single calculation command.
     - `--ui` is a mode switch, not a separate calculation engine.
-    - `calculate` remains supported for non-interactive automation and shell workflows.
+    - `calculate` and `calendar` remain supported for non-interactive automation and shell workflows.
 - Validation flow:
   - Parse primitive CLI inputs.
   - Convert to request DTO.
@@ -160,12 +166,17 @@ mealplan/
 ## 5B. REST API Boundary
 - API purpose:
   - Provide a stable local transport boundary between the browser UI shell and the Python calculation engine.
-- Initial endpoint set:
+- Endpoint set:
   - `POST /api/v1/calculate`
   - `GET /api/v1/health`
+  - `PUT /api/v1/calendar/{date}`
+  - `GET /api/v1/calendar/{date}`
 - Calculation contract:
   - `POST /api/v1/calculate` accepts the canonical `MealPlanRequest` JSON shape from `src/mealplan/application/contracts.py`.
   - Successful responses return the canonical `MealPlanResponse` JSON shape from `src/mealplan/application/contracts.py`.
+  - `PUT /api/v1/calendar/{date}` accepts canonical `MealPlanResponse` JSON and persists it under canonical date key `YYYYMMDD`.
+  - `GET /api/v1/calendar/{date}` returns canonical stored `MealPlanResponse` JSON for that date.
+  - Missing calendar dates return HTTP `404` with canonical `calendar_not_found` error envelope.
   - Warnings currently emitted on CLI stderr should be exposed in a structured field or response metadata once the enhancement is specified; until then, warning transport remains an open design point.
 - Error contract:
   - Validation failures map to HTTP `400`.
@@ -578,7 +589,7 @@ mealplan/
 - The REST API is the only supported integration path between browser UI and Python backend.
 - UI-facing request and response shapes should reuse existing DTOs first and only diverge with explicit ADR-backed justification.
 - The style guide in [STYLEGUIDE.md](/Users/Oliver.Koeth/work/mealplan-cli/docs/STYLEGUIDE.md) is the visual basis for the UI implementation.
-- The initial enhancement should support the current `calculate` use case only, but the server architecture must leave room for future commands and screens.
+- The current UI shell supports `/settings`, `/calculate`, and `/calendar`; future screens should follow the same adapter boundaries and navigation wiring.
 - `mealplan --ui` prints the local URL for manual browser opening; it does not auto-launch a browser.
 - UI shell/API runtime is packaged with the Python distribution so installed UI mode does not depend on Node.js.
 - Local server lifecycle contract for `--ui`:
@@ -598,7 +609,9 @@ mealplan/
   - Results for `calculate` are rendered as a panel-like view state inside the `Calculate` screen, not as a standalone route.
   - Users navigate to `Calculate` first; results state appears only after a successful calculate submit.
   - Results state is not directly navigable via URL/route entry.
+  - The Calculate `Save` action persists the currently displayed plan to `PUT /api/v1/calendar/{date}` using canonical `YYYYMMDD`.
   - Pressing `Save` acknowledges and clears current results state, returning to calculate input state until a new calculation is triggered.
+  - `/calendar` is read-only and retrieves persisted plans via `GET /api/v1/calendar/{date}`.
 - Command growth model:
   - Future CLI commands should map cleanly either to REST endpoints, UI routes, or both.
   - Shared application services remain the source of truth for command behavior.

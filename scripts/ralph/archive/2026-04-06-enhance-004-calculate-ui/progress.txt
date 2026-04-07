@@ -1,0 +1,203 @@
+# Ralph Progress Log
+## Codebase Patterns
+- For localhost `http.server` adapters, override `HTTPServer.server_bind` to avoid `socket.getfqdn` stalls on loopback and set `server_name`/`server_port` from the bound address.
+- For local web API handlers, map `ValidationError`/`DomainRuleError`/unexpected exceptions to HTTP `400`/`422`/`500` with `{ "error": { "code", "message", "request_id", "details"? } }`, and parse `field: message` errors into structured `details`.
+- For inline HTML/CSS rendered by the web adapter, prefer `string.Template` over `str.format(...)` so CSS braces are not treated as format keys.
+- For browser-restored UI forms in the inline shell, gate persistence behind a page-specific form marker (`data-settings-form="true"`) and namespace `localStorage` keys as `mealplan.ui.<page>.v1`.
+- For calculate-page readiness, require `training_before_meal` only when aggregate zone minutes (`zone_1_minutes`..`zone_5_minutes`) are greater than zero, with concise inline guidance and no `training` option in the UI dropdown.
+- For calculate submissions, build payloads by merging the latest route form values with the corresponding `localStorage` snapshot (`mealplan.ui.settings.v1` + `mealplan.ui.calculate.v1`) so `/calculate` can submit complete requests without rendering settings controls.
+- For calculate results, keep output as a hidden in-page state (`data-calculate-results-state`) that is only shown after successful submit, and return to editable inputs via `data-calculate-input-state` instead of adding a separate results route.
+- For display-only kcal scaling in calculate results, keep the API response as the immutable baseline and apply proportional scaling during render from a signed +/-100 kcal offset; `Save` should clear transient results state and return to inputs without persistence.
+- For install-smoke validation of packaged releases, launch installed `mealplan --ui` and assert `/calculate`, `/api/v1/health`, and `POST /api/v1/calculate` so UI runtime packaging is verified without any Node.js dependency.
+
+Started: Fri Apr  3 16:29:36 CEST 2026
+---
+
+## 2026-04-03 17:16:30 CEST - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented a style-guide-aligned web app shell with compact sticky header, neutral tokenized card styling, and responsive single-column behavior on small screens.
+- Added route-level navigation for `/settings` and `/calculate` with deterministic active-link state via `aria-current`, while keeping `/` mapped to calculate.
+- Extended UI server tests to validate shell rendering and navigation active states for both pages.
+- Files changed:
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Inline CSS templates in Python should use `string.Template` to avoid `{}` collisions from CSS blocks.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `str.format(...)` against full HTML/CSS templates can crash at runtime with `KeyError` when unescaped CSS braces are present.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Shell coverage lives in `tests/unit/test_web_ui_server.py` and exercises in-process `_UiServer` GET rendering for `/settings` and `/calculate`.
+---
+
+## 2026-04-03 17:12:37 CEST - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented `POST /api/v1/calculate` in the local UI web adapter, wired directly to in-process `MealPlanCalculationService` using canonical `MealPlanRequest` parsing and `MealPlanResponse` serialization.
+- Added canonical API error mapping and JSON envelope for validation (`400`/`validation_error`), domain (`422`/`domain_rule_error`), and unexpected failures (`500`/`internal_error`) with per-request UUID `request_id` and optional structured `details`.
+- Added unit coverage for calculate endpoint success and all error classes, alongside existing UI server configuration tests.
+- Files changed:
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Keep web-handler error payloads deterministic by mapping first `field: message` failure into `error.details[]` to avoid leaking raw exception text formats to UI clients.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `parse_contract(MealPlanRequest, payload)` can short-circuit before service invocation, so tests targeting service-level exception mapping must send a fully valid request payload fixture.
+- Useful context (e.g., "the evaluation panel is in component X")
+- `tests/unit/test_web_ui_server.py` now includes an in-process `_UiServer((UI_HOST, 0))` fixture pattern for endpoint assertions without subprocess overhead.
+---
+
+## 2026-04-03 17:09:13 CEST - US-001
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented root-level `mealplan --ui` mode that starts an in-process local UI server with loopback binding, sequential port probing, canonical startup URL output, and graceful SIGINT/SIGTERM shutdown with bounded drain.
+- Added a local UI HTTP adapter serving both `/calculate` app shell and `/api/v1/health` from the same server process, including light/dark theme-capable shell markup.
+- Added automated coverage for UI mode startup/fallback/exhaustion behavior and default port-window configuration.
+- Files changed:
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/cli/main.py`
+- `src/mealplan/web/__init__.py`
+- `src/mealplan/web/ui_server.py`
+- `tests/cli/test_ui_mode.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- `http.server.HTTPServer.server_bind` does reverse-DNS lookups; for local-only adapters this should be overridden to keep startup deterministic.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `make quality` assumes `.venv/bin/uv`; in this environment, run `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` directly.
+- Useful context (e.g., "the evaluation panel is in component X")
+- UI-mode tests are deterministic when port windows are injected via `MEALPLAN_UI_PORT_START`/`MEALPLAN_UI_PORT_END`.
+---
+
+## 2026-04-03 17:23:15 CEST - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Implemented a settings-specific form on `/settings` with required typed controls for age, gender, height, weight, optional vo2max, and carb mode in grouped low-noise cards.
+- Added inline browser persistence behavior that restores settings from local storage on load and saves current values on input/change using a namespaced key.
+- Kept calculate-page shell behavior intact while moving page-specific body content into a render-time content slot.
+- Files changed:
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For inline shell forms, use a page marker (`data-settings-form`) so shared scripts can no-op safely on routes that do not render the form.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- Presence checks in route HTML tests should assert on form markup, not generic script literals that may exist on multiple pages.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Settings page coverage is in `tests/unit/test_web_ui_server.py` and currently validates control types plus localStorage wiring by inspecting rendered HTML.
+---
+
+## 2026-04-03 17:26:43 CEST - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- Implemented a calculate-specific form on `/calculate` with dropdown controls for `activity_level`, `training_load_tomorrow`, and `training_before_meal`, plus separate integer minute inputs for zones 1..5.
+- Added calculate-page local storage restore/persist wiring using `mealplan.ui.calculate.v1`, while keeping shared script behavior safe across routes via marker-based form detection.
+- Added inline readiness logic so `training_before_meal` is required only when any zone minute input is greater than zero, with concise guidance shown only in that state.
+- Expanded UI server tests to validate the new calculate controls, storage key wiring, conditional requirement script presence, and exclusion of invalid `training_before_meal=training`.
+- Files changed:
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Reuse the inline shell's marker-gated storage helper for each page form so route scripts can stay centralized without accidental cross-page behavior.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- When shared script structure changes, update both settings and calculate HTML assertions in `tests/unit/test_web_ui_server.py` to avoid stale string checks.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Calculate page coverage currently validates rendered HTML/script contracts (controls, storage key, readiness logic); browser-interaction behavior can build on this in later stories.
+---
+
+## 2026-04-03 17:31:02 CEST - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- Implemented calculate-form submission wiring in the inline UI shell, including payload assembly from settings+calculate snapshots, canonical `training_session.zones_minutes` mapping, and `POST /api/v1/calculate` invocation.
+- Added restrained in-flight UX controls for calculate submit (`requestInFlight` guard, disabled button, and inline status text) to prevent duplicate requests.
+- Added inline API feedback surfaces: concise error card rendering for validation/domain/API failures and a panel-like in-page results state that shows the returned payload on success.
+- Expanded calculate-shell HTML contract assertions to cover submission controls, fetch wiring, duplicate-submission guard, and results/error containers.
+- Files changed:
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- On `/calculate`, submission must merge current form controls with persisted settings snapshot because the settings form is not present on that route.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- When inlined script constants replace literal storage-key strings, update HTML string assertions in `tests/unit/test_web_ui_server.py` to avoid brittle failures.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Current results state is a shell-level panel (`data-calculate-results`) and stores the raw API payload in `pre[data-calculate-results-json]`; later stories can layer structured rendering and back/save controls on top of this marker.
+---
+
+## 2026-04-03 17:35:10 CEST - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- Replaced raw JSON results with an in-calculate panel state that renders top-level totals (`TDEE`, `training_kcal`, `protein_g`, `carbs_g`, `fat_g`, `total_kcal`) and meal cards (meal name, carb strategy, kcal, macros).
+- Added client-side state toggling so successful submit hides input state and reveals results state; added a Back button that returns to inputs without touching persisted form values.
+- Kept results non-routable by URL entry by retaining them as hidden in-page state on `/calculate` only.
+- Expanded UI-shell contract tests for results-state markers, totals/meals rendering hooks, canonical meal-order sorting, and back-button wiring.
+- Quality checks passed via `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest`.
+- Files changed
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Keep transient calculate results in marker-driven state (`data-calculate-input-state` + `data-calculate-results-state`) so future UX flows can layer on top without changing routing.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- HTML contract tests in `tests/unit/test_web_ui_server.py` are string-based; assert stable markers/identifiers instead of brittle full-line element literals when template line wrapping changes.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Results rendering now writes totals into `data-calculate-results-totals` and meal rows into `data-calculate-results-meals`, with canonical meal ordering normalized client-side.
+---
+## 2026-04-03 17:39:31 CEST - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- Implemented display-only kcal scaling controls in calculate results with signed 100 kcal step buttons, baseline-aware scale state, and proportional re-rendering of displayed top-level macros plus per-meal kcal/macros.
+- Kept API `total_kcal` as immutable baseline for scaling math, including safe handling for unavailable scaling baselines and deterministic render-only updates.
+- Added a placeholder `Save` action in results that dismisses back to input state and clears transient rendered results until the next successful calculation.
+- Expanded calculate-shell contract tests to assert scaling/save UI markers and script hooks for scaling state, baseline tracking, and save-reset wiring.
+- Quality checks passed via `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest`.
+- Files changed
+- `AGENT.md`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `src/mealplan/web/ui_server.py`
+- `tests/unit/test_web_ui_server.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Keep UI kcal scaling as presentation-only state derived from a fixed API baseline so adjustments never mutate canonical response payloads.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- Because shell tests are string-contract based, new UI controls must add stable `data-*` markers and matching script identifier assertions to avoid regressions from template refactors.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Results scaling/save behavior lives entirely in the inline script/template of `src/mealplan/web/ui_server.py` and is covered by `tests/unit/test_web_ui_server.py` marker assertions.
+---
+## 2026-04-03 18:02:00 CEST - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- Added end-to-end UI-mode regression coverage by extending CLI subprocess tests to post canonical calculate payloads against live `mealplan --ui` server instances.
+- Expanded installed-wheel smoke verification to launch packaged `mealplan --ui` and assert shell route, health endpoint, and calculate API behavior from the installed artifact.
+- Aligned canonical docs to the shipped local UI architecture by documenting `--ui` mode/runtime/API contracts and packaged UI verification workflow.
+- Files changed:
+- `AGENT.md`
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PLAN.md`
+- `docs/REQUIREMENTS.md`
+- `scripts/checks/verify_install_workflow.py`
+- `scripts/ralph/prd.json`
+- `scripts/ralph/progress.txt`
+- `tests/cli/test_ui_mode.py`
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Packaging readiness for UI work should be validated from installed wheel execution (`mealplan --ui`), not only source-tree tests, to catch missing runtime packaging assumptions early.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `make quality` can fail in this environment when `.venv/bin/uv` is absent; run equivalent gates directly with `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest`.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Installed-runtime validation lives in `scripts/checks/verify_install_workflow.py`, while local UI subprocess behavior coverage lives in `tests/cli/test_ui_mode.py`.
+---

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import traceback
+from pathlib import Path
 from typing import Literal
 
 import typer
@@ -19,6 +21,7 @@ from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
 from mealplan.application.stub import run_probe
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, TrainingLoadTomorrow
+from mealplan.infrastructure import JsonCalendarStore
 from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 from mealplan.web import run_ui_server
@@ -65,6 +68,11 @@ OUTPUT_FORMAT_OPTION = typer.Option(
     "--format",
     help="Output format: json|text|table.",
 )
+DATE_OPTION = typer.Option(
+    ...,
+    "--date",
+    help="Date key in YYYYMMDD format used for calendar persistence.",
+)
 DEBUG_OPTION = typer.Option(
     False,
     "--debug",
@@ -76,6 +84,7 @@ UI_OPTION = typer.Option(
     help="Start local web UI server mode.",
 )
 OutputFormat = Literal["json", "text", "table"]
+CALENDAR_STORE_PATH_ENV = "MEALPLAN_CALENDAR_STORE_PATH"
 
 
 @app.callback()
@@ -111,6 +120,7 @@ def calculate_command(
     training_zones: str | None = TRAINING_ZONES_OPTION,
     training_before: str | None = TRAINING_BEFORE_OPTION,
     output_format: OutputFormat = OUTPUT_FORMAT_OPTION,
+    date: str = DATE_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
     """Run production mealplan calculation from typed CLI inputs."""
@@ -136,9 +146,34 @@ def calculate_command(
     request = parse_contract(MealPlanRequest, request_payload)
     service = MealPlanCalculationService()
     response = service.calculate(request)
+    _persist_calendar_entry(date_key=date, response=response)
     for warning in getattr(service, "warnings", ()):
         typer.echo(f"Warning: {warning}", err=True)
     typer.echo(_render_output(response=response, output_format=output_format))
+
+
+@app.command("calendar")
+def calendar_command(
+    date: str = DATE_OPTION,
+    output_format: OutputFormat = OUTPUT_FORMAT_OPTION,
+) -> None:
+    """Retrieve a persisted meal plan by date."""
+    store = JsonCalendarStore(_calendar_store_path())
+    persisted_payload = store.get(date_key=date)
+    response = parse_contract(MealPlanResponse, persisted_payload)
+    typer.echo(_render_output(response=response, output_format=output_format))
+
+
+def _persist_calendar_entry(*, date_key: str, response: MealPlanResponse) -> None:
+    store = JsonCalendarStore(_calendar_store_path())
+    store.save(date_key=date_key, payload=response.model_dump(mode="json"))
+
+
+def _calendar_store_path() -> Path:
+    configured_path = os.getenv(CALENDAR_STORE_PATH_ENV)
+    if configured_path:
+        return Path(configured_path).expanduser()
+    return Path.home() / ".mealplan" / "calendar.json"
 
 
 def _build_training_session_payload(

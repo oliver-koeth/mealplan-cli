@@ -27,6 +27,8 @@ def _required_calculate_args() -> list[str]:
         "low",
         "--training-tomorrow",
         "high",
+        "--date",
+        "20260406",
     ]
 
 

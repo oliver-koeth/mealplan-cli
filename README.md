@@ -54,8 +54,9 @@ Use this workflow to validate installability outside the source tree:
    `cd /tmp`
    `/tmp/mealplan-smoke-venv/bin/mealplan --help`
    `/tmp/mealplan-smoke-venv/bin/python -m mealplan --help`
-   `/tmp/mealplan-smoke-venv/bin/mealplan calculate --age 40 --gender male --height 180 --weight 75 --activity medium --carbs low --training-tomorrow high --format json`
-   `/tmp/mealplan-smoke-venv/bin/mealplan --ui` (then verify `/calculate` and `/api/v1/health`)
+   `/tmp/mealplan-smoke-venv/bin/mealplan calculate --date 20260406 --age 40 --gender male --height 180 --weight 75 --activity medium --carbs low --training-tomorrow high --format json`
+   `/tmp/mealplan-smoke-venv/bin/mealplan calendar --date 20260406 --format json`
+   `/tmp/mealplan-smoke-venv/bin/mealplan --ui` (then verify `/calculate`, `/calendar`, `/api/v1/health`, and `/api/v1/calendar/20260406`)
 
 ## Packaged Execution Paths
 
@@ -71,11 +72,13 @@ Representative packaged usage examples:
 ```bash
 # JSON output via console script
 mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs low --training-tomorrow high --format json
 
 # Text output via module invocation
 python -m mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs periodized --training-tomorrow high \
   --training-zones '{"1": 20, "2": 40, "3": 0, "4": 0, "5": 0}' \
@@ -83,8 +86,12 @@ python -m mealplan calculate \
 
 # Table output via console script
 mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs normal --training-tomorrow medium --format table
+
+# Retrieve a previously saved plan for a date
+mealplan calendar --date 20260406 --format json
 ```
 
 ## CLI Usage
@@ -93,9 +100,12 @@ mealplan calculate \
   `uv run mealplan --help`
 - Show calculate help:
   `uv run mealplan calculate --help`
+- Show calendar help:
+  `uv run mealplan calendar --help`
 
 `mealplan calculate` accepts these canonical required flags:
 
+- `--date` (`YYYYMMDD`)
 - `--age`
 - `--gender` (`male|female`)
 - `--height` (cm)
@@ -112,16 +122,23 @@ Optional flags:
 - `--format` (`json|text|table`, default `json`)
 - `--debug`
 
+`mealplan calendar` accepts:
+
+- `--date` (`YYYYMMDD`, required)
+- `--format` (`json|text|table`, default `json`)
+
 Concrete examples:
 
 ```bash
 # Default JSON output (stdout)
 uv run mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs low --training-tomorrow high
 
 # Explicit text output with training context
 uv run mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs periodized --training-tomorrow high \
   --vo2max 58 \
@@ -131,10 +148,17 @@ uv run mealplan calculate \
 
 # Explicit table output
 uv run mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs normal --training-tomorrow medium \
   --format table
+
+# Retrieve date-keyed persisted plan
+uv run mealplan calendar --date 20260406 --format text
 ```
+
+Date-keyed storage defaults to `~/.mealplan/calendar.json`. Override with
+`MEALPLAN_CALENDAR_STORE_PATH` when needed for isolated runs or tests.
 
 ## Local UI Mode
 
@@ -147,8 +171,8 @@ uv run mealplan calculate \
     - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
   - Does not auto-launch a browser
 - Local endpoints:
-  - UI routes: `/settings`, `/calculate`
-  - API routes: `GET /api/v1/health`, `POST /api/v1/calculate`
+  - UI routes: `/settings`, `/calculate`, `/calendar`
+  - API routes: `GET /api/v1/health`, `POST /api/v1/calculate`, `PUT /api/v1/calendar/{date}`, `GET /api/v1/calendar/{date}`
 
 ## Exit Codes and Debug Behavior
 
