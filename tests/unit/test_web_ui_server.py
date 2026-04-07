@@ -354,7 +354,12 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert "const normalizeCalendarDate = (rawValue) => {" in html
     assert "const isoMatch = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(trimmed);" in html
     assert "if (!dateControl.value) {" in html
-    assert "dateControl.value = toIsoDate(new Date());" in html
+    assert "const tomorrowDate = new Date();" in html
+    assert "tomorrowDate.setDate(tomorrowDate.getDate() + 1);" in html
+    assert "dateControl.value = toIsoDate(tomorrowDate);" in html
+    assert 'aria-label="Date"' in html
+    assert '<label>Date' not in html
+    assert "Calculate inputs are saved automatically in this browser." not in html
     assert "const shiftPlanDate = (deltaDays) => {" in html
     assert 'data-calculate-submit="true"' in html
     assert 'class="alert-card" data-calculate-error-card="true" hidden' in html
@@ -392,7 +397,20 @@ def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_scrip
     assert "closeResultsState();" in html
     assert "const totals = [" in html
     assert "const meals = [...rawMeals].sort" in html
+    assert '["Total kcal", scaledResults.total_kcal, "kcal"]' in html
     assert '["TDEE", scaledResults.TDEE, "kcal"]' in html
+    assert '["Carbs", scaledResults.carbs_g, "g"]' in html
+    assert '["Fat", scaledResults.fat_g, "g"]' in html
+    assert '["Protein", scaledResults.protein_g, "g"]' in html
+    assert "const strategyBadgeClass = (value) => {" in html
+    assert "strategy-badge strategy-badge-low" in html
+    assert "strategy-badge strategy-badge-medium" in html
+    assert "strategy-badge strategy-badge-high" in html
+    assert "formatStrategyLabel(meal?.carbs_strategy)" in html
+    assert "<p>Calories: " in html
+    assert "<p>Carbs: " in html
+    assert "<p>Fat: " in html
+    assert "<p>Protein: " in html
     assert "Displayed total: " in html
     assert "training_load_tomorrow: (" in html
     assert "|| settingsSnapshot.training_load_tomorrow" in html
@@ -414,7 +432,8 @@ def test_ui_server_calendar_shell_includes_date_controls_and_read_only_result_wi
     assert 'data-calendar-date-next="true"' in html
     assert 'name="calendar_date"' in html
     assert 'type="date"' in html
-    assert 'data-calendar-load="true"' in html
+    assert 'aria-label="Date"' in html
+    assert '<label>Date' not in html
     assert 'data-calendar-status="true"' in html
     assert 'data-calendar-error-card="true" hidden' in html
     assert 'data-calendar-missing-card="true" hidden' in html
@@ -431,6 +450,9 @@ def test_ui_server_calendar_shell_includes_date_controls_and_read_only_result_wi
     assert 'method: "GET"' in html
     assert "if (response.status === 404) {" in html
     assert "showCalendarMissing();" in html
+    assert "calendarDateControl.addEventListener(\"change\", () => {" in html
+    assert "void loadCalendarPlan();" in html
+    assert "const strategyBadgeClass = (value) => {" in html
     assert "This calendar view is read-only." in html
 
 
@@ -510,7 +532,7 @@ def test_ui_server_calculate_maps_unexpected_error_to_http_500(
     assert payload["error"]["code"] == "internal_error"
     assert payload["error"]["message"] == "Internal server error."
     assert isinstance(payload["error"]["request_id"], str)
-    assert "details" not in payload["error"]
+    assert payload["error"]["details"] == [{"message": "boom"}]
 
 
 def test_ui_server_calculate_maps_response_validation_error_to_http_422(
