@@ -203,6 +203,8 @@ def main() -> None:
             [
                 str(mealplan_executable),
                 "calculate",
+                "--date",
+                "20260406",
                 "--age",
                 "40",
                 "--gender",

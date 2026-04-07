@@ -46,7 +46,7 @@ Use this checklist before publishing a release candidate.
   - wheel installs into a fresh temp virtualenv
   - `mealplan --help` succeeds
   - `python -m mealplan --help` succeeds
-  - one `mealplan calculate ... --format json` smoke command succeeds
+  - one `mealplan calculate --date YYYYMMDD ... --format json` smoke command succeeds
 
 ## 5. CI gate verification
 
