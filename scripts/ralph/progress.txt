@@ -6,6 +6,7 @@ Started: Wed Apr  8 15:40:02 CEST 2026
 - For UUID-keyed JSON persistence adapters, mirror `JsonCalendarStore` conventions: auto-create missing files with `{}` root, raise deterministic `ConfigError` prefixes (`log.store:`), and keep not-found domain errors namespaced (`log.<uuid>: entry not found`).
 - For food-log retrieval semantics, keep filtering centralized in `JsonFoodLogStore.search` with optional-AND behavior (`date` exact, `meal` exact, `name` case-insensitive substring) and return canonical `FoodLogEntry` rows sorted newest-first.
 - For new CLI persistence features, follow the env-override pattern used by calendar/log commands: read `MEALPLAN_*_STORE_PATH` first and default to a stable `~/.mealplan/*.json` path so tests can isolate storage and CLI behavior stays deterministic.
+- For web write endpoints that target UUID-keyed persistence, treat the route path UUID as canonical (`PUT /api/v1/log/{uuid}`), inject it into parsed contracts before store updates, and map `log.<uuid>: entry not found` to structured HTTP `404` API errors.
 
 ## [2026-04-08 15:43:02 CEST] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
@@ -100,4 +101,28 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - To keep `mealplan log search` extensible for the next story, `log` is now a Typer sub-app callback; future `search` work should be added as a `log_app.command(...)` subcommand rather than a new top-level command.
 - Useful context (e.g., "the evaluation panel is in component X")
 - `mealplan log --help` now includes an explicit `--json` example in sub-app help text, and CLI coverage lives in `tests/cli/test_log.py`.
+---
+
+## [2026-04-08 16:53:30 CEST] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- What was implemented
+- Added REST food-log write routes in the UI server: `POST /api/v1/log` (create) and `PUT /api/v1/log/{uuid}` (update).
+- Wired both handlers to parse `FoodLogUpsertRequest` via `parse_contract(...)`, so date/meal and payload-shape validation stays at the canonical contract boundary.
+- Added UUID-path update semantics by injecting `{uuid}` from route into the parsed payload before calling `JsonFoodLogStore.update(...)`.
+- Implemented structured unknown-UUID handling for log updates: `log.<uuid>: entry not found` now maps to HTTP `404` with envelope code `log_not_found`.
+- Added UI-server tests covering create success, update success, unknown-UUID 404 mapping, and invalid-date 400 validation mapping.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (382 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For write routes that include an entity identifier in the URL, keep the path identifier authoritative and inject it into boundary contracts before persistence to avoid body/path drift.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `parse_contract(...)` date validation details currently surface `Value error, expected YYYYMMDD`; endpoint tests should assert stable field + canonical message wording.
+- Useful context (e.g., "the evaluation panel is in component X")
+- UI server API tests live in `tests/unit/test_web_ui_server.py` and use local HTTP helpers (`_post_json`, `_put_json_expect_http_error`) against a real in-process server thread for route-level verification.
 ---

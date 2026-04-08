@@ -19,10 +19,10 @@ from uuid import uuid4
 
 from pydantic import ValidationError as PydanticValidationError
 
-from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
+from mealplan.application.contracts import FoodLogUpsertRequest, MealPlanRequest, MealPlanResponse
 from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
-from mealplan.infrastructure import JsonCalendarStore
+from mealplan.infrastructure import JsonCalendarStore, JsonFoodLogStore
 from mealplan.shared.errors import DomainRuleError, ValidationError
 
 UI_HOST = "127.0.0.1"
@@ -32,6 +32,7 @@ SHUTDOWN_DRAIN_SECONDS = 5.0
 UI_PORT_START_ENV = "MEALPLAN_UI_PORT_START"
 UI_PORT_END_ENV = "MEALPLAN_UI_PORT_END"
 CALENDAR_STORE_PATH_ENV = "MEALPLAN_CALENDAR_STORE_PATH"
+FOOD_LOG_STORE_PATH_ENV = "MEALPLAN_FOOD_LOG_STORE_PATH"
 _DATE_KEY_FORMAT = "%Y%m%d"
 
 _APP_SHELL_TEMPLATE = Template("""<!doctype html>
@@ -2211,13 +2212,33 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = self._request_path()
-        if path != "/api/v1/calculate":
-            self._write_json(
-                HTTPStatus.NOT_FOUND,
-                {"error": {"code": "not_found", "message": "Not found"}},
-            )
+        if path == "/api/v1/calculate":
+            self._handle_calculate_post()
             return
+        if path == "/api/v1/log":
+            self._handle_log_post()
+            return
+        self._write_json(
+            HTTPStatus.NOT_FOUND,
+            {"error": {"code": "not_found", "message": "Not found"}},
+        )
 
+    def do_PUT(self) -> None:  # noqa: N802
+        path = self._request_path()
+        calendar_date = _calendar_date_from_path(path)
+        if calendar_date is not None:
+            self._handle_calendar_put(calendar_date)
+            return
+        log_uuid = _log_uuid_from_path(path)
+        if log_uuid is not None:
+            self._handle_log_put(log_uuid)
+            return
+        self._write_json(
+            HTTPStatus.NOT_FOUND,
+            {"error": {"code": "not_found", "message": "Not found"}},
+        )
+
+    def _handle_calculate_post(self) -> None:
         request_id = str(uuid4())
         try:
             payload = self._read_json_payload()
@@ -2263,17 +2284,87 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
         self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
 
-    def do_PUT(self) -> None:  # noqa: N802
-        path = self._request_path()
-        calendar_date = _calendar_date_from_path(path)
-        if calendar_date is None:
-            self._write_json(
-                HTTPStatus.NOT_FOUND,
-                {"error": {"code": "not_found", "message": "Not found"}},
+    def _handle_log_post(self) -> None:
+        request_id = str(uuid4())
+        store = JsonFoodLogStore(_food_log_store_path())
+        try:
+            payload = self._read_json_payload()
+            request = parse_contract(FoodLogUpsertRequest, payload)
+            response = store.create(request=request)
+        except ValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.BAD_REQUEST,
+                code="validation_error",
+                message="Request validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
             )
             return
+        except DomainRuleError as error:
+            self._write_api_error(
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                code="domain_rule_error",
+                message="Meal-plan domain rule failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except Exception as error:  # noqa: BLE001
+            self._write_api_error(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                code="internal_error",
+                message="Internal server error.",
+                request_id=request_id,
+                details=[{"message": str(error)}],
+            )
+            return
+        self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
 
-        self._handle_calendar_put(calendar_date)
+    def _handle_log_put(self, entry_uuid: str) -> None:
+        request_id = str(uuid4())
+        store = JsonFoodLogStore(_food_log_store_path())
+        try:
+            payload = dict(self._read_json_payload())
+            payload["uuid"] = entry_uuid
+            request = parse_contract(FoodLogUpsertRequest, payload)
+            response = store.update(request=request)
+        except ValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.BAD_REQUEST,
+                code="validation_error",
+                message="Request validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except DomainRuleError as error:
+            if _is_log_not_found_error(error):
+                self._write_api_error(
+                    status=HTTPStatus.NOT_FOUND,
+                    code="log_not_found",
+                    message="Log entry not found.",
+                    request_id=request_id,
+                    details=[_error_detail_from_exception(error)],
+                )
+                return
+            self._write_api_error(
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                code="domain_rule_error",
+                message="Meal-plan domain rule failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except Exception as error:  # noqa: BLE001
+            self._write_api_error(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                code="internal_error",
+                message="Internal server error.",
+                request_id=request_id,
+                details=[{"message": str(error)}],
+            )
+            return
+        self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
 
     def _handle_calendar_get(self, date_key: str) -> None:
         request_id = str(uuid4())
@@ -2360,7 +2451,7 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
     def _request_path(self) -> str:
         return urlsplit(self.path).path
 
-    def _read_json_payload(self) -> object:
+    def _read_json_payload(self) -> dict[str, object]:
         content_length_value = self.headers.get("Content-Length", "0")
         try:
             content_length = int(content_length_value)
@@ -2377,7 +2468,7 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
         if not isinstance(parsed, Mapping):
             raise ValidationError("body: expected JSON object")
-        return parsed
+        return dict(parsed)
 
     def _write_api_error(
         self,
@@ -2453,6 +2544,13 @@ def _calendar_store_path() -> Path:
     return Path.home() / ".mealplan" / "calendar.json"
 
 
+def _food_log_store_path() -> Path:
+    configured_path = os.environ.get(FOOD_LOG_STORE_PATH_ENV)
+    if configured_path:
+        return Path(configured_path).expanduser()
+    return Path.home() / ".mealplan" / "food-log.json"
+
+
 def _calendar_date_from_path(path: str) -> str | None:
     prefix = "/api/v1/calendar/"
     if not path.startswith(prefix):
@@ -2463,9 +2561,24 @@ def _calendar_date_from_path(path: str) -> str | None:
     return date_key
 
 
+def _log_uuid_from_path(path: str) -> str | None:
+    prefix = "/api/v1/log/"
+    if not path.startswith(prefix):
+        return None
+    entry_uuid = path.removeprefix(prefix)
+    if not entry_uuid or "/" in entry_uuid:
+        return None
+    return entry_uuid
+
+
 def _is_calendar_not_found_error(error: DomainRuleError) -> bool:
     message = str(error).strip()
     return message.startswith("calendar.") and message.endswith(": meal plan not found")
+
+
+def _is_log_not_found_error(error: DomainRuleError) -> bool:
+    message = str(error).strip()
+    return message.startswith("log.") and message.endswith(": entry not found")
 
 
 def _normalize_calendar_date(date_key: str) -> str:

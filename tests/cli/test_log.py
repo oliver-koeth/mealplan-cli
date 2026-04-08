@@ -225,3 +225,94 @@ def test_log_help_includes_json_payload_example() -> None:
     stdout = _normalized_stderr(result.stdout)
     assert "--json" in stdout
     assert "mealplan log --json" in stdout
+
+
+def test_log_search_returns_json_array_with_no_filters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(FOOD_LOG_STORE_PATH_ENV, str(storage_path))
+    runner.invoke(
+        app,
+        [
+            "log",
+            "--json",
+            (
+                '{"date":"20260407","meal":"breakfast","name":"Eggs",'
+                '"kcal":210,"carbs":2,"fat":15,"protein":18,"fiber":0}'
+            ),
+        ],
+    )
+    runner.invoke(
+        app,
+        [
+            "log",
+            "--json",
+            (
+                '{"date":"20260408","meal":"lunch","name":"Oatmeal",'
+                '"kcal":320,"carbs":52,"fat":7,"protein":12,"fiber":8}'
+            ),
+        ],
+    )
+
+    result = runner.invoke(app, ["log", "search"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert isinstance(payload, list)
+    assert len(payload) == 2
+    assert payload[0]["date"] == "20260408"
+    assert payload[1]["date"] == "20260407"
+    assert set(payload[0]) == {
+        "uuid",
+        "date",
+        "meal",
+        "name",
+        "kcal",
+        "carbs",
+        "fat",
+        "protein",
+        "fiber",
+    }
+
+
+def test_log_search_applies_optional_and_filters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(FOOD_LOG_STORE_PATH_ENV, str(storage_path))
+    runner.invoke(
+        app,
+        [
+            "log",
+            "--json",
+            (
+                '{"date":"20260408","meal":"lunch","name":"Greek Yogurt",'
+                '"kcal":180,"carbs":12,"fat":6,"protein":20,"fiber":0}'
+            ),
+        ],
+    )
+    runner.invoke(
+        app,
+        [
+            "log",
+            "--json",
+            (
+                '{"date":"20260408","meal":"dinner","name":"Yogurt Bowl",'
+                '"kcal":260,"carbs":34,"fat":8,"protein":14,"fiber":5}'
+            ),
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        ["log", "search", "--date", "20260408", "--name", "yogurt", "--meal", "lunch"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert len(payload) == 1
+    assert payload[0]["meal"] == "lunch"
+    assert payload[0]["name"] == "Greek Yogurt"

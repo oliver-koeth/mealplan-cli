@@ -245,6 +245,140 @@ def test_ui_server_calendar_missing_date_returns_structured_not_found(
     ]
 
 
+def test_ui_server_log_post_creates_entry_and_returns_canonical_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+    payload = {
+        "date": "20260408",
+        "meal": "breakfast",
+        "name": "Eggs",
+        "kcal": 210.0,
+        "carbs": 2.0,
+        "fat": 15.0,
+        "protein": 18.0,
+        "fiber": 0.0,
+    }
+
+    with _running_test_server() as port:
+        status, response = _post_json(port, "/api/v1/log", payload)
+
+    assert status == 200
+    assert isinstance(response.get("uuid"), str)
+    assert response["date"] == "20260408"
+    assert response["meal"] == "breakfast"
+    assert response["name"] == "Eggs"
+    assert response["kcal"] == 210.0
+    assert response["carbs"] == 2.0
+    assert response["fat"] == 15.0
+    assert response["protein"] == 18.0
+    assert response["fiber"] == 0.0
+    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    assert response["uuid"] in stored
+
+
+def test_ui_server_log_put_updates_entry_for_uuid_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+    create_payload = {
+        "date": "20260408",
+        "meal": "lunch",
+        "name": "Oatmeal",
+        "kcal": 320.0,
+        "carbs": 52.0,
+        "fat": 7.0,
+        "protein": 12.0,
+        "fiber": 8.0,
+    }
+    update_payload = {
+        "date": "20260408",
+        "meal": "dinner",
+        "name": "Salmon",
+        "kcal": 450.0,
+        "carbs": 10.0,
+        "fat": 25.0,
+        "protein": 48.0,
+        "fiber": 0.0,
+    }
+
+    with _running_test_server() as port:
+        _, created = _post_json(port, "/api/v1/log", create_payload)
+        status, response = _put_json(
+            port,
+            f"/api/v1/log/{created['uuid']}",
+            update_payload,
+        )
+
+    assert status == 200
+    assert response["uuid"] == created["uuid"]
+    assert response["meal"] == "dinner"
+    assert response["name"] == "Salmon"
+    assert response["kcal"] == 450.0
+    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    assert stored[created["uuid"]]["name"] == "Salmon"
+
+
+def test_ui_server_log_put_unknown_uuid_maps_to_structured_http_404(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(tmp_path / "food-log.json"))
+    payload = {
+        "date": "20260408",
+        "meal": "lunch",
+        "name": "Oatmeal",
+        "kcal": 320.0,
+        "carbs": 52.0,
+        "fat": 7.0,
+        "protein": 12.0,
+        "fiber": 8.0,
+    }
+
+    with _running_test_server() as port:
+        status, response = _put_json_expect_http_error(port, "/api/v1/log/missing-uuid", payload)
+
+    assert status == 404
+    assert response["error"]["code"] == "log_not_found"
+    assert response["error"]["message"] == "Log entry not found."
+    assert isinstance(response["error"]["request_id"], str)
+    assert response["error"]["details"] == [
+        {"field": "log.missing-uuid", "message": "entry not found"}
+    ]
+
+
+def test_ui_server_log_post_invalid_date_maps_to_http_400(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(tmp_path / "food-log.json"))
+    payload = {
+        "date": "2026-04-08",
+        "meal": "breakfast",
+        "name": "Eggs",
+        "kcal": 210.0,
+        "carbs": 2.0,
+        "fat": 15.0,
+        "protein": 18.0,
+        "fiber": 0.0,
+    }
+
+    with _running_test_server() as port:
+        status, response = _post_json_expect_http_error(port, "/api/v1/log", payload)
+
+    assert status == 400
+    assert response["error"]["code"] == "validation_error"
+    assert response["error"]["message"] == "Request validation failed."
+    assert isinstance(response["error"]["request_id"], str)
+    assert response["error"]["details"] == [
+        {"field": "date", "message": "Value error, expected YYYYMMDD"}
+    ]
+
+
 def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
     with _running_test_server() as port:
         status, html = _get_html(port, "/settings")

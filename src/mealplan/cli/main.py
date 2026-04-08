@@ -12,6 +12,7 @@ from typing import Literal
 import typer
 
 from mealplan.application.contracts import (
+    FoodLogSearchRequest,
     FoodLogUpsertRequest,
     MealPlanRequest,
     MealPlanResponse,
@@ -271,6 +272,22 @@ def log_command(
     else:
         response = store.create(request=request)
     typer.echo(response.model_dump_json())
+
+
+@log_app.command("search")
+def log_search_command(
+    date: str | None = LOG_DATE_OPTION,
+    name: str | None = LOG_NAME_OPTION,
+    meal: str | None = LOG_MEAL_OPTION,
+) -> None:
+    """Search food-log entries with optional filters."""
+    request = parse_contract(
+        FoodLogSearchRequest,
+        {"date": date, "name": name, "meal": meal},
+    )
+    store = JsonFoodLogStore(_food_log_store_path())
+    response = store.search(request=request)
+    typer.echo(json.dumps([entry.model_dump(mode="json") for entry in response]))
 
 
 def _persist_calendar_entry(*, date_key: str, response: MealPlanResponse) -> None:
