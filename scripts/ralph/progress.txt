@@ -5,6 +5,7 @@ Started: Wed Apr  8 15:40:02 CEST 2026
 - For canonical `YYYYMMDD` date fields in application boundary contracts, reuse one shared validator helper in `src/mealplan/application/contracts.py` so boundary parse failures remain deterministic (`date: Value error, expected YYYYMMDD`).
 - For UUID-keyed JSON persistence adapters, mirror `JsonCalendarStore` conventions: auto-create missing files with `{}` root, raise deterministic `ConfigError` prefixes (`log.store:`), and keep not-found domain errors namespaced (`log.<uuid>: entry not found`).
 - For food-log retrieval semantics, keep filtering centralized in `JsonFoodLogStore.search` with optional-AND behavior (`date` exact, `meal` exact, `name` case-insensitive substring) and return canonical `FoodLogEntry` rows sorted newest-first.
+- For new CLI persistence features, follow the env-override pattern used by calendar/log commands: read `MEALPLAN_*_STORE_PATH` first and default to a stable `~/.mealplan/*.json` path so tests can isolate storage and CLI behavior stays deterministic.
 
 ## [2026-04-08 15:43:02 CEST] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
@@ -75,4 +76,28 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - `FoodLogSearchRequest.name` matching is intentionally case-insensitive substring, so future tests/clients should not assume exact-name matching.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Search responses should be emitted as canonical `FoodLogEntry` models to keep boundary shape aligned for upcoming CLI/REST stories.
+---
+
+## [2026-04-08 15:55:13 CEST] - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- What was implemented
+- Added a top-level `mealplan log` Typer sub-app with create/update upsert behavior backed by `JsonFoodLogStore`.
+- Implemented required field-flag mode (`--date --meal --name --kcal --carbs --fat --protein --fiber`), optional `--quantity` defaulting to contract value `1.0`, and one-shot `--json` payload mode.
+- Enforced `--json` exclusivity against individual field flags; payloads with `uuid` now route to update, payloads without `uuid` route to create.
+- Added deterministic log-store path resolution via `MEALPLAN_FOOD_LOG_STORE_PATH` override with default `~/.mealplan/food-log.json`.
+- Added CLI tests covering create, quantity scaling, JSON mode, update-via-uuid, mixed-input rejection, unknown-uuid domain error mapping, and `mealplan log --help` JSON example text.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (376 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/cli/main.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/cli/test_log.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For new CLI feature stores, follow the calendar pattern: expose a dedicated `MEALPLAN_*_STORE_PATH` env override plus a stable home-directory default path to keep tests isolated and CLI behavior deterministic.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- To keep `mealplan log search` extensible for the next story, `log` is now a Typer sub-app callback; future `search` work should be added as a `log_app.command(...)` subcommand rather than a new top-level command.
+- Useful context (e.g., "the evaluation panel is in component X")
+- `mealplan log --help` now includes an explicit `--json` example in sub-app help text, and CLI coverage lives in `tests/cli/test_log.py`.
 ---

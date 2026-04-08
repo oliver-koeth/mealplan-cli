@@ -140,6 +140,7 @@ When in doubt, update those source docs instead of expanding this file.
 109. For new date fields in application boundary contracts, validate canonical `YYYYMMDD` with a shared `field_validator` helper in `src/mealplan/application/contracts.py` so `parse_contract(...)` emits deterministic `date: Value error, expected YYYYMMDD` messages.
 110. For UUID-keyed log persistence, use `src/mealplan/infrastructure/food_log_store.py::JsonFoodLogStore`: generate UUIDs only in `create`, require UUID in `update`, apply `quantity` scaling to nutrition fields before persistence, and never persist a `quantity` field.
 111. For food-log retrieval in `JsonFoodLogStore.search`, keep filter semantics as optional-AND (`date` exact, `meal` exact, `name` case-insensitive substring) and return canonical `FoodLogEntry` items sorted newest-first by date.
+112. For CLI food-log persistence wiring, resolve the storage path via `MEALPLAN_FOOD_LOG_STORE_PATH` when set (tests/overrides) and otherwise default to `~/.mealplan/food-log.json` so `mealplan log` behavior is deterministic across working directories.
 
 ## Ralph Runner
 
