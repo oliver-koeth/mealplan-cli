@@ -7,6 +7,7 @@ Started: Wed Apr  8 15:40:02 CEST 2026
 - For food-log retrieval semantics, keep filtering centralized in `JsonFoodLogStore.search` with optional-AND behavior (`date` exact, `meal` exact, `name` case-insensitive substring) and return canonical `FoodLogEntry` rows sorted newest-first.
 - For new CLI persistence features, follow the env-override pattern used by calendar/log commands: read `MEALPLAN_*_STORE_PATH` first and default to a stable `~/.mealplan/*.json` path so tests can isolate storage and CLI behavior stays deterministic.
 - For web write endpoints that target UUID-keyed persistence, treat the route path UUID as canonical (`PUT /api/v1/log/{uuid}`), inject it into parsed contracts before store updates, and map `log.<uuid>: entry not found` to structured HTTP `404` API errors.
+- For web GET filter APIs, parse query params as singletons (reject repeated params with `ValidationError`) and pass the normalized map through `parse_contract(...)` so validation failures keep canonical structured error details.
 
 ## [2026-04-08 15:43:02 CEST] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
@@ -125,4 +126,28 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - `parse_contract(...)` date validation details currently surface `Value error, expected YYYYMMDD`; endpoint tests should assert stable field + canonical message wording.
 - Useful context (e.g., "the evaluation panel is in component X")
 - UI server API tests live in `tests/unit/test_web_ui_server.py` and use local HTTP helpers (`_post_json`, `_put_json_expect_http_error`) against a real in-process server thread for route-level verification.
+---
+## [2026-04-08 17:03:24 CEST] - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- What was implemented
+- Added `GET /api/v1/log/search` to the UI server and routed it in `do_GET`.
+- Implemented optional query-param parsing for `date`, `name`, and `meal`, then validated the filter payload through `parse_contract(FoodLogSearchRequest, ...)`.
+- Wired endpoint execution to `JsonFoodLogStore.search(...)`, returning canonical JSON array entries.
+- Added validation/error handling for search requests using the existing structured API error envelope style (`validation_error` with deterministic `details` fields).
+- Added query parsing guardrails to reject repeated filter params deterministically (`<field>: expected single query parameter`).
+- Added/updated endpoint tests for optional-AND search filtering, canonical response shape, invalid-date query handling, and duplicate query-param validation mapping.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (385 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For GET endpoints with optional filters, normalize query params to single values before contract parsing to keep duplicate-key behavior deterministic and validation-envelope-friendly.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `do_GET` routing in `ui_server.py` relies on `_request_path()` (path-only), so query-bearing endpoints need explicit handlers keyed by path plus separate query extraction.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Existing web API tests already provide `_get_json(...)`/`_get_json_expect_http_error(...)` helpers, so new GET endpoint coverage can follow the same in-process server pattern without additional fixtures.
 ---

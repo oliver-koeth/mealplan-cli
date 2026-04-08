@@ -14,12 +14,17 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from string import Template
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 from pydantic import ValidationError as PydanticValidationError
 
-from mealplan.application.contracts import FoodLogUpsertRequest, MealPlanRequest, MealPlanResponse
+from mealplan.application.contracts import (
+    FoodLogSearchRequest,
+    FoodLogUpsertRequest,
+    MealPlanRequest,
+    MealPlanResponse,
+)
 from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
 from mealplan.infrastructure import JsonCalendarStore, JsonFoodLogStore
@@ -2201,6 +2206,9 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/v1/health":
             self._write_json(HTTPStatus.OK, {"status": "ok"})
             return
+        if path == "/api/v1/log/search":
+            self._handle_log_search_get()
+            return
         calendar_date = _calendar_date_from_path(path)
         if calendar_date is not None:
             self._handle_calendar_get(calendar_date)
@@ -2366,6 +2374,51 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
             return
         self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
 
+    def _handle_log_search_get(self) -> None:
+        request_id = str(uuid4())
+        store = JsonFoodLogStore(_food_log_store_path())
+        try:
+            request = parse_contract(
+                FoodLogSearchRequest,
+                {
+                    "date": self._single_query_param("date"),
+                    "name": self._single_query_param("name"),
+                    "meal": self._single_query_param("meal"),
+                },
+            )
+            response = store.search(request=request)
+        except ValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.BAD_REQUEST,
+                code="validation_error",
+                message="Request validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except DomainRuleError as error:
+            self._write_api_error(
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                code="domain_rule_error",
+                message="Meal-plan domain rule failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except Exception as error:  # noqa: BLE001
+            self._write_api_error(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                code="internal_error",
+                message="Internal server error.",
+                request_id=request_id,
+                details=[{"message": str(error)}],
+            )
+            return
+        self._write_json(
+            HTTPStatus.OK,
+            [entry.model_dump(mode="json") for entry in response],
+        )
+
     def _handle_calendar_get(self, date_key: str) -> None:
         request_id = str(uuid4())
         store = JsonCalendarStore(_calendar_store_path())
@@ -2451,6 +2504,15 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
     def _request_path(self) -> str:
         return urlsplit(self.path).path
 
+    def _single_query_param(self, name: str) -> str | None:
+        query_params = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+        values = query_params.get(name)
+        if values is None:
+            return None
+        if len(values) != 1:
+            raise ValidationError(f"{name}: expected single query parameter")
+        return values[0]
+
     def _read_json_payload(self) -> dict[str, object]:
         content_length_value = self.headers.get("Content-Length", "0")
         try:
@@ -2496,7 +2558,7 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
-    def _write_json(self, status: HTTPStatus, payload: dict[str, object]) -> None:
+    def _write_json(self, status: HTTPStatus, payload: object) -> None:
         encoded = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")

@@ -143,6 +143,7 @@ When in doubt, update those source docs instead of expanding this file.
 112. For CLI food-log persistence wiring, resolve the storage path via `MEALPLAN_FOOD_LOG_STORE_PATH` when set (tests/overrides) and otherwise default to `~/.mealplan/food-log.json` so `mealplan log` behavior is deterministic across working directories.
 113. For the `mealplan log` Typer namespace, keep create/update behavior in the `@log_app.callback` path and return early when `ctx.invoked_subcommand` is set so subcommands like `log search` bypass upsert-required flag validation.
 114. For web food-log write APIs, keep UUID ownership on the route (`PUT /api/v1/log/{uuid}`), inject that UUID into the parsed upsert contract before store update, and map unknown UUID `DomainRuleError` (`log.<uuid>: entry not found`) to HTTP `404` with envelope code `log_not_found`.
+115. For web GET endpoints with optional filters (for example `/api/v1/log/search`), parse query values as singletons (reject duplicates with `ValidationError`), then validate through `parse_contract(...)` so error envelopes keep deterministic `field: message` details.
 
 ## Ralph Runner
 

@@ -379,6 +379,106 @@ def test_ui_server_log_post_invalid_date_maps_to_http_400(
     ]
 
 
+def test_ui_server_log_search_supports_optional_and_filters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+    breakfast = {
+        "date": "20260408",
+        "meal": "breakfast",
+        "name": "Greek Yogurt",
+        "kcal": 180.0,
+        "carbs": 12.0,
+        "fat": 8.0,
+        "protein": 16.0,
+        "fiber": 0.0,
+    }
+    dinner = {
+        "date": "20260408",
+        "meal": "dinner",
+        "name": "Salmon Bowl",
+        "kcal": 420.0,
+        "carbs": 35.0,
+        "fat": 18.0,
+        "protein": 32.0,
+        "fiber": 4.0,
+    }
+    prior_day = {
+        "date": "20260407",
+        "meal": "dinner",
+        "name": "Yogurt Chicken",
+        "kcal": 390.0,
+        "carbs": 20.0,
+        "fat": 14.0,
+        "protein": 40.0,
+        "fiber": 3.0,
+    }
+
+    with _running_test_server() as port:
+        _post_json(port, "/api/v1/log", breakfast)
+        _post_json(port, "/api/v1/log", dinner)
+        _post_json(port, "/api/v1/log", prior_day)
+        status, response = _get_json(
+            port,
+            "/api/v1/log/search?date=20260408&meal=dinner&name=sal",
+        )
+
+    assert status == 200
+    assert isinstance(response, list)
+    assert len(response) == 1
+    match = response[0]
+    assert isinstance(match["uuid"], str)
+    assert match["date"] == "20260408"
+    assert match["meal"] == "dinner"
+    assert match["name"] == "Salmon Bowl"
+    assert match["kcal"] == 420.0
+    assert match["carbs"] == 35.0
+    assert match["fat"] == 18.0
+    assert match["protein"] == 32.0
+    assert match["fiber"] == 4.0
+
+
+def test_ui_server_log_search_invalid_date_maps_to_http_400(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(tmp_path / "food-log.json"))
+
+    with _running_test_server() as port:
+        status, response = _get_json_expect_http_error(port, "/api/v1/log/search?date=2026-04-08")
+
+    assert status == 400
+    assert response["error"]["code"] == "validation_error"
+    assert response["error"]["message"] == "Request validation failed."
+    assert isinstance(response["error"]["request_id"], str)
+    assert response["error"]["details"] == [
+        {"field": "date", "message": "Value error, expected YYYYMMDD"}
+    ]
+
+
+def test_ui_server_log_search_duplicate_query_param_maps_to_http_400(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(tmp_path / "food-log.json"))
+
+    with _running_test_server() as port:
+        status, response = _get_json_expect_http_error(
+            port,
+            "/api/v1/log/search?date=20260408&date=20260409",
+        )
+
+    assert status == 400
+    assert response["error"]["code"] == "validation_error"
+    assert response["error"]["message"] == "Request validation failed."
+    assert isinstance(response["error"]["request_id"], str)
+    assert response["error"]["details"] == [
+        {"field": "date", "message": "expected single query parameter"}
+    ]
+
+
 def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
     with _running_test_server() as port:
         status, html = _get_html(port, "/settings")
