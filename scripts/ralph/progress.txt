@@ -10,6 +10,7 @@ Started: Wed Apr  8 15:40:02 CEST 2026
 - For web GET filter APIs, parse query params as singletons (reject repeated params with `ValidationError`) and pass the normalized map through `parse_contract(...)` so validation failures keep canonical structured error details.
 - For each new top-level UI page in `src/mealplan/web/ui_server.py`, update all four surfaces together: `_PAGE_CONTENT` entry, nav markup + `_render_app_shell(...)` active placeholder substitution, `do_GET` route handling, and HTML shell assertions in `tests/unit/test_web_ui_server.py`.
 - For `/log` entry-form client workflows, treat a non-empty `uuid` control as edit mode (`Save` + `PUT /api/v1/log/{uuid}`), default empty `uuid` to create mode (`Add` + `POST /api/v1/log`), and clear success callouts on subsequent user input.
+- For `_APP_SHELL_TEMPLATE` inline JavaScript in `src/mealplan/web/ui_server.py`, escape literal dollar signs as `$$` (including regex end anchors) or `string.Template.substitute(...)` will fail and break all HTML routes.
 
 ## [2026-04-08 15:43:02 CEST] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
@@ -198,4 +199,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - HTML shell tests in `tests/unit/test_web_ui_server.py` are sensitive to inline-template formatting; assert durable substrings/markers rather than full multiline tag strings.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Log form UX logic lives in the inline script branch guarded by `if (logEntryForm)`, near existing date-control wiring and before calendar/calculate behaviors.
+---
+## [2026-04-08 17:16:47 CEST] - US-010
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- What was implemented
+- Implemented `/log` search results rendering and interaction wiring in the UI script: `Search` now calls `GET /api/v1/log/search` with optional date/name/meal query params and renders dynamic result rows.
+- Added per-result-row controls and behavior: caret toggle for expandable details, `Edit` action to copy all fields (including `uuid`) into the entry form and switch submit mode to `Save`, and `Add` action to copy row values while forcing `date=today` and clearing `uuid` so mode becomes `Add`.
+- Added shared log-entry bindings (`applyEditEntry` / `applyAddEntry`) so search-result actions reuse existing form mode/success behavior without duplicating submit logic.
+- Updated Log page shell markup/styles for results status/list regions and row layout markers required for interaction testing.
+- Added/updated shell tests asserting search wiring and interaction markers for caret/add/edit/details rendering hooks.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (387 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For result-to-form workflows on `/log`, keep row actions delegated through shared form-binding helpers so mode switching (`Add`/`Save`) and success-reset behavior stay centralized.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `_APP_SHELL_TEMPLATE` uses `string.Template`; unescaped `$` in inline JS (like regex end anchors) will crash route rendering, so use `$$` for literal dollar signs.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Log search results now expose stable markers (`data-log-result-row|caret|add|edit|details`) that are asserted in `tests/unit/test_web_ui_server.py` and intended for future UI interaction stories.
 ---

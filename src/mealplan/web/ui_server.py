@@ -356,6 +356,66 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         margin: 0;
       }
 
+      .log-results-list {
+        margin-top: 0.65rem;
+        display: grid;
+        gap: 0.55rem;
+      }
+
+      .log-result-row {
+        border-radius: 12px;
+        border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+        background: color-mix(in srgb, var(--surface) 95%, #1d4ed8 5%);
+        padding: 0.65rem;
+      }
+
+      .log-result-main {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+
+      .log-result-caret {
+        width: 2rem;
+        min-height: 2rem;
+        padding: 0;
+        font-size: 0.95rem;
+      }
+
+      .log-result-name {
+        margin: 0;
+        font-weight: 600;
+        color: var(--text);
+        flex: 1 1 220px;
+      }
+
+      .log-result-kcal {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 0.82rem;
+      }
+
+      .log-result-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+
+      .log-result-details {
+        margin-top: 0.5rem;
+        display: grid;
+        gap: 0.35rem;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .log-result-details p {
+        margin: 0;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+      }
+
       [data-calculate-form="true"] .form-card {
         border-radius: 18px;
       }
@@ -657,6 +717,18 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           flex: 1 1 100%;
         }
 
+        .log-result-main {
+          align-items: flex-start;
+        }
+
+        .log-result-actions {
+          margin-left: 0;
+        }
+
+        .log-result-details {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .results-totals {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -878,6 +950,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         const calendarForm = document.querySelector('[data-calendar-form="true"]');
         const logEntryForm = document.querySelector('[data-log-entry-form="true"]');
         const logSearchForm = document.querySelector('[data-log-search-form="true"]');
+        let logEntryBindings = null;
 
         const shiftIsoDateControl = (dateControl, deltaDays) => {
           if (!dateControl || !("value" in dateControl) || !Number.isFinite(deltaDays)) {
@@ -950,6 +1023,47 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               logEntrySubmitButton.textContent = isEditMode ? "Save" : "Add";
             };
 
+            const fillLogEntryForm = (entry, mode) => {
+              if (!entry || typeof entry !== "object") {
+                return;
+              }
+              if (mode === "edit") {
+                logUuidControl.value = typeof entry.uuid === "string" ? entry.uuid : "";
+                const canonical = typeof entry.date === "string" ? entry.date.trim() : "";
+                if (/^[0-9]{8}$$/.test(canonical)) {
+                  logDateControl.value = (
+                    canonical.slice(0, 4)
+                    + "-"
+                    + canonical.slice(4, 6)
+                    + "-"
+                    + canonical.slice(6, 8)
+                  );
+                }
+              } else {
+                logUuidControl.value = "";
+                logDateControl.value = toIsoDate(new Date());
+              }
+              logMealControl.value = typeof entry.meal === "string" ? entry.meal : "";
+              logNameControl.value = typeof entry.name === "string" ? entry.name : "";
+              logKcalControl.value = Number.isFinite(Number(entry.kcal))
+                ? String(Number(entry.kcal))
+                : "";
+              logCarbsControl.value = Number.isFinite(Number(entry.carbs))
+                ? String(Number(entry.carbs))
+                : "";
+              logFatControl.value = Number.isFinite(Number(entry.fat))
+                ? String(Number(entry.fat))
+                : "";
+              logProteinControl.value = Number.isFinite(Number(entry.protein))
+                ? String(Number(entry.protein))
+                : "";
+              logFiberControl.value = Number.isFinite(Number(entry.fiber))
+                ? String(Number(entry.fiber))
+                : "";
+              updateLogEntryMode();
+              setLogEntrySuccess("");
+            };
+
             const createLogEntryPayload = () => {
               const canonicalDate = normalizeCalendarDate(logDateControl.value);
               const kcal = parseNumberOrNull(logKcalControl.value);
@@ -1007,6 +1121,15 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               setLogEntrySuccess("");
             });
 
+            logEntryBindings = {
+              applyEditEntry: (entry) => {
+                fillLogEntryForm(entry, "edit");
+              },
+              applyAddEntry: (entry) => {
+                fillLogEntryForm(entry, "add");
+              },
+            };
+
             logEntrySubmitButton.addEventListener("click", async () => {
               const payload = createLogEntryPayload();
               if (!payload) {
@@ -1042,12 +1165,175 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 
         if (logSearchForm) {
           const logSearchDateControl = logSearchForm.elements.namedItem("date");
+          const logSearchNameControl = logSearchForm.elements.namedItem("name");
+          const logSearchMealControl = logSearchForm.elements.namedItem("meal");
+          const logSearchSubmitButton = logSearchForm.querySelector(
+            '[data-log-search-submit="true"]'
+          );
+          const logResultsStatus = document.querySelector('[data-log-results-status="true"]');
+          const logResultsList = document.querySelector('[data-log-results-list="true"]');
           if (
             logSearchDateControl
             && "value" in logSearchDateControl
-            && !logSearchDateControl.value
+            && logSearchNameControl
+            && "value" in logSearchNameControl
+            && logSearchMealControl
+            && "value" in logSearchMealControl
+            && logSearchSubmitButton
+            && logResultsStatus
+            && logResultsList
           ) {
-            logSearchDateControl.value = toIsoDate(new Date());
+            const formatNumber = (value) => {
+              const parsed = Number(value);
+              if (!Number.isFinite(parsed)) {
+                return "-";
+              }
+              return parsed.toFixed(2);
+            };
+
+            const setLogResultsStatus = (message) => {
+              logResultsStatus.textContent = message;
+            };
+
+            const clearLogResultsList = () => {
+              logResultsList.innerHTML = "";
+            };
+
+            const renderLogSearchResults = (entries) => {
+              clearLogResultsList();
+              if (!Array.isArray(entries) || entries.length === 0) {
+                setLogResultsStatus("No matching entries.");
+                return;
+              }
+              setLogResultsStatus("Showing " + String(entries.length) + " result(s).");
+              for (const entry of entries) {
+                const row = document.createElement("article");
+                row.className = "log-result-row";
+                row.setAttribute("data-log-result-row", "true");
+
+                const main = document.createElement("div");
+                main.className = "log-result-main";
+
+                const caret = document.createElement("button");
+                caret.className = "primary-button secondary-button log-result-caret";
+                caret.type = "button";
+                caret.textContent = ">";
+                caret.setAttribute("data-log-result-caret", "true");
+
+                const name = document.createElement("p");
+                name.className = "log-result-name";
+                name.textContent = typeof entry?.name === "string" ? entry.name : "Entry";
+
+                const kcal = document.createElement("p");
+                kcal.className = "log-result-kcal";
+                kcal.textContent = formatNumber(entry?.kcal) + " kcal";
+
+                const actions = document.createElement("div");
+                actions.className = "log-result-actions";
+
+                const addButton = document.createElement("button");
+                addButton.className = "primary-button secondary-button";
+                addButton.type = "button";
+                addButton.textContent = "Add";
+                addButton.setAttribute("data-log-result-add", "true");
+
+                const editButton = document.createElement("button");
+                editButton.className = "primary-button secondary-button";
+                editButton.type = "button";
+                editButton.textContent = "Edit";
+                editButton.setAttribute("data-log-result-edit", "true");
+
+                actions.appendChild(addButton);
+                actions.appendChild(editButton);
+
+                main.appendChild(caret);
+                main.appendChild(name);
+                main.appendChild(kcal);
+                main.appendChild(actions);
+
+                const details = document.createElement("section");
+                details.className = "log-result-details";
+                details.hidden = true;
+                details.setAttribute("data-log-result-details", "true");
+                details.innerHTML = (
+                  "<p>Meal: " + (typeof entry?.meal === "string" ? entry.meal : "-") + "</p>"
+                  + "<p>Date: " + (typeof entry?.date === "string" ? entry.date : "-") + "</p>"
+                  + "<p>UUID: " + (typeof entry?.uuid === "string" ? entry.uuid : "-") + "</p>"
+                  + "<p>Carbs: " + formatNumber(entry?.carbs) + " g</p>"
+                  + "<p>Fat: " + formatNumber(entry?.fat) + " g</p>"
+                  + "<p>Protein: " + formatNumber(entry?.protein) + " g</p>"
+                  + "<p>Fiber: " + formatNumber(entry?.fiber) + " g</p>"
+                );
+
+                caret.addEventListener("click", () => {
+                  const expanded = details.hidden;
+                  details.hidden = !expanded;
+                  caret.textContent = expanded ? "v" : ">";
+                });
+                editButton.addEventListener("click", () => {
+                  if (!logEntryBindings) {
+                    return;
+                  }
+                  logEntryBindings.applyEditEntry(entry);
+                });
+                addButton.addEventListener("click", () => {
+                  if (!logEntryBindings) {
+                    return;
+                  }
+                  logEntryBindings.applyAddEntry(entry);
+                });
+
+                row.appendChild(main);
+                row.appendChild(details);
+                logResultsList.appendChild(row);
+              }
+            };
+
+            const createSearchQuery = () => {
+              const query = new URLSearchParams();
+              const canonicalDate = normalizeCalendarDate(logSearchDateControl.value);
+              const trimmedName = logSearchNameControl.value.trim();
+              const meal = logSearchMealControl.value.trim();
+              if (canonicalDate) {
+                query.set("date", canonicalDate);
+              }
+              if (trimmedName) {
+                query.set("name", trimmedName);
+              }
+              if (meal) {
+                query.set("meal", meal);
+              }
+              return query.toString();
+            };
+
+            const runLogSearch = async () => {
+              setLogResultsStatus("Searching...");
+              clearLogResultsList();
+              logSearchSubmitButton.disabled = true;
+              try {
+                const query = createSearchQuery();
+                const endpoint = query ? ("/api/v1/log/search?" + query) : "/api/v1/log/search";
+                const response = await window.fetch(endpoint, {method: "GET"});
+                if (!response.ok) {
+                  setLogResultsStatus("Search failed.");
+                  return;
+                }
+                const payload = await response.json();
+                renderLogSearchResults(payload);
+              } catch {
+                setLogResultsStatus("Search failed.");
+              } finally {
+                logSearchSubmitButton.disabled = false;
+              }
+            };
+
+            if (!logSearchDateControl.value) {
+              logSearchDateControl.value = toIsoDate(new Date());
+            }
+            setLogResultsStatus("No results loaded.");
+            logSearchSubmitButton.addEventListener("click", () => {
+              void runLogSearch();
+            });
           }
         }
 
@@ -2484,7 +2770,8 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
           <p class="section-label calculate-section-label">Search Results</p>
           <section class="form-card" data-log-results="true">
             <h2>Results</h2>
-            <p class="hint">No results loaded.</p>
+            <p class="hint" data-log-results-status="true">No results loaded.</p>
+            <section class="log-results-list" data-log-results-list="true"></section>
           </section>
         """,
     },

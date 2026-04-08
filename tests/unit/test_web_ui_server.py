@@ -733,6 +733,8 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'name="meal"' in html
     assert 'data-log-search-submit="true"' in html
     assert 'data-log-results="true"' in html
+    assert 'data-log-results-status="true"' in html
+    assert 'data-log-results-list="true"' in html
     assert (
         "const logEntryForm = document.querySelector('[data-log-entry-form=\"true\"]');"
     ) in html
@@ -749,10 +751,29 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert "await window.fetch(endpoint, {" in html
     assert "resetLogEntryForm();" in html
     assert 'setLogEntrySuccess(isEditMode ? "Entry saved." : "Entry added.");' in html
+    assert "let logEntryBindings = null;" in html
+    assert "const fillLogEntryForm = (entry, mode) => {" in html
+    assert 'logEntryBindings.applyEditEntry(entry);' in html
+    assert 'logEntryBindings.applyAddEntry(entry);' in html
+    assert "const logSearchSubmitButton = logSearchForm.querySelector(" in html
+    assert '\'[data-log-search-submit="true"]\'' in html
+    assert "const renderLogSearchResults = (entries) => {" in html
+    assert 'row.setAttribute("data-log-result-row", "true");' in html
+    assert 'caret.setAttribute("data-log-result-caret", "true");' in html
+    assert 'addButton.setAttribute("data-log-result-add", "true");' in html
+    assert 'editButton.setAttribute("data-log-result-edit", "true");' in html
+    assert 'details.setAttribute("data-log-result-details", "true");' in html
+    assert 'caret.textContent = expanded ? "v" : ">";' in html
+    assert "const createSearchQuery = () => {" in html
+    assert "const runLogSearch = async () => {" in html
+    assert (
+        'const endpoint = query ? ("/api/v1/log/search?" + query) : "/api/v1/log/search";'
+    ) in html
+    assert "void runLogSearch();" in html
     assert "if (" in html
     assert "logSearchDateControl" in html
     assert '"value" in logSearchDateControl' in html
-    assert "&& !logSearchDateControl.value" in html
+    assert "if (!logSearchDateControl.value) {" in html
     assert "logSearchDateControl.value = toIsoDate(new Date());" in html
 
 

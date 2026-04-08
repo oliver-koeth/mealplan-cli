@@ -145,6 +145,7 @@ When in doubt, update those source docs instead of expanding this file.
 114. For web food-log write APIs, keep UUID ownership on the route (`PUT /api/v1/log/{uuid}`), inject that UUID into the parsed upsert contract before store update, and map unknown UUID `DomainRuleError` (`log.<uuid>: entry not found`) to HTTP `404` with envelope code `log_not_found`.
 115. For web GET endpoints with optional filters (for example `/api/v1/log/search`), parse query values as singletons (reject duplicates with `ValidationError`), then validate through `parse_contract(...)` so error envelopes keep deterministic `field: message` details.
 116. For `/log` entry-form UX wiring, derive Add-vs-Save mode from whether `uuid` is populated, submit to `POST /api/v1/log` or `PUT /api/v1/log/{uuid}` accordingly, and keep success feedback in a dedicated hidden callout marker (`data-log-entry-success`) that resets on new input.
+117. In `web/ui_server.py` `_APP_SHELL_TEMPLATE` JavaScript, escape regex/string literal dollar signs as `$$` (for example `/...$$/`) because `string.Template.substitute(...)` treats unescaped `$` as placeholders and will break page rendering.
 
 ## Ralph Runner
 
