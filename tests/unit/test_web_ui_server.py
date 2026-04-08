@@ -488,6 +488,7 @@ def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
     assert '<a class="nav-link" href="/settings" aria-current="page">Settings</a>' in html
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
+    assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
     assert "Athlete profile and defaults" in html
 
 
@@ -539,6 +540,7 @@ def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None
     assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="nav-link" href="/calculate" aria-current="page">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
+    assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
     assert "Daily training and meal-plan calculation" in html
     assert '<form class="form-stack" data-settings-form="true">' not in html
 
@@ -552,7 +554,21 @@ def test_ui_server_calendar_shell_exposes_navigation_and_active_state() -> None:
     assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="page">Calendar</a>' in html
+    assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
     assert "Date-based meal-plan lookup" in html
+
+
+def test_ui_server_log_shell_exposes_navigation_and_active_state() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/log")
+
+    assert status == 200
+    assert '<header class="app-header">' in html
+    assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
+    assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
+    assert '<a class="nav-link" href="/log" aria-current="page">Log</a>' in html
+    assert "Food log entry and search" in html
 
 
 def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_script() -> None:
@@ -688,6 +704,45 @@ def test_ui_server_calendar_shell_includes_date_controls_and_read_only_result_wi
     assert "void loadCalendarPlan();" in html
     assert "const strategyBadgeClass = (value) => {" in html
     assert "This calendar view is read-only." in html
+
+
+def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/log")
+
+    assert status == 200
+    assert '<form class="form-stack" data-log-entry-form="true">' in html
+    assert 'name="uuid" type="text" readonly' in html
+    assert 'data-log-date-prev="true"' in html
+    assert 'data-log-date-next="true"' in html
+    assert 'name="date"' in html
+    assert 'name="meal"' in html
+    assert 'name="name"' in html
+    assert 'name="kcal"' in html
+    assert 'name="carbs"' in html
+    assert 'name="fat"' in html
+    assert 'name="protein"' in html
+    assert 'name="fiber"' in html
+    assert '<form class="form-stack" data-log-search-form="true">' in html
+    assert 'class="log-search-controls"' in html
+    assert 'name="date" type="date" aria-label="Search date"' in html
+    assert 'name="name" type="text"' in html
+    assert 'name="meal"' in html
+    assert 'data-log-search-submit="true"' in html
+    assert 'data-log-results="true"' in html
+    assert (
+        "const logEntryForm = document.querySelector('[data-log-entry-form=\"true\"]');"
+    ) in html
+    assert (
+        "const logSearchForm = document.querySelector('[data-log-search-form=\"true\"]');"
+    ) in html
+    assert "if (!logDateControl.value) {" in html
+    assert "logDateControl.value = toIsoDate(new Date());" in html
+    assert "if (" in html
+    assert "logSearchDateControl" in html
+    assert '"value" in logSearchDateControl' in html
+    assert "&& !logSearchDateControl.value" in html
+    assert "logSearchDateControl.value = toIsoDate(new Date());" in html
 
 
 def test_ui_server_calculate_maps_validation_error_to_http_400(

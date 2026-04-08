@@ -8,6 +8,7 @@ Started: Wed Apr  8 15:40:02 CEST 2026
 - For new CLI persistence features, follow the env-override pattern used by calendar/log commands: read `MEALPLAN_*_STORE_PATH` first and default to a stable `~/.mealplan/*.json` path so tests can isolate storage and CLI behavior stays deterministic.
 - For web write endpoints that target UUID-keyed persistence, treat the route path UUID as canonical (`PUT /api/v1/log/{uuid}`), inject it into parsed contracts before store updates, and map `log.<uuid>: entry not found` to structured HTTP `404` API errors.
 - For web GET filter APIs, parse query params as singletons (reject repeated params with `ValidationError`) and pass the normalized map through `parse_contract(...)` so validation failures keep canonical structured error details.
+- For each new top-level UI page in `src/mealplan/web/ui_server.py`, update all four surfaces together: `_PAGE_CONTENT` entry, nav markup + `_render_app_shell(...)` active placeholder substitution, `do_GET` route handling, and HTML shell assertions in `tests/unit/test_web_ui_server.py`.
 
 ## [2026-04-08 15:43:02 CEST] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
@@ -150,4 +151,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - `do_GET` routing in `ui_server.py` relies on `_request_path()` (path-only), so query-bearing endpoints need explicit handlers keyed by path plus separate query extraction.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Existing web API tests already provide `_get_json(...)`/`_get_json_expect_http_error(...)` helpers, so new GET endpoint coverage can follow the same in-process server pattern without additional fixtures.
+---
+
+## [2026-04-08 17:07:53 CEST] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- What was implemented
+- Added top-level `Log` UI route (`/log`) and navigation item, including active-state wiring in the app shell template.
+- Added a dedicated Log page layout with ordered regions: entry form, search controls, and search results.
+- Implemented Log entry-form shell fields including read-only `uuid`, full nutrition inputs, and full-width date row with `<` / `>` controls.
+- Added client-side Log date initialization so entry and search date controls default to current date when empty.
+- Added/updated UI-server tests for Log route navigation state and required shell structure/wiring.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (387 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Top-level UI page work in this codebase is enforced by shell tests that assert exact rendered HTML/JS markers; add those tests in the same iteration as page scaffolding.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- Inline script assertions are sensitive to multiline formatting; assert stable substrings rather than very long exact one-line snippets.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Log page shell now exists at `/log` with `data-log-entry-form`, `data-log-search-form`, and `data-log-results` anchors for follow-up interaction stories.
 ---

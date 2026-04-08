@@ -297,6 +297,12 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         flex-wrap: nowrap;
       }
 
+      [data-log-entry-form="true"] .date-controls {
+        align-items: center;
+        width: 100%;
+        flex-wrap: nowrap;
+      }
+
       .date-controls label {
         min-width: 220px;
       }
@@ -307,6 +313,11 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       }
 
       [data-calculate-form="true"] .date-controls .date-input-wrap {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+
+      [data-log-entry-form="true"] .date-controls .date-input-wrap {
         min-width: 0;
         flex: 1 1 auto;
       }
@@ -325,6 +336,24 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 
       .field-span-2 {
         grid-column: 1 / -1;
+      }
+
+      .log-search-controls {
+        margin-top: 0.65rem;
+        display: flex;
+        align-items: flex-end;
+        gap: 0.65rem;
+        flex-wrap: wrap;
+      }
+
+      .log-search-controls label {
+        margin: 0;
+        min-width: 180px;
+        flex: 1 1 220px;
+      }
+
+      .log-search-controls .actions {
+        margin: 0;
       }
 
       [data-calculate-form="true"] .form-card {
@@ -604,6 +633,11 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           grid-template-columns: 1fr;
         }
 
+        .log-search-controls label {
+          min-width: 0;
+          flex: 1 1 100%;
+        }
+
         .results-totals {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -625,6 +659,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           <a class="nav-link" href="/settings" aria-current="$settings_current">Settings</a>
           <a class="nav-link" href="/calculate" aria-current="$calculate_current">Calculate</a>
           <a class="nav-link" href="/calendar" aria-current="$calendar_current">Calendar</a>
+          <a class="nav-link" href="/log" aria-current="$log_current">Log</a>
         </nav>
       </div>
     </header>
@@ -822,6 +857,54 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 
         const calculateForm = document.querySelector('[data-calculate-form="true"]');
         const calendarForm = document.querySelector('[data-calendar-form="true"]');
+        const logEntryForm = document.querySelector('[data-log-entry-form="true"]');
+        const logSearchForm = document.querySelector('[data-log-search-form="true"]');
+
+        const shiftIsoDateControl = (dateControl, deltaDays) => {
+          if (!dateControl || !("value" in dateControl) || !Number.isFinite(deltaDays)) {
+            return;
+          }
+          const baseIso = dateControl.value || toIsoDate(new Date());
+          const parsedBase = new Date(baseIso + "T00:00:00");
+          if (Number.isNaN(parsedBase.getTime())) {
+            dateControl.value = toIsoDate(new Date());
+            return;
+          }
+          parsedBase.setDate(parsedBase.getDate() + deltaDays);
+          dateControl.value = toIsoDate(parsedBase);
+        };
+
+        if (logEntryForm) {
+          const logDateControl = logEntryForm.elements.namedItem("date");
+          const logPreviousDayButton = logEntryForm.querySelector('[data-log-date-prev="true"]');
+          const logNextDayButton = logEntryForm.querySelector('[data-log-date-next="true"]');
+          if (logDateControl && "value" in logDateControl) {
+            if (!logDateControl.value) {
+              logDateControl.value = toIsoDate(new Date());
+            }
+            if (logPreviousDayButton) {
+              logPreviousDayButton.addEventListener("click", () => {
+                shiftIsoDateControl(logDateControl, -1);
+              });
+            }
+            if (logNextDayButton) {
+              logNextDayButton.addEventListener("click", () => {
+                shiftIsoDateControl(logDateControl, 1);
+              });
+            }
+          }
+        }
+
+        if (logSearchForm) {
+          const logSearchDateControl = logSearchForm.elements.namedItem("date");
+          if (
+            logSearchDateControl
+            && "value" in logSearchDateControl
+            && !logSearchDateControl.value
+          ) {
+            logSearchDateControl.value = toIsoDate(new Date());
+          }
+        }
 
         if (calendarForm) {
           const calendarDateControl = calendarForm.elements.namedItem("calendar_date");
@@ -2140,6 +2223,117 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
           </section>
         """,
     },
+    "log": {
+        "section_label": "Log",
+        "title": "Food log entry and search",
+        "description": (
+            "Capture food entries and browse saved records from one page. Entry actions, search "
+            "filters, and results are organized in a single workflow."
+        ),
+        "content_html": """
+          <p class="section-label calculate-section-label">Log Entry</p>
+          <form class="form-stack" data-log-entry-form="true">
+            <section class="form-card">
+              <h2>Entry Form</h2>
+              <div class="date-controls">
+                <button
+                  class="primary-button secondary-button"
+                  type="button"
+                  data-log-date-prev="true"
+                >
+                  &lt;
+                </button>
+                <div class="date-input-wrap">
+                  <input
+                    name="date"
+                    type="date"
+                    aria-label="Date"
+                    required
+                  />
+                </div>
+                <button
+                  class="primary-button secondary-button"
+                  type="button"
+                  data-log-date-next="true"
+                >
+                  &gt;
+                </button>
+              </div>
+              <div class="field-grid">
+                <label>UUID
+                  <input name="uuid" type="text" readonly />
+                </label>
+                <label>Meal
+                  <select name="meal" required>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="morning-snack">Morning snack</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="afternoon-snack">Afternoon snack</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="evening-snack">Evening snack</option>
+                  </select>
+                </label>
+                <label class="field-span-2">Name
+                  <input name="name" type="text" required />
+                </label>
+                <label>Kcal
+                  <input name="kcal" type="number" min="0" step="0.1" required />
+                </label>
+                <label>Carbs
+                  <input name="carbs" type="number" min="0" step="0.1" required />
+                </label>
+                <label>Fat
+                  <input name="fat" type="number" min="0" step="0.1" required />
+                </label>
+                <label>Protein
+                  <input name="protein" type="number" min="0" step="0.1" required />
+                </label>
+                <label class="field-span-2">Fiber
+                  <input name="fiber" type="number" min="0" step="0.1" required />
+                </label>
+              </div>
+              <div class="actions">
+                <button class="primary-button" type="button">Add</button>
+              </div>
+            </section>
+          </form>
+          <p class="section-label calculate-section-label">Search Controls</p>
+          <form class="form-stack" data-log-search-form="true">
+            <section class="form-card">
+              <h2>Search</h2>
+              <div class="log-search-controls">
+                <label>Date
+                  <input name="date" type="date" aria-label="Search date" />
+                </label>
+                <label>Name
+                  <input name="name" type="text" />
+                </label>
+                <label>Meal
+                  <select name="meal">
+                    <option value="">Any meal</option>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="morning-snack">Morning snack</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="afternoon-snack">Afternoon snack</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="evening-snack">Evening snack</option>
+                  </select>
+                </label>
+                <div class="actions">
+                  <button class="primary-button" type="button" data-log-search-submit="true">
+                    Search
+                  </button>
+                </div>
+              </div>
+            </section>
+          </form>
+          <p class="section-label calculate-section-label">Search Results</p>
+          <section class="form-card" data-log-results="true">
+            <h2>Results</h2>
+            <p class="hint">No results loaded.</p>
+          </section>
+        """,
+    },
 }
 
 
@@ -2199,6 +2393,9 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/calendar":
             self._write_html(_render_app_shell("calendar"))
+            return
+        if path == "/log":
+            self._write_html(_render_app_shell("log"))
             return
         if path == "/settings":
             self._write_html(_render_app_shell("settings"))
@@ -2577,6 +2774,7 @@ def _render_app_shell(active_page: str) -> str:
         settings_current="page" if active_page == "settings" else "false",
         calculate_current="page" if active_page == "calculate" else "false",
         calendar_current="page" if active_page == "calendar" else "false",
+        log_current="page" if active_page == "log" else "false",
     )
 
 
