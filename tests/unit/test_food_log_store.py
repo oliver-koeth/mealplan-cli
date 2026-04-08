@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from mealplan.application.contracts import FoodLogUpsertRequest
+from mealplan.application.contracts import FoodLogSearchRequest, FoodLogUpsertRequest
 from mealplan.infrastructure import JsonFoodLogStore
 from mealplan.shared.errors import ConfigError, DomainRuleError, ValidationError
 
@@ -183,3 +183,191 @@ def test_non_object_store_root_raises_config_error(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="log.store: storage root must be a JSON object"):
         store.create(request=request)
+
+
+def test_search_supports_optional_and_filters_with_case_insensitive_name(tmp_path: Path) -> None:
+    store = JsonFoodLogStore(_store_path(tmp_path))
+    entry_a = store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260408",
+                "meal": "breakfast",
+                "name": "Greek Yogurt",
+                "kcal": 140.0,
+                "carbs": 8.0,
+                "fat": 4.0,
+                "protein": 18.0,
+                "fiber": 0.0,
+            }
+        )
+    )
+    store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260408",
+                "meal": "lunch",
+                "name": "Chicken Bowl",
+                "kcal": 500.0,
+                "carbs": 50.0,
+                "fat": 15.0,
+                "protein": 35.0,
+                "fiber": 4.0,
+            }
+        )
+    )
+    store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260407",
+                "meal": "breakfast",
+                "name": "yogurt parfait",
+                "kcal": 260.0,
+                "carbs": 32.0,
+                "fat": 8.0,
+                "protein": 14.0,
+                "fiber": 5.0,
+            }
+        )
+    )
+
+    matches = store.search(
+        request=FoodLogSearchRequest.model_validate(
+            {"date": "20260408", "meal": "breakfast", "name": "YOG"}
+        )
+    )
+
+    assert [entry.uuid for entry in matches] == [entry_a.uuid]
+
+
+@pytest.mark.parametrize(
+    ("filters", "expected_count"),
+    [
+        ({"date": "20260408"}, 2),
+        ({"name": "yog"}, 2),
+        ({"meal": "breakfast"}, 2),
+    ],
+)
+def test_search_works_with_single_filter_inputs(
+    tmp_path: Path,
+    filters: dict[str, str],
+    expected_count: int,
+) -> None:
+    store = JsonFoodLogStore(_store_path(tmp_path))
+    store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260408",
+                "meal": "breakfast",
+                "name": "Greek Yogurt",
+                "kcal": 140.0,
+                "carbs": 8.0,
+                "fat": 4.0,
+                "protein": 18.0,
+                "fiber": 0.0,
+            }
+        )
+    )
+    store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260408",
+                "meal": "lunch",
+                "name": "Chicken Bowl",
+                "kcal": 500.0,
+                "carbs": 50.0,
+                "fat": 15.0,
+                "protein": 35.0,
+                "fiber": 4.0,
+            }
+        )
+    )
+    store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260407",
+                "meal": "breakfast",
+                "name": "Yogurt Parfait",
+                "kcal": 260.0,
+                "carbs": 32.0,
+                "fat": 8.0,
+                "protein": 14.0,
+                "fiber": 5.0,
+            }
+        )
+    )
+
+    matches = store.search(request=FoodLogSearchRequest.model_validate(filters))
+
+    assert len(matches) == expected_count
+
+
+def test_search_orders_results_newest_first(tmp_path: Path) -> None:
+    store = JsonFoodLogStore(_store_path(tmp_path))
+    newest = store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260409",
+                "meal": "lunch",
+                "name": "Meal C",
+                "kcal": 300.0,
+                "carbs": 30.0,
+                "fat": 10.0,
+                "protein": 20.0,
+                "fiber": 4.0,
+            }
+        )
+    )
+    middle = store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260408",
+                "meal": "lunch",
+                "name": "Meal B",
+                "kcal": 300.0,
+                "carbs": 30.0,
+                "fat": 10.0,
+                "protein": 20.0,
+                "fiber": 4.0,
+            }
+        )
+    )
+    oldest = store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260407",
+                "meal": "lunch",
+                "name": "Meal A",
+                "kcal": 300.0,
+                "carbs": 30.0,
+                "fat": 10.0,
+                "protein": 20.0,
+                "fiber": 4.0,
+            }
+        )
+    )
+
+    matches = store.search(request=FoodLogSearchRequest.model_validate({}))
+
+    assert [entry.uuid for entry in matches] == [newest.uuid, middle.uuid, oldest.uuid]
+
+
+def test_search_returns_canonical_food_log_entries(tmp_path: Path) -> None:
+    store = JsonFoodLogStore(_store_path(tmp_path))
+    created = store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260408",
+                "meal": "dinner",
+                "name": "Salmon",
+                "kcal": 420.0,
+                "carbs": 0.0,
+                "fat": 25.0,
+                "protein": 35.0,
+                "fiber": 0.0,
+            }
+        )
+    )
+
+    matches = store.search(request=FoodLogSearchRequest.model_validate({}))
+
+    assert matches == [created]

@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from mealplan.application.contracts import FoodLogEntry, FoodLogUpsertRequest
+from mealplan.application.contracts import (
+    FoodLogEntry,
+    FoodLogSearchRequest,
+    FoodLogUpsertRequest,
+)
 from mealplan.shared.errors import ConfigError, DomainRuleError, ValidationError
 
 
@@ -44,6 +48,24 @@ class JsonFoodLogStore:
         store[entry_uuid] = entry.model_dump(mode="json")
         self._write_store(store)
         return entry
+
+    def search(self, *, request: FoodLogSearchRequest) -> list[FoodLogEntry]:
+        """Search persisted log entries using optional-AND filter semantics."""
+        store = self._load_store()
+        entries: list[FoodLogEntry] = []
+        for entry_uuid, payload in store.items():
+            if not isinstance(payload, dict):
+                raise ConfigError(f"log.{entry_uuid}: persisted payload must be an object")
+            entry = FoodLogEntry.model_validate(payload)
+            if request.date is not None and entry.date != request.date:
+                continue
+            if request.meal is not None and entry.meal != request.meal:
+                continue
+            if request.name is not None and request.name.lower() not in entry.name.lower():
+                continue
+            entries.append(entry)
+
+        return sorted(entries, key=lambda entry: (entry.date, entry.uuid), reverse=True)
 
     def _entry_from_request(
         self,

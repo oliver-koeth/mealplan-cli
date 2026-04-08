@@ -4,6 +4,7 @@ Started: Wed Apr  8 15:40:02 CEST 2026
 ## Codebase Patterns
 - For canonical `YYYYMMDD` date fields in application boundary contracts, reuse one shared validator helper in `src/mealplan/application/contracts.py` so boundary parse failures remain deterministic (`date: Value error, expected YYYYMMDD`).
 - For UUID-keyed JSON persistence adapters, mirror `JsonCalendarStore` conventions: auto-create missing files with `{}` root, raise deterministic `ConfigError` prefixes (`log.store:`), and keep not-found domain errors namespaced (`log.<uuid>: entry not found`).
+- For food-log retrieval semantics, keep filtering centralized in `JsonFoodLogStore.search` with optional-AND behavior (`date` exact, `meal` exact, `name` case-insensitive substring) and return canonical `FoodLogEntry` rows sorted newest-first.
 
 ## [2026-04-08 15:43:02 CEST] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
@@ -52,4 +53,26 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - `FoodLogUpsertRequest` defaults `quantity` to `1.0`; adapter logic still must apply multiplier explicitly and never persist `quantity`.
 - Useful context (e.g., "the evaluation panel is in component X")
 - `FoodLogEntry` is the canonical persisted/returned shape for log records, so store writes should serialize from that model (`model_dump(mode=\"json\")`) to keep boundaries aligned.
+---
+
+## [2026-04-08 15:50:08 CEST] - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- What was implemented
+- Added `JsonFoodLogStore.search(request=FoodLogSearchRequest)` with optional-AND filtering over persisted entries (`date` exact match, `meal` exact match, `name` case-insensitive substring match).
+- Implemented canonical search-result ordering as newest-first by date, returning canonical `FoodLogEntry` objects.
+- Added store unit coverage for optional-AND behavior, single-filter cases, case-insensitive substring matching, newest-first ordering, and canonical entry-shape returns.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (369 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- Food-log search semantics are centralized in `JsonFoodLogStore.search`; keep CLI/API adapters thin and reuse this method to preserve consistent optional-AND filtering and ordering behavior.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `FoodLogSearchRequest.name` matching is intentionally case-insensitive substring, so future tests/clients should not assume exact-name matching.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Search responses should be emitted as canonical `FoodLogEntry` models to keep boundary shape aligned for upcoming CLI/REST stories.
 ---
