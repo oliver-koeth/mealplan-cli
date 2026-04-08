@@ -723,6 +723,9 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'name="fat"' in html
     assert 'name="protein"' in html
     assert 'name="fiber"' in html
+    assert 'data-log-entry-submit="true"' in html
+    assert 'class="success-callout"' in html
+    assert 'data-log-entry-success="true"' in html
     assert '<form class="form-stack" data-log-search-form="true">' in html
     assert 'class="log-search-controls"' in html
     assert 'name="date" type="date" aria-label="Search date"' in html
@@ -738,6 +741,14 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     ) in html
     assert "if (!logDateControl.value) {" in html
     assert "logDateControl.value = toIsoDate(new Date());" in html
+    assert "const updateLogEntryMode = () => {" in html
+    assert 'logEntrySubmitButton.textContent = isEditMode ? "Save" : "Add";' in html
+    assert "const createLogEntryPayload = () => {" in html
+    assert 'const endpoint = isEditMode ? ("/api/v1/log/" + uuid) : "/api/v1/log";' in html
+    assert 'const method = isEditMode ? "PUT" : "POST";' in html
+    assert "await window.fetch(endpoint, {" in html
+    assert "resetLogEntryForm();" in html
+    assert 'setLogEntrySuccess(isEditMode ? "Entry saved." : "Entry added.");' in html
     assert "if (" in html
     assert "logSearchDateControl" in html
     assert '"value" in logSearchDateControl' in html

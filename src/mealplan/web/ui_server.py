@@ -428,6 +428,25 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         color: #fecaca;
       }
 
+      .success-callout {
+        border-radius: 12px;
+        border: 1px solid rgba(22, 163, 74, 0.45);
+        background: linear-gradient(145deg, rgba(22, 163, 74, 0.2), rgba(21, 128, 61, 0.18));
+        color: #14532d;
+        padding: 0.75rem;
+        width: 100%;
+      }
+
+      .success-callout p {
+        margin: 0;
+        color: inherit;
+        font-size: 0.82rem;
+      }
+
+      :root[data-theme="dark"] .success-callout {
+        color: #bbf7d0;
+      }
+
       .alert-card h2 {
         margin: 0;
         font-size: 0.86rem;
@@ -876,22 +895,148 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 
         if (logEntryForm) {
           const logDateControl = logEntryForm.elements.namedItem("date");
+          const logUuidControl = logEntryForm.elements.namedItem("uuid");
+          const logMealControl = logEntryForm.elements.namedItem("meal");
+          const logNameControl = logEntryForm.elements.namedItem("name");
+          const logKcalControl = logEntryForm.elements.namedItem("kcal");
+          const logCarbsControl = logEntryForm.elements.namedItem("carbs");
+          const logFatControl = logEntryForm.elements.namedItem("fat");
+          const logProteinControl = logEntryForm.elements.namedItem("protein");
+          const logFiberControl = logEntryForm.elements.namedItem("fiber");
           const logPreviousDayButton = logEntryForm.querySelector('[data-log-date-prev="true"]');
           const logNextDayButton = logEntryForm.querySelector('[data-log-date-next="true"]');
-          if (logDateControl && "value" in logDateControl) {
+          const logEntrySubmitButton = logEntryForm.querySelector('[data-log-entry-submit="true"]');
+          const logEntrySuccessCallout = document.querySelector('[data-log-entry-success="true"]');
+          if (
+            logDateControl
+            && "value" in logDateControl
+            && logUuidControl
+            && "value" in logUuidControl
+            && logMealControl
+            && "value" in logMealControl
+            && logNameControl
+            && "value" in logNameControl
+            && logKcalControl
+            && "value" in logKcalControl
+            && logCarbsControl
+            && "value" in logCarbsControl
+            && logFatControl
+            && "value" in logFatControl
+            && logProteinControl
+            && "value" in logProteinControl
+            && logFiberControl
+            && "value" in logFiberControl
+            && logEntrySubmitButton
+            && logEntrySuccessCallout
+          ) {
+            const resetLogEntryForm = () => {
+              logEntryForm.reset();
+              logUuidControl.value = "";
+              logDateControl.value = toIsoDate(new Date());
+            };
+
+            const setLogEntrySuccess = (message) => {
+              if (!message) {
+                logEntrySuccessCallout.hidden = true;
+                logEntrySuccessCallout.textContent = "";
+                return;
+              }
+              logEntrySuccessCallout.hidden = false;
+              logEntrySuccessCallout.textContent = message;
+            };
+
+            const updateLogEntryMode = () => {
+              const isEditMode = logUuidControl.value.trim().length > 0;
+              logEntrySubmitButton.textContent = isEditMode ? "Save" : "Add";
+            };
+
+            const createLogEntryPayload = () => {
+              const canonicalDate = normalizeCalendarDate(logDateControl.value);
+              const kcal = parseNumberOrNull(logKcalControl.value);
+              const carbs = parseNumberOrNull(logCarbsControl.value);
+              const fat = parseNumberOrNull(logFatControl.value);
+              const protein = parseNumberOrNull(logProteinControl.value);
+              const fiber = parseNumberOrNull(logFiberControl.value);
+              if (
+                !canonicalDate
+                || !logMealControl.value
+                || !logNameControl.value.trim()
+                || kcal === null
+                || carbs === null
+                || fat === null
+                || protein === null
+                || fiber === null
+              ) {
+                return null;
+              }
+              return {
+                date: canonicalDate,
+                meal: logMealControl.value,
+                name: logNameControl.value.trim(),
+                kcal,
+                carbs,
+                fat,
+                protein,
+                fiber,
+              };
+            };
+
             if (!logDateControl.value) {
               logDateControl.value = toIsoDate(new Date());
             }
+            updateLogEntryMode();
+            setLogEntrySuccess("");
             if (logPreviousDayButton) {
               logPreviousDayButton.addEventListener("click", () => {
                 shiftIsoDateControl(logDateControl, -1);
+                setLogEntrySuccess("");
               });
             }
             if (logNextDayButton) {
               logNextDayButton.addEventListener("click", () => {
                 shiftIsoDateControl(logDateControl, 1);
+                setLogEntrySuccess("");
               });
             }
+
+            logUuidControl.addEventListener("input", () => {
+              updateLogEntryMode();
+              setLogEntrySuccess("");
+            });
+            logEntryForm.addEventListener("input", () => {
+              setLogEntrySuccess("");
+            });
+
+            logEntrySubmitButton.addEventListener("click", async () => {
+              const payload = createLogEntryPayload();
+              if (!payload) {
+                setLogEntrySuccess("");
+                return;
+              }
+              const uuid = logUuidControl.value.trim();
+              const isEditMode = uuid.length > 0;
+              logEntrySubmitButton.disabled = true;
+              try {
+                const endpoint = isEditMode ? ("/api/v1/log/" + uuid) : "/api/v1/log";
+                const method = isEditMode ? "PUT" : "POST";
+                const response = await window.fetch(endpoint, {
+                  method,
+                  headers: {"Content-Type": "application/json"},
+                  body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                  setLogEntrySuccess("");
+                  return;
+                }
+                resetLogEntryForm();
+                updateLogEntryMode();
+                setLogEntrySuccess(isEditMode ? "Entry saved." : "Entry added.");
+              } catch {
+                setLogEntrySuccess("");
+              } finally {
+                logEntrySubmitButton.disabled = false;
+              }
+            });
           }
         }
 
@@ -2293,8 +2438,17 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                 </label>
               </div>
               <div class="actions">
-                <button class="primary-button" type="button">Add</button>
+                <button class="primary-button" type="button" data-log-entry-submit="true">
+                  Add
+                </button>
               </div>
+              <section
+                class="success-callout"
+                data-log-entry-success="true"
+                hidden
+                aria-live="polite"
+              >
+              </section>
             </section>
           </form>
           <p class="section-label calculate-section-label">Search Controls</p>
