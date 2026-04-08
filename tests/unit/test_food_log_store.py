@@ -1,0 +1,185 @@
+"""Unit tests for file-backed food-log persistence."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from mealplan.application.contracts import FoodLogUpsertRequest
+from mealplan.infrastructure import JsonFoodLogStore
+from mealplan.shared.errors import ConfigError, DomainRuleError, ValidationError
+
+
+def _store_path(tmp_path: Path) -> Path:
+    return tmp_path / "data" / "food-log.json"
+
+
+def test_create_generates_uuid_and_creates_missing_store_file(tmp_path: Path) -> None:
+    storage_path = _store_path(tmp_path)
+    store = JsonFoodLogStore(storage_path)
+    request = FoodLogUpsertRequest.model_validate(
+        {
+            "date": "20260408",
+            "meal": "lunch",
+            "name": "Greek yogurt",
+            "kcal": 140.0,
+            "carbs": 8.0,
+            "fat": 4.0,
+            "protein": 18.0,
+            "fiber": 0.0,
+        }
+    )
+
+    created = store.create(request=request)
+
+    assert created.uuid
+    assert storage_path.exists()
+    persisted = json.loads(storage_path.read_text(encoding="utf-8"))
+    assert list(persisted.keys()) == [created.uuid]
+    assert persisted[created.uuid] == created.model_dump(mode="json")
+    assert "quantity" not in persisted[created.uuid]
+
+
+def test_update_replaces_existing_entry_by_uuid(tmp_path: Path) -> None:
+    store = JsonFoodLogStore(_store_path(tmp_path))
+    created = store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260408",
+                "meal": "breakfast",
+                "name": "Oats",
+                "kcal": 200.0,
+                "carbs": 35.0,
+                "fat": 5.0,
+                "protein": 8.0,
+                "fiber": 5.0,
+            }
+        )
+    )
+
+    updated = store.update(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "uuid": created.uuid,
+                "date": "20260408",
+                "meal": "breakfast",
+                "name": "Oats + milk",
+                "kcal": 250.0,
+                "carbs": 40.0,
+                "fat": 7.0,
+                "protein": 11.0,
+                "fiber": 6.0,
+            }
+        )
+    )
+
+    assert updated.uuid == created.uuid
+    persisted = json.loads(_store_path(tmp_path).read_text(encoding="utf-8"))
+    assert persisted[created.uuid]["name"] == "Oats + milk"
+    assert persisted[created.uuid] == updated.model_dump(mode="json")
+
+
+def test_update_unknown_uuid_raises_domain_not_found_error(tmp_path: Path) -> None:
+    store = JsonFoodLogStore(_store_path(tmp_path))
+    request = FoodLogUpsertRequest.model_validate(
+        {
+            "uuid": "missing-uuid",
+            "date": "20260408",
+            "meal": "dinner",
+            "name": "Salmon",
+            "kcal": 420.0,
+            "carbs": 0.0,
+            "fat": 25.0,
+            "protein": 35.0,
+            "fiber": 0.0,
+        }
+    )
+
+    with pytest.raises(DomainRuleError, match="log.missing-uuid: entry not found"):
+        store.update(request=request)
+
+
+def test_quantity_multiplies_nutrition_fields_and_is_not_persisted(tmp_path: Path) -> None:
+    storage_path = _store_path(tmp_path)
+    store = JsonFoodLogStore(storage_path)
+    request = FoodLogUpsertRequest.model_validate(
+        {
+            "date": "20260408",
+            "meal": "afternoon-snack",
+            "name": "Protein shake",
+            "kcal": 120.0,
+            "carbs": 4.0,
+            "fat": 2.0,
+            "protein": 24.0,
+            "fiber": 1.0,
+            "quantity": 1.5,
+        }
+    )
+
+    created = store.create(request=request)
+
+    assert created.kcal == pytest.approx(180.0)
+    assert created.carbs == pytest.approx(6.0)
+    assert created.fat == pytest.approx(3.0)
+    assert created.protein == pytest.approx(36.0)
+    assert created.fiber == pytest.approx(1.5)
+    persisted = json.loads(storage_path.read_text(encoding="utf-8"))
+    assert "quantity" not in persisted[created.uuid]
+
+
+def test_create_with_uuid_and_update_without_uuid_raise_validation_error(tmp_path: Path) -> None:
+    store = JsonFoodLogStore(_store_path(tmp_path))
+    create_with_uuid = FoodLogUpsertRequest.model_validate(
+        {
+            "uuid": "manually-provided",
+            "date": "20260408",
+            "meal": "lunch",
+            "name": "Rice bowl",
+            "kcal": 500.0,
+            "carbs": 70.0,
+            "fat": 10.0,
+            "protein": 20.0,
+            "fiber": 4.0,
+        }
+    )
+    update_without_uuid = FoodLogUpsertRequest.model_validate(
+        {
+            "date": "20260408",
+            "meal": "lunch",
+            "name": "Rice bowl",
+            "kcal": 500.0,
+            "carbs": 70.0,
+            "fat": 10.0,
+            "protein": 20.0,
+            "fiber": 4.0,
+        }
+    )
+
+    with pytest.raises(ValidationError, match="uuid: must be omitted for create"):
+        store.create(request=create_with_uuid)
+    with pytest.raises(ValidationError, match="uuid: required for update"):
+        store.update(request=update_without_uuid)
+
+
+def test_non_object_store_root_raises_config_error(tmp_path: Path) -> None:
+    storage_path = _store_path(tmp_path)
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    storage_path.write_text("[]", encoding="utf-8")
+    store = JsonFoodLogStore(storage_path)
+    request = FoodLogUpsertRequest.model_validate(
+        {
+            "date": "20260408",
+            "meal": "lunch",
+            "name": "Greek yogurt",
+            "kcal": 140.0,
+            "carbs": 8.0,
+            "fat": 4.0,
+            "protein": 18.0,
+            "fiber": 0.0,
+        }
+    )
+
+    with pytest.raises(ConfigError, match="log.store: storage root must be a JSON object"):
+        store.create(request=request)

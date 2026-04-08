@@ -3,6 +3,7 @@ Started: Wed Apr  8 15:40:02 CEST 2026
 
 ## Codebase Patterns
 - For canonical `YYYYMMDD` date fields in application boundary contracts, reuse one shared validator helper in `src/mealplan/application/contracts.py` so boundary parse failures remain deterministic (`date: Value error, expected YYYYMMDD`).
+- For UUID-keyed JSON persistence adapters, mirror `JsonCalendarStore` conventions: auto-create missing files with `{}` root, raise deterministic `ConfigError` prefixes (`log.store:`), and keep not-found domain errors namespaced (`log.<uuid>: entry not found`).
 
 ## [2026-04-08 15:43:02 CEST] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
@@ -25,4 +26,30 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - `make quality` assumes `.venv/bin/uv`; when that path is absent in local runs, execute equivalent gates directly with `uv run ...`.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Contract units metadata is asserted in tests; when adding new nutrition boundary fields, update `CONTRACT_UNITS_POLICY` and its test expectation together.
+---
+
+## [2026-04-08 15:47:06 CEST] - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
+- What was implemented
+- Added `JsonFoodLogStore` in infrastructure for dedicated file-backed food logging (`food-log.json` in tests), including create and update flows.
+- Implemented create semantics with backend-generated UUIDs, update semantics requiring existing UUID, and deterministic unknown-UUID errors (`log.<uuid>: entry not found`).
+- Implemented quantity scaling in persistence flow so `kcal`, `carbs`, `fat`, `protein`, and `fiber` are multiplied before save; `quantity` is intentionally not persisted.
+- Added robust store I/O handling to auto-create missing storage files and reject invalid JSON root shapes with deterministic config errors.
+- Exported the new adapter from `mealplan.infrastructure`.
+- Added/ran unit tests for create/update behavior, quantity scaling, file creation, validation guardrails, and config-error paths.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (363 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/__init__.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For new JSON persistence adapters, preserve the existing calendar-store ergonomics: lazy store bootstrap, deterministic error-prefix taxonomy, and JSON-object root validation.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `FoodLogUpsertRequest` defaults `quantity` to `1.0`; adapter logic still must apply multiplier explicitly and never persist `quantity`.
+- Useful context (e.g., "the evaluation panel is in component X")
+- `FoodLogEntry` is the canonical persisted/returned shape for log records, so store writes should serialize from that model (`model_dump(mode=\"json\")`) to keep boundaries aligned.
 ---

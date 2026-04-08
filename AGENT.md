@@ -138,6 +138,7 @@ When in doubt, update those source docs instead of expanding this file.
 107. For each new top-level UI page in `web/ui_server.py`, update all three together: `_PAGE_CONTENT` entry, `_render_app_shell(...)` active-nav `aria-current` substitution, and `do_GET` route handling so navigation state and routing remain consistent.
 108. When calendar persistence contracts change (CLI `--date`/`calendar`, UI `/calendar`, or `/api/v1/calendar/{date}`), update `README.md`, `docs/REQUIREMENTS.md`, and `docs/ARCHITECTURE.md` in the same iteration so user-facing usage and canonical architecture docs stay synchronized.
 109. For new date fields in application boundary contracts, validate canonical `YYYYMMDD` with a shared `field_validator` helper in `src/mealplan/application/contracts.py` so `parse_contract(...)` emits deterministic `date: Value error, expected YYYYMMDD` messages.
+110. For UUID-keyed log persistence, use `src/mealplan/infrastructure/food_log_store.py::JsonFoodLogStore`: generate UUIDs only in `create`, require UUID in `update`, apply `quantity` scaling to nutrition fields before persistence, and never persist a `quantity` field.
 
 ## Ralph Runner
 
