@@ -316,3 +316,65 @@ def test_log_search_applies_optional_and_filters(
     assert len(payload) == 1
     assert payload[0]["meal"] == "lunch"
     assert payload[0]["name"] == "Greek Yogurt"
+
+
+def test_log_search_supports_single_name_filter_case_insensitive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(FOOD_LOG_STORE_PATH_ENV, str(storage_path))
+    runner.invoke(
+        app,
+        [
+            "log",
+            "--json",
+            (
+                '{"date":"20260408","meal":"lunch","name":"Greek Yogurt",'
+                '"kcal":180,"carbs":12,"fat":6,"protein":20,"fiber":0}'
+            ),
+        ],
+    )
+    runner.invoke(
+        app,
+        [
+            "log",
+            "--json",
+            (
+                '{"date":"20260408","meal":"dinner","name":"Salmon Bowl",'
+                '"kcal":260,"carbs":34,"fat":8,"protein":14,"fiber":5}'
+            ),
+        ],
+    )
+
+    result = runner.invoke(app, ["log", "search", "--name", "YOG"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert len(payload) == 1
+    assert payload[0]["name"] == "Greek Yogurt"
+
+
+def test_log_search_invalid_date_returns_validation_exit_code(tmp_path: Path) -> None:
+    storage_path = tmp_path / "food-log.json"
+    env = dict(os.environ)
+    env[FOOD_LOG_STORE_PATH_ENV] = str(storage_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "log",
+            "search",
+            "--date",
+            "2026-04-08",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 2
+    assert "Error: date: Value error, expected YYYYMMDD" in result.stderr

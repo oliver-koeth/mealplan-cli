@@ -129,6 +129,50 @@ def test_quantity_multiplies_nutrition_fields_and_is_not_persisted(tmp_path: Pat
     assert "quantity" not in persisted[created.uuid]
 
 
+def test_update_applies_quantity_multiplier_and_is_not_persisted(tmp_path: Path) -> None:
+    storage_path = _store_path(tmp_path)
+    store = JsonFoodLogStore(storage_path)
+    created = store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260408",
+                "meal": "lunch",
+                "name": "Rice bowl",
+                "kcal": 500.0,
+                "carbs": 70.0,
+                "fat": 10.0,
+                "protein": 20.0,
+                "fiber": 4.0,
+            }
+        )
+    )
+
+    updated = store.update(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "uuid": created.uuid,
+                "date": "20260408",
+                "meal": "lunch",
+                "name": "Rice bowl",
+                "kcal": 500.0,
+                "carbs": 70.0,
+                "fat": 10.0,
+                "protein": 20.0,
+                "fiber": 4.0,
+                "quantity": 0.5,
+            }
+        )
+    )
+
+    assert updated.kcal == pytest.approx(250.0)
+    assert updated.carbs == pytest.approx(35.0)
+    assert updated.fat == pytest.approx(5.0)
+    assert updated.protein == pytest.approx(10.0)
+    assert updated.fiber == pytest.approx(2.0)
+    persisted = json.loads(storage_path.read_text(encoding="utf-8"))
+    assert "quantity" not in persisted[created.uuid]
+
+
 def test_create_with_uuid_and_update_without_uuid_raise_validation_error(tmp_path: Path) -> None:
     store = JsonFoodLogStore(_store_path(tmp_path))
     create_with_uuid = FoodLogUpsertRequest.model_validate(
@@ -183,6 +227,19 @@ def test_non_object_store_root_raises_config_error(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="log.store: storage root must be a JSON object"):
         store.create(request=request)
+
+
+def test_search_non_object_entry_payload_raises_config_error(tmp_path: Path) -> None:
+    storage_path = _store_path(tmp_path)
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    storage_path.write_text('{"bad-entry": []}\n', encoding="utf-8")
+    store = JsonFoodLogStore(storage_path)
+
+    with pytest.raises(
+        ConfigError,
+        match="log.bad-entry: persisted payload must be an object",
+    ):
+        store.search(request=FoodLogSearchRequest.model_validate({}))
 
 
 def test_search_supports_optional_and_filters_with_case_insensitive_name(tmp_path: Path) -> None:

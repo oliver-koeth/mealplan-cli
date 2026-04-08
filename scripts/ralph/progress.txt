@@ -11,6 +11,7 @@ Started: Wed Apr  8 15:40:02 CEST 2026
 - For each new top-level UI page in `src/mealplan/web/ui_server.py`, update all four surfaces together: `_PAGE_CONTENT` entry, nav markup + `_render_app_shell(...)` active placeholder substitution, `do_GET` route handling, and HTML shell assertions in `tests/unit/test_web_ui_server.py`.
 - For `/log` entry-form client workflows, treat a non-empty `uuid` control as edit mode (`Save` + `PUT /api/v1/log/{uuid}`), default empty `uuid` to create mode (`Add` + `POST /api/v1/log`), and clear success callouts on subsequent user input.
 - For `_APP_SHELL_TEMPLATE` inline JavaScript in `src/mealplan/web/ui_server.py`, escape literal dollar signs as `$$` (including regex end anchors) or `string.Template.substitute(...)` will fail and break all HTML routes.
+- For `PUT /api/v1/log/{uuid}` handlers/tests, treat the path UUID as canonical and ignore any body UUID to prevent identity drift between transport layers.
 
 ## [2026-04-08 15:43:02 CEST] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
@@ -222,4 +223,32 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
 - `_APP_SHELL_TEMPLATE` uses `string.Template`; unescaped `$` in inline JS (like regex end anchors) will crash route rendering, so use `$$` for literal dollar signs.
 - Useful context (e.g., "the evaluation panel is in component X")
 - Log search results now expose stable markers (`data-log-result-row|caret|add|edit|details`) that are asserted in `tests/unit/test_web_ui_server.py` and intended for future UI interaction stories.
+---
+## [2026-04-08 17:37:09 CEST] - US-011
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- What was implemented
+- Hardened food-log store tests with additional edge coverage: update-path `quantity` scaling verification and deterministic config failure when persisted entry payloads are non-object JSON values.
+- Extended CLI log tests with additional `log search` coverage for case-insensitive single-name filtering and deterministic invalid-date exit-code mapping (`2`) with canonical validation messaging.
+- Extended web API/UI tests with log-route edge cases: `PUT /api/v1/log/{uuid}` path UUID precedence over request-body UUID, search-without-filters newest-first ordering, and explicit `/log` shell assertions for search status-state wiring (`Searching...`, `No matching entries.`, failure status, submit disable/enable).
+- Updated canonical docs for persistent-log contracts/routes and usage:
+  - Added enhancement brief `enhance-006-persistent-log`
+  - Updated architecture command/API boundary sections for `mealplan log`, `/api/v1/log`, and `/api/v1/log/search`
+  - Updated README CLI/UI/API usage to include persistent-log workflows and storage env overrides.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (393 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/cli/test_log.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/docs/ARCHITECTURE.md
+- /Users/Oliver.Koeth/work/mealplan-cli/docs/enhancements/enhance-006-persistent-log.md
+- /Users/Oliver.Koeth/work/mealplan-cli/README.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For REST updates that identify resources by path (`PUT /api/v1/log/{uuid}`), tests should pin path-UUID precedence explicitly so request-body UUID drift cannot silently change persistence targets.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- Existing `/log` UI tests are shell-marker assertions against inline JavaScript; when interaction behavior changes, update durable status/action marker assertions rather than brittle full-template snapshots.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Persistent-log docs now live across `docs/enhancements/enhance-006-persistent-log.md`, `docs/ARCHITECTURE.md` command/API boundary sections, and README log usage examples; keep these synchronized when log contracts/routes evolve.
 ---

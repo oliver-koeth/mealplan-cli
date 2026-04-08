@@ -112,14 +112,18 @@ mealplan/
 - Parsing strategy: `Typer` for command ergonomics and type-aware help.
 - Command model:
   - Root command: `mealplan`.
-  - Stable subcommands in Phase 9: `mealplan probe`, `mealplan calculate`, and `mealplan calendar`.
-  - `probe` remains a deterministic scaffolding command and must not change behavior when evolving `calculate`/`calendar`.
+  - Stable subcommands in Phase 9: `mealplan probe`, `mealplan calculate`, `mealplan calendar`, and `mealplan log`.
+  - `probe` remains a deterministic scaffolding command and must not change behavior when evolving `calculate`/`calendar`/`log`.
   - `calculate` is a production boundary and accepts the canonical flags:
     - required: `--date`, `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`
     - optional: `--vo2max`, `--training-zones`, `--training-before`, `--format`, `--debug`
   - `calendar` is a production boundary for retrieval and accepts:
     - required: `--date`
     - optional: `--format`
+  - `log` is a production boundary for persistent food entries:
+    - upsert callback mode (`mealplan log`) accepts required flags `--date --meal --name --kcal --carbs --fat --protein --fiber`
+    - optional upsert flags: `--uuid` (update), `--quantity` (default `1.0`), and exclusive `--json` payload mode
+    - `mealplan log search` supports optional filters `--date`, `--name`, and `--meal` with optional-AND semantics
   - `--date` for both commands must be canonical `YYYYMMDD`.
   - Successful `calculate` persists the response payload by date key; later saves for the same date overwrite.
   - `calculate`/`calendar` share output rendering behavior for `json|text|table`.
@@ -171,12 +175,19 @@ mealplan/
   - `GET /api/v1/health`
   - `PUT /api/v1/calendar/{date}`
   - `GET /api/v1/calendar/{date}`
+  - `POST /api/v1/log`
+  - `PUT /api/v1/log/{uuid}`
+  - `GET /api/v1/log/search`
 - Calculation contract:
   - `POST /api/v1/calculate` accepts the canonical `MealPlanRequest` JSON shape from `src/mealplan/application/contracts.py`.
   - Successful responses return the canonical `MealPlanResponse` JSON shape from `src/mealplan/application/contracts.py`.
   - `PUT /api/v1/calendar/{date}` accepts canonical `MealPlanResponse` JSON and persists it under canonical date key `YYYYMMDD`.
   - `GET /api/v1/calendar/{date}` returns canonical stored `MealPlanResponse` JSON for that date.
   - Missing calendar dates return HTTP `404` with canonical `calendar_not_found` error envelope.
+  - `POST /api/v1/log` accepts canonical `FoodLogUpsertRequest` JSON without UUID and returns canonical persisted `FoodLogEntry`.
+  - `PUT /api/v1/log/{uuid}` accepts canonical upsert payload, treats path UUID as canonical identity, and returns canonical persisted `FoodLogEntry`.
+  - Unknown `PUT /api/v1/log/{uuid}` targets return HTTP `404` with canonical `log_not_found` envelope.
+  - `GET /api/v1/log/search` accepts optional singleton query params `date`, `name`, and `meal`, applies optional-AND filtering, and returns canonical `FoodLogEntry[]` sorted newest-first.
   - Warnings currently emitted on CLI stderr should be exposed in a structured field or response metadata once the enhancement is specified; until then, warning transport remains an open design point.
 - Error contract:
   - Validation failures map to HTTP `400`.

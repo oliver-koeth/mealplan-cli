@@ -92,6 +92,12 @@ mealplan calculate \
 
 # Retrieve a previously saved plan for a date
 mealplan calendar --date 20260406 --format json
+
+# Create a food log entry
+mealplan log --date 20260408 --meal lunch --name Oats --kcal 380 --carbs 55 --fat 8 --protein 14 --fiber 9
+
+# Search persisted food log entries
+mealplan log search --date 20260408 --name yogurt --meal lunch
 ```
 
 ## CLI Usage
@@ -102,6 +108,8 @@ mealplan calendar --date 20260406 --format json
   `uv run mealplan calculate --help`
 - Show calendar help:
   `uv run mealplan calendar --help`
+- Show log help:
+  `uv run mealplan log --help`
 
 `mealplan calculate` accepts these canonical required flags:
 
@@ -126,6 +134,17 @@ Optional flags:
 
 - `--date` (`YYYYMMDD`, required)
 - `--format` (`json|text|table`, default `json`)
+
+`mealplan log` accepts create/update inputs:
+
+- required (flag mode): `--date`, `--meal`, `--name`, `--kcal`, `--carbs`, `--fat`, `--protein`, `--fiber`
+- optional: `--uuid` (update mode), `--quantity` (defaults to `1.0`), `--json` (exclusive one-shot payload mode)
+
+`mealplan log search` accepts optional filters:
+
+- `--date` (`YYYYMMDD`)
+- `--name` (case-insensitive substring match)
+- `--meal`
 
 Concrete examples:
 
@@ -155,10 +174,22 @@ uv run mealplan calculate \
 
 # Retrieve date-keyed persisted plan
 uv run mealplan calendar --date 20260406 --format text
+
+# Create via one-shot JSON payload (uuid omitted => create)
+uv run mealplan log --json '{"date":"20260408","meal":"lunch","name":"Oats","kcal":380,"carbs":55,"fat":8,"protein":14,"fiber":9}'
+
+# Update via one-shot JSON payload (uuid included => update)
+uv run mealplan log --json '{"uuid":"<entry-uuid>","date":"20260408","meal":"lunch","name":"Oats + milk","kcal":400,"carbs":58,"fat":9,"protein":15,"fiber":10}'
+
+# Search with optional-AND filters
+uv run mealplan log search --date 20260408 --name yog --meal breakfast
 ```
 
 Date-keyed storage defaults to `~/.mealplan/calendar.json`. Override with
 `MEALPLAN_CALENDAR_STORE_PATH` when needed for isolated runs or tests.
+
+Food-log storage defaults to `~/.mealplan/food-log.json`. Override with
+`MEALPLAN_FOOD_LOG_STORE_PATH` when needed for isolated runs or tests.
 
 ## Local UI Mode
 
@@ -171,8 +202,8 @@ Date-keyed storage defaults to `~/.mealplan/calendar.json`. Override with
     - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
   - Does not auto-launch a browser
 - Local endpoints:
-  - UI routes: `/settings`, `/calculate`, `/calendar`
-  - API routes: `GET /api/v1/health`, `POST /api/v1/calculate`, `PUT /api/v1/calendar/{date}`, `GET /api/v1/calendar/{date}`
+  - UI routes: `/settings`, `/calculate`, `/calendar`, `/log`
+  - API routes: `GET /api/v1/health`, `POST /api/v1/calculate`, `PUT /api/v1/calendar/{date}`, `GET /api/v1/calendar/{date}`, `POST /api/v1/log`, `PUT /api/v1/log/{uuid}`, `GET /api/v1/log/search`
 
 ## Exit Codes and Debug Behavior
 

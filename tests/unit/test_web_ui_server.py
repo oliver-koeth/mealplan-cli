@@ -323,6 +323,49 @@ def test_ui_server_log_put_updates_entry_for_uuid_path(
     assert stored[created["uuid"]]["name"] == "Salmon"
 
 
+def test_ui_server_log_put_uses_path_uuid_even_if_body_uuid_differs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+    create_payload = {
+        "date": "20260408",
+        "meal": "lunch",
+        "name": "Oatmeal",
+        "kcal": 320.0,
+        "carbs": 52.0,
+        "fat": 7.0,
+        "protein": 12.0,
+        "fiber": 8.0,
+    }
+    update_payload = {
+        "uuid": "body-uuid-should-be-ignored",
+        "date": "20260408",
+        "meal": "dinner",
+        "name": "Salmon",
+        "kcal": 450.0,
+        "carbs": 10.0,
+        "fat": 25.0,
+        "protein": 48.0,
+        "fiber": 0.0,
+    }
+
+    with _running_test_server() as port:
+        _, created = _post_json(port, "/api/v1/log", create_payload)
+        status, response = _put_json(
+            port,
+            f"/api/v1/log/{created['uuid']}",
+            update_payload,
+        )
+
+    assert status == 200
+    assert response["uuid"] == created["uuid"]
+    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    assert list(stored.keys()) == [created["uuid"]]
+    assert stored[created["uuid"]]["name"] == "Salmon"
+
+
 def test_ui_server_log_put_unknown_uuid_maps_to_structured_http_404(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -438,6 +481,49 @@ def test_ui_server_log_search_supports_optional_and_filters(
     assert match["fat"] == 18.0
     assert match["protein"] == 32.0
     assert match["fiber"] == 4.0
+
+
+def test_ui_server_log_search_without_filters_returns_newest_first(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+
+    with _running_test_server() as port:
+        _post_json(
+            port,
+            "/api/v1/log",
+            {
+                "date": "20260407",
+                "meal": "breakfast",
+                "name": "Eggs",
+                "kcal": 210.0,
+                "carbs": 2.0,
+                "fat": 15.0,
+                "protein": 18.0,
+                "fiber": 0.0,
+            },
+        )
+        _post_json(
+            port,
+            "/api/v1/log",
+            {
+                "date": "20260408",
+                "meal": "lunch",
+                "name": "Oatmeal",
+                "kcal": 320.0,
+                "carbs": 52.0,
+                "fat": 7.0,
+                "protein": 12.0,
+                "fiber": 8.0,
+            },
+        )
+        status, response = _get_json(port, "/api/v1/log/search")
+
+    assert status == 200
+    assert isinstance(response, list)
+    assert [entry["date"] for entry in response] == ["20260408", "20260407"]
 
 
 def test_ui_server_log_search_invalid_date_maps_to_http_400(
@@ -775,6 +861,12 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert '"value" in logSearchDateControl' in html
     assert "if (!logSearchDateControl.value) {" in html
     assert "logSearchDateControl.value = toIsoDate(new Date());" in html
+    assert 'setLogResultsStatus("No results loaded.");' in html
+    assert 'setLogResultsStatus("No matching entries.");' in html
+    assert 'setLogResultsStatus("Search failed.");' in html
+    assert 'setLogResultsStatus("Searching...");' in html
+    assert "logSearchSubmitButton.disabled = true;" in html
+    assert "logSearchSubmitButton.disabled = false;" in html
 
 
 def test_ui_server_calculate_maps_validation_error_to_http_400(
