@@ -2151,7 +2151,9 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                   detailRow.className = "meal-actual-entry";
                   const detailName = document.createElement("p");
                   detailName.className = "meal-actual-entry-name";
-                  detailName.textContent = typeof logEntry?.name === "string" ? logEntry.name : "Entry";
+                  detailName.textContent = (
+                    typeof logEntry?.name === "string" ? logEntry.name : "Entry"
+                  );
                   const detailMacros = document.createElement("p");
                   detailMacros.textContent = (
                     "Calories: "
@@ -3332,7 +3334,11 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
               No meal plan exists, you first need to <a href="/calculate">calculate</a> one.
             </p>
           </section>
-          <section class="results-state calendar-results-state" data-calendar-results-state="true" hidden>
+          <section
+            class="results-state calendar-results-state"
+            data-calendar-results-state="true"
+            hidden
+          >
             <section class="form-card results-panel" data-calendar-results="true" hidden>
               <h2 class="calendar-section-heading">Day Plan</h2>
               <section class="results-totals" data-calendar-results-totals="true"></section>

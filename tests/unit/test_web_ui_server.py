@@ -816,7 +816,10 @@ def test_ui_server_calendar_shell_includes_date_controls_and_read_only_result_wi
     assert 'data-calendar-error-card="true" hidden' in html
     assert 'data-calendar-missing-card="true" hidden' in html
     assert 'No meal plan exists, you first need to <a href="/calculate">calculate</a> one.' in html
-    assert 'class="results-state calendar-results-state" data-calendar-results-state="true" hidden' in html
+    assert (
+        'class="results-state calendar-results-state" data-calendar-results-state="true" hidden'
+        in html
+    )
     assert 'data-calendar-results="true" hidden' in html
     assert 'data-calendar-daily-progress="true" hidden' in html
     assert 'data-calendar-results-totals="true"' in html
