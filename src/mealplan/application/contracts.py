@@ -30,6 +30,7 @@ from mealplan.domain.model import CANONICAL_MEAL_ORDER
 SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtime"]
 TrainingZoneKey = Literal["1", "2", "3", "4", "5"]
 TrainingBeforeMeal = MealName | Literal["training"]
+FoodLogMeal = MealName | Literal["training"]
 CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "age": "years",
     "height_cm": "cm",
@@ -90,7 +91,7 @@ class FoodLogUpsertRequest(BoundaryModel):
 
     uuid: StrictStr | None = None
     date: StrictStr
-    meal: MealName
+    meal: FoodLogMeal
     name: StrictStr
     kcal: StrictFloat
     carbs: StrictFloat
@@ -110,7 +111,7 @@ class FoodLogSearchRequest(BoundaryModel):
 
     date: StrictStr | None = None
     name: StrictStr | None = None
-    meal: MealName | None = None
+    meal: FoodLogMeal | None = None
 
     @field_validator("date")
     @classmethod
@@ -125,7 +126,7 @@ class FoodLogEntry(BoundaryModel):
 
     uuid: StrictStr
     date: StrictStr
-    meal: MealName
+    meal: FoodLogMeal
     name: StrictStr
     kcal: StrictFloat
     carbs: StrictFloat

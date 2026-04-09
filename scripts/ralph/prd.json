@@ -82,6 +82,7 @@
         "Add `mealplan log search` subcommand.",
         "Support optional filters: --date, --name, --meal.",
         "Filter semantics are optional AND, never OR.",
+        "Search returns at most the latest 25 matching entries.",
         "Command outputs JSON array in canonical log-entry shape.",
         "Typecheck passes",
         "Tests pass"
@@ -114,6 +115,7 @@
       "acceptanceCriteria": [
         "Add `GET /api/v1/log/search` endpoint with optional query params: date, name, meal.",
         "Apply optional-AND filter semantics identical to CLI search.",
+        "Return at most the latest 25 matching entries.",
         "Return canonical JSON array results.",
         "Map validation errors to existing structured API error envelope style.",
         "Typecheck passes",

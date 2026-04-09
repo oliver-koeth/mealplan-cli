@@ -428,3 +428,52 @@ def test_search_returns_canonical_food_log_entries(tmp_path: Path) -> None:
     matches = store.search(request=FoodLogSearchRequest.model_validate({}))
 
     assert matches == [created]
+
+
+def test_search_accepts_training_meal_entries(tmp_path: Path) -> None:
+    store = JsonFoodLogStore(_store_path(tmp_path))
+    created = store.create(
+        request=FoodLogUpsertRequest.model_validate(
+            {
+                "date": "20260408",
+                "meal": "training",
+                "name": "Gel",
+                "kcal": 120.0,
+                "carbs": 30.0,
+                "fat": 0.0,
+                "protein": 0.0,
+                "fiber": 0.0,
+            }
+        )
+    )
+
+    matches = store.search(request=FoodLogSearchRequest.model_validate({"meal": "training"}))
+
+    assert len(matches) == 1
+    assert matches[0].uuid == created.uuid
+
+
+def test_search_returns_latest_25_matches_only(tmp_path: Path) -> None:
+    store = JsonFoodLogStore(_store_path(tmp_path))
+    for index in range(30):
+        day = index + 1
+        store.create(
+            request=FoodLogUpsertRequest.model_validate(
+                {
+                    "date": f"202604{day:02d}",
+                    "meal": "lunch",
+                    "name": f"Meal {day}",
+                    "kcal": 300.0 + day,
+                    "carbs": 30.0,
+                    "fat": 10.0,
+                    "protein": 20.0,
+                    "fiber": 4.0,
+                }
+            )
+        )
+
+    matches = store.search(request=FoodLogSearchRequest.model_validate({}))
+
+    assert len(matches) == 25
+    assert matches[0].date == "20260430"
+    assert matches[-1].date == "20260406"

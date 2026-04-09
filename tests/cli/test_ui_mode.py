@@ -128,7 +128,7 @@ def test_ui_mode_starts_on_fallback_port_serves_shell_and_health_then_gracefully
             stdout, stderr = process.communicate(timeout=5)
             assert process.returncode == 0
             assert stderr == ""
-            assert f"UI available at http://{UI_HOST}:{port}/calculate" in stdout
+            assert f"UI available at http://{UI_HOST}:{port}/calendar" in stdout
             assert f"Health endpoint: http://{UI_HOST}:{port}/api/v1/health" in stdout
         finally:
             if process.poll() is None:

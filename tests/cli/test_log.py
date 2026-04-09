@@ -318,6 +318,38 @@ def test_log_search_applies_optional_and_filters(
     assert payload[0]["name"] == "Greek Yogurt"
 
 
+def test_log_search_returns_latest_25_matches_only(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(FOOD_LOG_STORE_PATH_ENV, str(storage_path))
+    for day in range(1, 31):
+        runner.invoke(
+            app,
+            [
+                "log",
+                "--json",
+                (
+                    "{"
+                    f'"date":"202604{day:02d}",'
+                    '"meal":"lunch",'
+                    f'"name":"Meal {day}",'
+                    f'"kcal":{300 + day},"carbs":30,"fat":10,"protein":20,"fiber":4'
+                    "}"
+                ),
+            ],
+        )
+
+    result = runner.invoke(app, ["log", "search"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert len(payload) == 25
+    assert payload[0]["date"] == "20260430"
+    assert payload[-1]["date"] == "20260406"
+
+
 def test_log_search_supports_single_name_filter_case_insensitive(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

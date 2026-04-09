@@ -15,6 +15,8 @@ from mealplan.application.contracts import (
 )
 from mealplan.shared.errors import ConfigError, DomainRuleError, ValidationError
 
+MAX_SEARCH_RESULTS = 25
+
 
 class JsonFoodLogStore:
     """Persist and update food-log entries under backend-managed UUID keys."""
@@ -65,7 +67,8 @@ class JsonFoodLogStore:
                 continue
             entries.append(entry)
 
-        return sorted(entries, key=lambda entry: (entry.date, entry.uuid), reverse=True)
+        ordered = sorted(entries, key=lambda entry: (entry.date, entry.uuid), reverse=True)
+        return ordered[:MAX_SEARCH_RESULTS]
 
     def _entry_from_request(
         self,

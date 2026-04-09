@@ -59,6 +59,11 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         --shadow: rgba(15, 23, 42, 0.06);
         --header: rgba(248, 250, 252, 0.9);
         --link-active: #0f172a;
+        --accent: #f59e0b;
+        --accent-hover: #fbbf24;
+        --accent-soft: rgba(245, 158, 11, 0.16);
+        --accent-strong: rgba(245, 158, 11, 0.35);
+        --accent-text-on: #0b1730;
       }
 
       :root[data-theme="dark"] {
@@ -73,6 +78,11 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         --shadow: rgba(2, 6, 23, 0.5);
         --header: rgba(2, 6, 23, 0.85);
         --link-active: #f8fafc;
+        --accent: #f59e0b;
+        --accent-hover: #fbbf24;
+        --accent-soft: rgba(245, 158, 11, 0.16);
+        --accent-strong: rgba(245, 158, 11, 0.35);
+        --accent-text-on: #0b1730;
       }
 
       :root[data-theme="light"] {
@@ -142,13 +152,21 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         padding: 0.35rem 0.6rem;
         border-radius: 999px;
         border: 1px solid transparent;
+        transition: color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+      }
+
+      .nav-link:hover {
+        color: var(--accent);
+        text-decoration: underline;
+        text-underline-offset: 0.18rem;
       }
 
       .nav-link[aria-current="page"] {
-        color: var(--link-active);
-        border-color: var(--border);
+        color: var(--accent);
+        border-color: var(--accent-strong);
         background: var(--surface);
         font-weight: 600;
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent) inset;
       }
 
       .shell {
@@ -176,16 +194,41 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         padding: 1.05rem;
       }
 
+      .stack > .card:first-child {
+        border-top: 1px solid var(--accent-strong);
+        background:
+          linear-gradient(
+            128deg,
+            color-mix(in srgb, var(--accent) 14%, transparent) 0%,
+            color-mix(in srgb, var(--accent) 6%, transparent) 36%,
+            transparent 72%
+          ),
+          linear-gradient(
+            145deg,
+            color-mix(in srgb, var(--surface) 94%, #1d4ed8 6%),
+            color-mix(in srgb, var(--surface) 98%, #0f172a 2%)
+          );
+        box-shadow:
+          0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent) inset,
+          0 10px 28px color-mix(in srgb, var(--accent) 14%, transparent),
+          0 14px 40px color-mix(in srgb, var(--shadow) 65%, transparent);
+      }
+
       .section-label {
         margin: 0;
         font-size: 0.72rem;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.11em;
         text-transform: uppercase;
-        color: var(--text-subtle);
+        color: var(--accent);
       }
 
       .calculate-section-label {
         margin-bottom: 0.7rem;
+      }
+
+      [data-log-entry-form="true"] + .calculate-section-label,
+      [data-log-search-form="true"] + .calculate-section-label {
+        margin-top: 1.15rem;
       }
 
       h1 {
@@ -273,6 +316,14 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         color: var(--text);
         font: inherit;
         padding: 0.5rem 0.65rem;
+        transition: border-color 120ms ease, box-shadow 120ms ease;
+      }
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
       }
 
       .actions {
@@ -341,7 +392,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       .log-search-controls {
         margin-top: 0.65rem;
         display: flex;
-        align-items: flex-end;
+        align-items: stretch;
         gap: 0.65rem;
         flex-wrap: wrap;
       }
@@ -350,10 +401,37 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         margin: 0;
         min-width: 180px;
         flex: 1 1 220px;
+        display: grid;
+        grid-template-rows: auto auto;
+        align-content: start;
+      }
+
+      .log-search-controls input,
+      .log-search-controls select {
+        min-height: 3rem;
+      }
+
+      .log-search-date-control {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+
+      .log-search-date-control input {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+
+      .log-search-clear-date {
+        min-height: 3rem;
+        padding: 0 0.75rem;
+        font-weight: 700;
       }
 
       .log-search-controls .actions {
         margin: 0;
+        display: flex;
+        align-items: flex-end;
       }
 
       .log-results-list {
@@ -410,6 +488,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
+      .log-result-details[hidden] {
+        display: none;
+      }
+
       .log-result-details p {
         margin: 0;
         font-size: 0.78rem;
@@ -452,18 +534,31 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       }
 
       .primary-button {
-        border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent) 65%, #a16207 35%);
         border-radius: 12px;
         background: linear-gradient(
           150deg,
-          color-mix(in srgb, var(--surface) 92%, #1d4ed8 8%),
-          color-mix(in srgb, var(--surface-muted) 93%, #0f172a 7%)
+          color-mix(in srgb, var(--accent-hover) 92%, #ffffff 8%),
+          color-mix(in srgb, var(--accent) 94%, #a16207 6%)
         );
-        color: var(--text);
+        color: var(--accent-text-on);
         padding: 0.52rem 0.86rem;
         font: inherit;
-        font-weight: 600;
+        font-weight: 700;
         cursor: pointer;
+        transition: transform 100ms ease, box-shadow 120ms ease, background 120ms ease;
+      }
+
+      .primary-button:hover {
+        background: linear-gradient(
+          150deg,
+          color-mix(in srgb, var(--accent-hover) 96%, #ffffff 4%),
+          color-mix(in srgb, var(--accent-hover) 90%, #a16207 10%)
+        );
+      }
+
+      .primary-button:active {
+        transform: translateY(1px);
       }
 
       .primary-button[disabled] {
@@ -472,7 +567,19 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       }
 
       .secondary-button {
-        font-weight: 500;
+        font-weight: 600;
+        border-color: color-mix(in srgb, var(--border) 72%, transparent);
+        background: linear-gradient(
+          150deg,
+          color-mix(in srgb, var(--surface) 92%, #1d4ed8 8%),
+          color-mix(in srgb, var(--surface-muted) 93%, #0f172a 7%)
+        );
+        color: var(--accent);
+      }
+
+      .secondary-button:hover {
+        border-color: var(--accent-strong);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
       }
 
       .status-note {
@@ -495,6 +602,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         color: #14532d;
         padding: 0.75rem;
         width: 100%;
+        margin-top: 0.85rem;
+        margin-bottom: 0.35rem;
       }
 
       .success-callout p {
@@ -539,20 +648,24 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       }
 
       .results-totals {
-        display: grid;
+        margin-top: 0.75rem;
+        margin-bottom: 1.1rem;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
         gap: 0.75rem;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
       }
 
       .results-total {
+        width: 176px;
         border-radius: 14px;
-        border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+        border: 1px solid rgba(217, 119, 6, 0.45);
         background: linear-gradient(
           145deg,
-          color-mix(in srgb, var(--surface-muted) 96%, #1d4ed8 4%),
-          color-mix(in srgb, var(--surface) 95%, #0f172a 5%)
+          rgba(217, 119, 6, 0.24),
+          rgba(120, 53, 15, 0.2)
         );
-        padding: 0.8rem 0.9rem;
+        padding: 0.72rem 0.76rem;
       }
 
       .results-total strong {
@@ -571,34 +684,102 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         color: var(--text);
       }
 
-      .results-total:nth-child(1) {
-        background: linear-gradient(145deg, rgba(37, 99, 235, 0.26), rgba(30, 58, 138, 0.2));
-        border-color: rgba(37, 99, 235, 0.5);
+      .results-total-values {
+        margin-top: 0.45rem;
+        display: grid;
+        gap: 0.28rem;
       }
 
-      .results-total:nth-child(2) {
-        background: linear-gradient(145deg, rgba(5, 150, 105, 0.23), rgba(6, 95, 70, 0.2));
-        border-color: rgba(5, 150, 105, 0.45);
+      .results-total-values p {
+        margin: 0;
+        font-size: 0.84rem;
+        color: var(--text-muted);
+        white-space: nowrap;
       }
 
-      .results-total:nth-child(3) {
-        background: linear-gradient(145deg, rgba(124, 58, 237, 0.24), rgba(76, 29, 149, 0.2));
-        border-color: rgba(124, 58, 237, 0.45);
+      .results-total-line {
+        display: flex;
+        align-items: baseline;
+        gap: 0.35rem;
+        flex-wrap: nowrap;
+        white-space: nowrap;
       }
 
-      .results-total:nth-child(4) {
-        background: linear-gradient(145deg, rgba(217, 119, 6, 0.24), rgba(120, 53, 15, 0.2));
-        border-color: rgba(217, 119, 6, 0.45);
+      .results-total-line span {
+        font-weight: 400;
       }
 
-      .results-total:nth-child(5) {
-        background: linear-gradient(145deg, rgba(190, 24, 93, 0.24), rgba(131, 24, 67, 0.2));
-        border-color: rgba(190, 24, 93, 0.45);
+      .results-total-line-label {
+        color: var(--text-muted);
       }
 
-      .results-total:nth-child(6) {
-        background: linear-gradient(145deg, rgba(8, 145, 178, 0.24), rgba(14, 116, 144, 0.2));
-        border-color: rgba(8, 145, 178, 0.45);
+      .results-total-line-unit {
+        color: var(--text-muted);
+      }
+
+      .calendar-daily-progress {
+        margin-top: 0.4rem;
+        margin-bottom: 1.15rem;
+        width: 100%;
+        display: grid;
+        gap: 0.55rem;
+      }
+
+      .calendar-daily-progress[hidden] {
+        display: none;
+      }
+
+      .calendar-progress-row {
+        display: grid;
+        grid-template-columns: 72px 1fr auto;
+        align-items: center;
+        gap: 0.55rem;
+      }
+
+      .calendar-progress-row p {
+        margin: 0;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+      }
+
+      .calendar-progress-track {
+        width: 100%;
+        min-width: 0;
+        height: 0.58rem;
+        border-radius: 999px;
+        overflow: hidden;
+        border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+        background: color-mix(in srgb, var(--surface-muted) 80%, #0f172a 20%);
+      }
+
+      .calendar-progress-fill {
+        height: 100%;
+        border-radius: 999px;
+      }
+
+      .calendar-progress-fill-planned {
+        background: #ffffff;
+      }
+
+      .calendar-progress-fill-actual-in-band {
+        background: #16a34a;
+      }
+
+      .calendar-progress-fill-actual-out-of-band {
+        background: #dc2626;
+      }
+
+      :root[data-theme="dark"] .calendar-progress-fill-planned {
+        background: #f8fafc;
+      }
+
+      :root[data-theme="dark"] .calendar-progress-fill-actual-in-band {
+        background: #86efac;
+      }
+
+      :root[data-theme="dark"] .calendar-progress-fill-actual-out-of-band {
+        background: #fca5a5;
       }
 
       .results-meals {
@@ -693,10 +874,116 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         color: var(--text-muted);
       }
 
+      .meal-macro-row {
+        margin-top: 0.55rem;
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      .meal-macro-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: var(--accent);
+      }
+
+      .meal-macro-grid {
+        display: grid;
+        gap: 0.65rem;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .meal-macro-grid p {
+        margin: 0;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .meal-actual-toggle {
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .meal-actual-toggle:disabled {
+        cursor: default;
+        opacity: 0.65;
+      }
+
+      .actual-value-in-band {
+        color: #16a34a;
+      }
+
+      .actual-value-out-of-band {
+        color: #dc2626;
+      }
+
+      :root[data-theme="dark"] .actual-value-in-band {
+        color: #86efac;
+      }
+
+      :root[data-theme="dark"] .actual-value-out-of-band {
+        color: #fca5a5;
+      }
+
+      .meal-actual-details {
+        margin-top: 0.35rem;
+        border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+        padding-top: 0.55rem;
+        display: grid;
+        gap: 0.45rem;
+      }
+
+      .meal-actual-details[hidden] {
+        display: none;
+      }
+
+      .meal-actual-entry {
+        border-radius: 10px;
+        border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+        background: color-mix(in srgb, var(--surface) 96%, #1d4ed8 4%);
+        padding: 0.55rem 0.6rem;
+      }
+
+      .meal-actual-entry p {
+        margin: 0;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+      }
+
+      .meal-actual-entry-name {
+        font-weight: 600;
+        color: var(--text);
+      }
+
       .hint {
         margin: 0.65rem 0 0;
         color: var(--text-subtle);
         font-size: 0.78rem;
+      }
+
+      .calendar-section-heading {
+        margin: 0;
+        font-size: 1.12rem;
+      }
+
+      .calendar-progress-heading {
+        margin-top: 0;
+        margin-bottom: 0.2rem;
+      }
+
+      .calendar-meals-heading {
+        margin-top: 0.75rem;
+      }
+
+      .calendar-results-state {
+        margin-top: 0.95rem;
       }
 
       @media (max-width: 720px) {
@@ -729,12 +1016,17 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .results-totals {
+        .meal-result-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .meal-result-grid {
+        .meal-macro-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .results-totals {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
         }
       }
     </style>
@@ -744,7 +1036,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       <div class="header-inner">
         <div class="brand">
           <strong>Mealplan</strong>
-          <span>Local UI</span>
+          <span>UI</span>
         </div>
         <nav aria-label="Primary">
           <a class="nav-link" href="/settings" aria-current="$settings_current">Settings</a>
@@ -1170,7 +1462,16 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           const logSearchSubmitButton = logSearchForm.querySelector(
             '[data-log-search-submit="true"]'
           );
+          const logSearchClearDateButton = logSearchForm.querySelector(
+            '[data-log-search-clear-date="true"]'
+          );
           const logResultsStatus = document.querySelector('[data-log-results-status="true"]');
+          const logResultsErrorCard = document.querySelector(
+            '[data-log-results-error-card="true"]'
+          );
+          const logResultsErrorSummary = document.querySelector(
+            '[data-log-results-error-summary="true"]'
+          );
           const logResultsList = document.querySelector('[data-log-results-list="true"]');
           if (
             logSearchDateControl
@@ -1180,7 +1481,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             && logSearchMealControl
             && "value" in logSearchMealControl
             && logSearchSubmitButton
+            && logSearchClearDateButton
             && logResultsStatus
+            && logResultsErrorCard
+            && logResultsErrorSummary
             && logResultsList
           ) {
             const formatNumber = (value) => {
@@ -1193,6 +1497,17 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 
             const setLogResultsStatus = (message) => {
               logResultsStatus.textContent = message;
+            };
+
+            const setLogResultsError = (message) => {
+              const text = typeof message === "string" ? message.trim() : "";
+              if (!text) {
+                logResultsErrorSummary.textContent = "";
+                logResultsErrorCard.hidden = true;
+                return;
+              }
+              logResultsErrorSummary.textContent = text;
+              logResultsErrorCard.hidden = false;
             };
 
             const clearLogResultsList = () => {
@@ -1219,6 +1534,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 caret.type = "button";
                 caret.textContent = ">";
                 caret.setAttribute("data-log-result-caret", "true");
+                caret.setAttribute("aria-expanded", "false");
 
                 const name = document.createElement("p");
                 name.className = "log-result-name";
@@ -1269,6 +1585,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                   const expanded = details.hidden;
                   details.hidden = !expanded;
                   caret.textContent = expanded ? "v" : ">";
+                  caret.setAttribute("aria-expanded", expanded ? "true" : "false");
                 });
                 editButton.addEventListener("click", () => {
                   if (!logEntryBindings) {
@@ -1308,6 +1625,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 
             const runLogSearch = async () => {
               setLogResultsStatus("Searching...");
+              setLogResultsError("");
               clearLogResultsList();
               logSearchSubmitButton.disabled = true;
               try {
@@ -1315,24 +1633,62 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 const endpoint = query ? ("/api/v1/log/search?" + query) : "/api/v1/log/search";
                 const response = await window.fetch(endpoint, {method: "GET"});
                 if (!response.ok) {
+                  let errorPayload = null;
+                  try {
+                    const parsed = await response.json();
+                    errorPayload = parsed?.error ?? null;
+                  } catch {
+                    errorPayload = null;
+                  }
                   setLogResultsStatus("Search failed.");
+                  setLogResultsError(
+                    formatApiErrorMessage(errorPayload, "Search failed.")
+                  );
                   return;
                 }
                 const payload = await response.json();
                 renderLogSearchResults(payload);
-              } catch {
+              } catch (error) {
                 setLogResultsStatus("Search failed.");
+                const rootCause = (
+                  error && typeof error === "object" && "message" in error
+                    ? String(error.message)
+                    : ""
+                );
+                setLogResultsError(
+                  rootCause
+                    ? "Unable to reach local log search API. " + rootCause
+                    : "Unable to reach local log search API."
+                );
               } finally {
                 logSearchSubmitButton.disabled = false;
               }
             };
 
-            if (!logSearchDateControl.value) {
-              logSearchDateControl.value = toIsoDate(new Date());
-            }
+            const activateLogSearchDateFilter = () => {
+              if (!logSearchDateControl.value) {
+                logSearchDateControl.value = toIsoDate(new Date());
+              }
+            };
+            logSearchDateControl.value = "";
             setLogResultsStatus("No results loaded.");
             logSearchSubmitButton.addEventListener("click", () => {
               void runLogSearch();
+            });
+            logSearchForm.addEventListener("submit", (event) => {
+              event.preventDefault();
+              void runLogSearch();
+            });
+            logSearchDateControl.addEventListener("focus", () => {
+              activateLogSearchDateFilter();
+            });
+            logSearchDateControl.addEventListener("click", () => {
+              activateLogSearchDateFilter();
+            });
+            logSearchClearDateButton.addEventListener("click", () => {
+              logSearchDateControl.value = "";
+              setLogResultsStatus("Date filter cleared.");
+              setLogResultsError("");
             });
           }
         }
@@ -1358,6 +1714,9 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           const calendarTotalsGrid = document.querySelector(
             '[data-calendar-results-totals="true"]'
           );
+          const calendarDailyProgress = document.querySelector(
+            '[data-calendar-daily-progress="true"]'
+          );
           const calendarMealsGrid = document.querySelector('[data-calendar-results-meals="true"]');
           if (
             calendarDateControl
@@ -1369,12 +1728,14 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             && calendarResultsState
             && calendarResultsPanel
             && calendarTotalsGrid
+            && calendarDailyProgress
             && calendarMealsGrid
           ) {
             if (!calendarDateControl.value) {
               calendarDateControl.value = toIsoDate(new Date());
             }
             const mealOrder = [
+              "training",
               "breakfast",
               "morning-snack",
               "lunch",
@@ -1387,6 +1748,12 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 return "-";
               }
               return Number(value).toFixed(2);
+            };
+            const formatWholeNumber = (value) => {
+              if (!Number.isFinite(value)) {
+                return "-";
+              }
+              return String(Math.round(value));
             };
             const formatMealName = (value) => {
               if (typeof value !== "string") {
@@ -1423,6 +1790,137 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               return "strategy-badge";
             };
 
+            const parseFiniteNumber = (value) => {
+              const parsed = Number(value);
+              return Number.isFinite(parsed) ? parsed : 0;
+            };
+
+            const actualValueClass = (actualValue, plannedValue) => {
+              if (!Number.isFinite(actualValue) || !Number.isFinite(plannedValue)) {
+                return "";
+              }
+              if (plannedValue <= 0) {
+                return actualValue > 0 ? "actual-value-out-of-band" : "actual-value-in-band";
+              }
+              const ratio = actualValue / plannedValue;
+              if (ratio < 0.8 || ratio > 1.2) {
+                return "actual-value-out-of-band";
+              }
+              return "actual-value-in-band";
+            };
+
+            const appendMacroMetric = (container, label, value, unit, valueClassName) => {
+              const metric = document.createElement("p");
+              const valueNode = document.createElement("span");
+              if (typeof valueClassName === "string" && valueClassName) {
+                valueNode.className = valueClassName;
+              }
+              valueNode.textContent = formatNumber(value);
+              metric.append(label + ": ");
+              metric.appendChild(valueNode);
+              metric.append(" " + unit);
+              container.appendChild(metric);
+            };
+
+            const appendTotalsLine = (container, label, value, unit, valueClassName) => {
+              const line = document.createElement("p");
+              line.className = "results-total-line";
+              const labelNode = document.createElement("span");
+              labelNode.className = "results-total-line-label";
+              labelNode.textContent = label + ":";
+              if (!Number.isFinite(value)) {
+                const dashNode = document.createElement("span");
+                dashNode.textContent = "-";
+                line.appendChild(labelNode);
+                line.appendChild(dashNode);
+              } else {
+                const valueNode = document.createElement("span");
+                if (typeof valueClassName === "string" && valueClassName) {
+                  valueNode.className = valueClassName;
+                }
+                valueNode.textContent = formatWholeNumber(value);
+                const unitNode = document.createElement("span");
+                unitNode.className = "results-total-line-unit";
+                unitNode.textContent = unit;
+                line.appendChild(labelNode);
+                line.appendChild(valueNode);
+                line.appendChild(unitNode);
+              }
+              container.appendChild(line);
+            };
+
+            const renderDailyProgressBars = (plannedKcal, actualKcal) => {
+              calendarDailyProgress.innerHTML = "";
+              calendarDailyProgress.hidden = false;
+
+              const normalizedPlanned = Number.isFinite(plannedKcal) ? Math.max(plannedKcal, 0) : 0;
+              const normalizedActual = Number.isFinite(actualKcal) ? Math.max(actualKcal, 0) : 0;
+              const maxValue = Math.max(normalizedPlanned, normalizedActual, 1);
+
+              const rows = [
+                {
+                  label: "Planned",
+                  value: normalizedPlanned,
+                  fillClassName: "calendar-progress-fill calendar-progress-fill-planned",
+                },
+                {
+                  label: "Actual",
+                  value: normalizedActual,
+                  fillClassName: (
+                    actualValueClass(normalizedActual, normalizedPlanned) === "actual-value-in-band"
+                      ? "calendar-progress-fill calendar-progress-fill-actual-in-band"
+                      : "calendar-progress-fill calendar-progress-fill-actual-out-of-band"
+                  ),
+                },
+              ];
+
+              for (const rowData of rows) {
+                const row = document.createElement("div");
+                row.className = "calendar-progress-row";
+                const rowLabel = document.createElement("p");
+                rowLabel.textContent = rowData.label;
+                const track = document.createElement("div");
+                track.className = "calendar-progress-track";
+                const fill = document.createElement("div");
+                fill.className = rowData.fillClassName;
+                fill.style.width = String(Math.min((rowData.value / maxValue) * 100, 100)) + "%";
+                track.appendChild(fill);
+                const rowValue = document.createElement("p");
+                rowValue.textContent = formatWholeNumber(rowData.value) + " kcal";
+                row.appendChild(rowLabel);
+                row.appendChild(track);
+                row.appendChild(rowValue);
+                calendarDailyProgress.appendChild(row);
+              }
+            };
+
+            const aggregateLogsByMeal = (entries) => {
+              const summaryByMeal = new Map();
+              if (!Array.isArray(entries)) {
+                return summaryByMeal;
+              }
+              for (const entry of entries) {
+                const mealName = typeof entry?.meal === "string" ? entry.meal : "";
+                if (!mealName) {
+                  continue;
+                }
+                const existing = summaryByMeal.get(mealName) ?? {
+                  kcal: 0,
+                  carbs: 0,
+                  fat: 0,
+                  protein: 0,
+                  entries: [],
+                };
+                existing.kcal += parseFiniteNumber(entry?.kcal);
+                existing.carbs += parseFiniteNumber(entry?.carbs);
+                existing.fat += parseFiniteNumber(entry?.fat);
+                existing.protein += parseFiniteNumber(entry?.protein);
+                existing.entries.push(entry);
+                summaryByMeal.set(mealName, existing);
+              }
+              return summaryByMeal;
+            };
+
             const setCalendarLoadingState = (inFlight) => {
               if (calendarDateControl) {
                 calendarDateControl.disabled = inFlight;
@@ -1444,6 +1942,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             const hideCalendarResults = () => {
               calendarResultsPanel.hidden = true;
               calendarResultsState.hidden = true;
+              calendarDailyProgress.hidden = true;
+              calendarDailyProgress.innerHTML = "";
               calendarTotalsGrid.innerHTML = "";
               calendarMealsGrid.innerHTML = "";
             };
@@ -1461,27 +1961,83 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               calendarMissingCard.hidden = false;
             };
 
-            const renderCalendarResults = (payload) => {
+            const renderCalendarResults = (payload, logEntries) => {
+              const actualDayTotals = {
+                kcal: 0,
+                carbs: 0,
+                fat: 0,
+                protein: 0,
+                fiber: 0,
+              };
+              if (Array.isArray(logEntries)) {
+                for (const entry of logEntries) {
+                  actualDayTotals.kcal += parseFiniteNumber(entry?.kcal);
+                  actualDayTotals.carbs += parseFiniteNumber(entry?.carbs);
+                  actualDayTotals.fat += parseFiniteNumber(entry?.fat);
+                  actualDayTotals.protein += parseFiniteNumber(entry?.protein);
+                  actualDayTotals.fiber += parseFiniteNumber(entry?.fiber);
+                }
+              }
+
               const totals = [
-                ["Total kcal", Number(payload?.total_kcal), "kcal"],
-                ["TDEE", Number(payload?.TDEE), "kcal"],
-                ["Training kcal", Number(payload?.training_kcal), "kcal"],
-                ["Carbs", Number(payload?.carbs_g), "g"],
-                ["Fat", Number(payload?.fat_g), "g"],
-                ["Protein", Number(payload?.protein_g), "g"],
+                {
+                  label: "Total kcal",
+                  planned: Number(payload?.total_kcal),
+                  actual: actualDayTotals.kcal,
+                  unit: "kcal",
+                },
+                {
+                  label: "Training kcal",
+                  planned: Number(payload?.training_kcal),
+                  actual: Number.NaN,
+                  unit: "kcal",
+                },
+                {
+                  label: "Carbs",
+                  planned: Number(payload?.carbs_g),
+                  actual: actualDayTotals.carbs,
+                  unit: "g",
+                },
+                {
+                  label: "Fat",
+                  planned: Number(payload?.fat_g),
+                  actual: actualDayTotals.fat,
+                  unit: "g",
+                },
+                {
+                  label: "Protein",
+                  planned: Number(payload?.protein_g),
+                  actual: actualDayTotals.protein,
+                  unit: "g",
+                },
+                {
+                  label: "Fiber",
+                  planned: 30,
+                  actual: actualDayTotals.fiber,
+                  unit: "g",
+                },
               ];
               calendarTotalsGrid.innerHTML = "";
-              for (const [label, value, unit] of totals) {
+              for (const total of totals) {
                 const card = document.createElement("article");
                 card.className = "results-total";
                 const title = document.createElement("strong");
-                title.textContent = label;
-                const valueNode = document.createElement("span");
-                valueNode.textContent = formatNumber(value) + " " + unit;
+                title.textContent = total.label;
+                const values = document.createElement("div");
+                values.className = "results-total-values";
+                appendTotalsLine(values, "Planned", total.planned, total.unit, "");
+                appendTotalsLine(
+                  values,
+                  "Actual",
+                  total.actual,
+                  total.unit,
+                  actualValueClass(total.actual, total.planned),
+                );
                 card.appendChild(title);
-                card.appendChild(valueNode);
+                card.appendChild(values);
                 calendarTotalsGrid.appendChild(card);
               }
+              renderDailyProgressBars(Number(payload?.total_kcal), actualDayTotals.kcal);
 
               const rawMeals = Array.isArray(payload?.meals) ? payload.meals : [];
               const meals = [...rawMeals].sort((left, right) => {
@@ -1493,24 +2049,143 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 const normalizedRight = rightIndex === -1 ? mealOrder.length : rightIndex;
                 return normalizedLeft - normalizedRight;
               });
+              const logsByMeal = aggregateLogsByMeal(logEntries);
               calendarMealsGrid.innerHTML = "";
               for (const meal of meals) {
                 const card = document.createElement("article");
                 card.className = "meal-result-card";
                 const strategyLabel = formatStrategyLabel(meal?.carbs_strategy);
                 const strategyClassName = strategyBadgeClass(meal?.carbs_strategy);
-                card.innerHTML = (
-                  '<div class="meal-result-head">'
-                  + '<h3>' + formatMealName(meal?.meal) + '</h3>'
-                  + '<span class="' + strategyClassName + '">' + strategyLabel + '</span>'
-                  + "</div>"
-                  + '<div class="meal-result-grid">'
-                  + "<p>Calories: " + formatNumber(Number(meal?.kcal)) + " kcal</p>"
-                  + "<p>Carbs: " + formatNumber(Number(meal?.carbs_g)) + " g</p>"
-                  + "<p>Fat: " + formatNumber(Number(meal?.fat_g)) + " g</p>"
-                  + "<p>Protein: " + formatNumber(Number(meal?.protein_g)) + " g</p>"
-                  + "</div>"
+                const mealName = typeof meal?.meal === "string" ? meal.meal : "";
+                const plannedKcal = Number(meal?.kcal);
+                const plannedCarbs = Number(meal?.carbs_g);
+                const plannedFat = Number(meal?.fat_g);
+                const plannedProtein = Number(meal?.protein_g);
+                const actual = logsByMeal.get(mealName) ?? {
+                  kcal: 0,
+                  carbs: 0,
+                  fat: 0,
+                  protein: 0,
+                  entries: [],
+                };
+
+                const head = document.createElement("div");
+                head.className = "meal-result-head";
+                const heading = document.createElement("h3");
+                heading.textContent = formatMealName(mealName);
+                const badge = document.createElement("span");
+                badge.className = strategyClassName;
+                badge.textContent = strategyLabel;
+                head.appendChild(heading);
+                head.appendChild(badge);
+
+                const plannedRow = document.createElement("div");
+                plannedRow.className = "meal-macro-row";
+                const plannedLabel = document.createElement("span");
+                plannedLabel.className = "meal-macro-label";
+                plannedLabel.textContent = "Planned:";
+                const plannedGrid = document.createElement("div");
+                plannedGrid.className = "meal-macro-grid";
+                appendMacroMetric(plannedGrid, "Calories", plannedKcal, "kcal", "");
+                appendMacroMetric(plannedGrid, "Carbs", plannedCarbs, "g", "");
+                appendMacroMetric(plannedGrid, "Fat", plannedFat, "g", "");
+                appendMacroMetric(plannedGrid, "Protein", plannedProtein, "g", "");
+                plannedRow.appendChild(plannedLabel);
+                plannedRow.appendChild(plannedGrid);
+
+                const actualRow = document.createElement("div");
+                actualRow.className = "meal-macro-row";
+                const actualLabel = document.createElement("span");
+                actualLabel.className = "meal-macro-label";
+                const actualToggle = document.createElement("button");
+                actualToggle.type = "button";
+                actualToggle.className = "meal-actual-toggle";
+                const actualEntryCount = actual.entries.length;
+                actualToggle.textContent = (
+                  actualEntryCount > 0 ? "▸ Actuals (" + actualEntryCount + ")" : "Actuals (0)"
                 );
+                actualToggle.disabled = actualEntryCount === 0;
+                actualToggle.setAttribute("aria-expanded", "false");
+                const actualLabelSuffix = document.createElement("span");
+                actualLabelSuffix.textContent = ":";
+                actualLabel.appendChild(actualToggle);
+                actualLabel.appendChild(actualLabelSuffix);
+                const actualGrid = document.createElement("div");
+                actualGrid.className = "meal-macro-grid";
+                appendMacroMetric(
+                  actualGrid,
+                  "Calories",
+                  actual.kcal,
+                  "kcal",
+                  actualValueClass(actual.kcal, plannedKcal),
+                );
+                appendMacroMetric(
+                  actualGrid,
+                  "Carbs",
+                  actual.carbs,
+                  "g",
+                  actualValueClass(actual.carbs, plannedCarbs),
+                );
+                appendMacroMetric(
+                  actualGrid,
+                  "Fat",
+                  actual.fat,
+                  "g",
+                  actualValueClass(actual.fat, plannedFat),
+                );
+                appendMacroMetric(
+                  actualGrid,
+                  "Protein",
+                  actual.protein,
+                  "g",
+                  actualValueClass(actual.protein, plannedProtein),
+                );
+                actualRow.appendChild(actualLabel);
+                actualRow.appendChild(actualGrid);
+
+                const actualDetails = document.createElement("div");
+                actualDetails.className = "meal-actual-details";
+                actualDetails.hidden = true;
+                for (const logEntry of actual.entries) {
+                  const detailRow = document.createElement("article");
+                  detailRow.className = "meal-actual-entry";
+                  const detailName = document.createElement("p");
+                  detailName.className = "meal-actual-entry-name";
+                  detailName.textContent = typeof logEntry?.name === "string" ? logEntry.name : "Entry";
+                  const detailMacros = document.createElement("p");
+                  detailMacros.textContent = (
+                    "Calories: "
+                    + formatNumber(Number(logEntry?.kcal))
+                    + " kcal | Carbs: "
+                    + formatNumber(Number(logEntry?.carbs))
+                    + " g | Fat: "
+                    + formatNumber(Number(logEntry?.fat))
+                    + " g | Protein: "
+                    + formatNumber(Number(logEntry?.protein))
+                    + " g"
+                  );
+                  detailRow.appendChild(detailName);
+                  detailRow.appendChild(detailMacros);
+                  actualDetails.appendChild(detailRow);
+                }
+                if (actualEntryCount > 0) {
+                  actualToggle.addEventListener("click", () => {
+                    const nextExpanded = actualDetails.hidden;
+                    actualDetails.hidden = !nextExpanded;
+                    actualToggle.setAttribute("aria-expanded", nextExpanded ? "true" : "false");
+                    actualToggle.textContent = (
+                      (nextExpanded ? "▾ " : "▸ ")
+                      + "Actuals ("
+                      + actualEntryCount
+                      + ")"
+                    );
+                  });
+                }
+
+                card.appendChild(head);
+                card.appendChild(plannedRow);
+                card.appendChild(actualRow);
+                card.appendChild(actualDetails);
                 calendarMealsGrid.appendChild(card);
               }
               hideCalendarFeedback();
@@ -1556,7 +2231,22 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                   ));
                   return;
                 }
-                renderCalendarResults(payload);
+                let logEntries = [];
+                try {
+                  const logsResponse = await window.fetch(
+                    "/api/v1/log/search?date=" + canonicalDate,
+                    { method: "GET" }
+                  );
+                  if (logsResponse.ok) {
+                    const logsPayload = await logsResponse.json();
+                    if (Array.isArray(logsPayload)) {
+                      logEntries = logsPayload;
+                    }
+                  }
+                } catch {
+                  logEntries = [];
+                }
+                renderCalendarResults(payload, logEntries);
               } catch {
                 showCalendarError("Unable to reach local calendar API.");
               } finally {
@@ -2642,13 +3332,14 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
               No meal plan exists, you first need to <a href="/calculate">calculate</a> one.
             </p>
           </section>
-          <section class="results-state" data-calendar-results-state="true" hidden>
+          <section class="results-state calendar-results-state" data-calendar-results-state="true" hidden>
             <section class="form-card results-panel" data-calendar-results="true" hidden>
-              <h2>Saved Meal Plan</h2>
-              <p class="hint">
-                This calendar view is read-only.
-              </p>
+              <h2 class="calendar-section-heading">Day Plan</h2>
               <section class="results-totals" data-calendar-results-totals="true"></section>
+              <h2 class="calendar-section-heading calendar-progress-heading">Day Progress</h2>
+              <section class="calendar-daily-progress" data-calendar-daily-progress="true" hidden>
+              </section>
+              <h2 class="calendar-section-heading calendar-meals-heading">Meal Plans</h2>
               <section class="results-meals" data-calendar-results-meals="true"></section>
             </section>
           </section>
@@ -2696,6 +3387,7 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                 </label>
                 <label>Meal
                   <select name="meal" required>
+                    <option value="training">Training</option>
                     <option value="breakfast">Breakfast</option>
                     <option value="morning-snack">Morning snack</option>
                     <option value="lunch">Lunch</option>
@@ -2743,7 +3435,17 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
               <h2>Search</h2>
               <div class="log-search-controls">
                 <label>Date
-                  <input name="date" type="date" aria-label="Search date" />
+                  <div class="log-search-date-control">
+                    <input name="date" type="date" aria-label="Search date" />
+                    <button
+                      class="primary-button secondary-button log-search-clear-date"
+                      type="button"
+                      data-log-search-clear-date="true"
+                      aria-label="Clear date filter"
+                    >
+                      X
+                    </button>
+                  </div>
                 </label>
                 <label>Name
                   <input name="name" type="text" />
@@ -2751,6 +3453,7 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                 <label>Meal
                   <select name="meal">
                     <option value="">Any meal</option>
+                    <option value="training">Training</option>
                     <option value="breakfast">Breakfast</option>
                     <option value="morning-snack">Morning snack</option>
                     <option value="lunch">Lunch</option>
@@ -2760,7 +3463,7 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                   </select>
                 </label>
                 <div class="actions">
-                  <button class="primary-button" type="button" data-log-search-submit="true">
+                  <button class="primary-button" type="submit" data-log-search-submit="true">
                     Search
                   </button>
                 </div>
@@ -2771,6 +3474,9 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
           <section class="form-card" data-log-results="true">
             <h2>Results</h2>
             <p class="hint" data-log-results-status="true">No results loaded.</p>
+            <section class="alert-card" data-log-results-error-card="true" hidden>
+              <p data-log-results-error-summary="true">Search failed.</p>
+            </section>
             <section class="log-results-list" data-log-results-list="true"></section>
           </section>
         """,
@@ -2829,7 +3535,10 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = self._request_path()
-        if path in ("/", "/calculate"):
+        if path == "/":
+            self._write_html(_render_app_shell("calendar"))
+            return
+        if path == "/calculate":
             self._write_html(_render_app_shell("calculate"))
             return
         if path == "/calendar":
@@ -3300,7 +4009,7 @@ def run_ui_server() -> None:
     host_name = host if isinstance(host, str) else bytes(host).decode("utf-8")
     port_number = int(port)
 
-    print(f"UI available at http://{host_name}:{port_number}/calculate", flush=True)
+    print(f"UI available at http://{host_name}:{port_number}/calendar", flush=True)
     print(f"Health endpoint: http://{host_name}:{port_number}/api/v1/health", flush=True)
 
     stop_event = threading.Event()

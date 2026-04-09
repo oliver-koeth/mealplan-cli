@@ -503,6 +503,72 @@ If the UI is implemented with Tailwind, these utility choices stay close to the 
 - allow richer meal detail content such as ingredients, swaps, and prep notes
 - add validation and warning patterns for impossible or inconsistent plans
 
+## Implemented Visual Baseline (Current UI Shell)
+
+This section captures the concrete visual tokens and component-level rules currently implemented in `src/mealplan/web/ui_server.py`. Treat these as required defaults unless intentionally redesigned.
+
+### Theme and font tokens
+
+```css
+/* Base type stack */
+font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+
+/* Light */
+--canvas: #f8fafc;
+--surface: #ffffff;
+--surface-muted: #f1f5f9;
+--border: #e2e8f0;
+--text: #1e293b;
+--text-muted: #475569;
+--text-subtle: #64748b;
+--accent: #f59e0b;
+--accent-hover: #fbbf24;
+--accent-soft: rgba(245, 158, 11, 0.16);
+--accent-strong: rgba(245, 158, 11, 0.35);
+
+/* Dark */
+--canvas: #020617;
+--surface: #0f172a;
+--surface-muted: #1e293b;
+--border: #1f2937;
+--text: #e2e8f0;
+--text-muted: #cbd5e1;
+--text-subtle: #94a3b8;
+```
+
+### Calendar cards and bars
+
+- Day summary totals cards use a unified orange style:
+  - border: `rgba(217, 119, 6, 0.45)`
+  - background gradient: `rgba(217, 119, 6, 0.24)` -> `rgba(120, 53, 15, 0.2)`
+  - equal card width target on desktop (`~176px`), wrapping between cards.
+- Totals rows are single-line and non-bold for numeric values and units:
+  - format: `Planned: 3863 kcal`, `Actual: 2828 kcal`
+  - values and units are regular weight.
+- Actual-value threshold colors (used in meal rows and totals actual values):
+  - in-band (`80%..120%`): `#16a34a` (dark theme: `#86efac`)
+  - out-of-band (`<80%` or `>120%`): `#dc2626` (dark theme: `#fca5a5`)
+- Day progress bars:
+  - planned bar fill is white (`#ffffff`, dark: `#f8fafc`)
+  - actual bar fill uses the same threshold colors as actual-value text
+  - progress section order: Day Plan totals -> Day Progress heading/bars -> Meal Plans.
+
+### Calendar headings and layout hierarchy
+
+- Root route defaults to Calendar view.
+- Calendar result hierarchy:
+  1. `Day Plan`
+  2. orange totals cards
+  3. `Day Progress` + 2 bars (planned/actual)
+  4. `Meal Plans` + meal cards
+- Meal ordering in Calendar cards: `training` first, then canonical meals.
+
+### Log search date interaction
+
+- Log search date filter starts cleared/inactive by default.
+- First activation (focus/click) initializes the field to today.
+- Clear button (`X`) restores inactive/empty state.
+
 ## What To Avoid
 
 - glossy wellness branding

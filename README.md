@@ -198,12 +198,23 @@ Food-log storage defaults to `~/.mealplan/food-log.json`. Override with
 - Startup behavior:
   - Binds to `127.0.0.1` and prefers port `8765` (falls back sequentially through `8775`)
   - Prints:
-    - `UI available at http://127.0.0.1:<port>/calculate`
+    - `UI available at http://127.0.0.1:<port>/calendar`
     - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
   - Does not auto-launch a browser
 - Local endpoints:
   - UI routes: `/settings`, `/calculate`, `/calendar`, `/log`
   - API routes: `GET /api/v1/health`, `POST /api/v1/calculate`, `PUT /api/v1/calendar/{date}`, `GET /api/v1/calendar/{date}`, `POST /api/v1/log`, `PUT /api/v1/log/{uuid}`, `GET /api/v1/log/search`
+  - Calendar UI behavior:
+    - per meal, render planned totals from saved plan plus actual totals summed from same-day log entries
+    - `Actuals` can be expanded to view line-by-line log items
+    - calendar section title is `Day Plan`; meal list section title is `Meal Plans`
+    - show full-width daily kcal progress bars below totals cards (`Planned` in white, `Actual` in threshold color)
+    - totals cards show `Planned` and `Actual` values (no decimal places) and use a unified orange style
+    - totals cards include `Fiber` (`Planned` fixed at `30 g`, `Actual` summed from logs) and exclude `TDEE`
+    - root route `/` defaults to the Calendar view
+  - Log search behavior:
+    - date filter starts cleared/inactive by default
+    - when date is activated (focus/click), it initializes with today
 
 ## Exit Codes and Debug Behavior
 

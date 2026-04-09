@@ -526,6 +526,38 @@ def test_ui_server_log_search_without_filters_returns_newest_first(
     assert [entry["date"] for entry in response] == ["20260408", "20260407"]
 
 
+def test_ui_server_log_search_returns_latest_25_matches_only(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+
+    with _running_test_server() as port:
+        for day in range(1, 31):
+            _post_json(
+                port,
+                "/api/v1/log",
+                {
+                    "date": f"202604{day:02d}",
+                    "meal": "lunch",
+                    "name": f"Meal {day}",
+                    "kcal": float(300 + day),
+                    "carbs": 30.0,
+                    "fat": 10.0,
+                    "protein": 20.0,
+                    "fiber": 4.0,
+                },
+            )
+        status, response = _get_json(port, "/api/v1/log/search")
+
+    assert status == 200
+    assert isinstance(response, list)
+    assert len(response) == 25
+    assert response[0]["date"] == "20260430"
+    assert response[-1]["date"] == "20260406"
+
+
 def test_ui_server_log_search_invalid_date_maps_to_http_400(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -641,6 +673,16 @@ def test_ui_server_calendar_shell_exposes_navigation_and_active_state() -> None:
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="page">Calendar</a>' in html
     assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
+    assert "Date-based meal-plan lookup" in html
+
+
+def test_ui_server_root_path_defaults_to_calendar_view() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/")
+
+    assert status == 200
+    assert '<a class="nav-link" href="/calendar" aria-current="page">Calendar</a>' in html
+    assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert "Date-based meal-plan lookup" in html
 
 
@@ -774,22 +816,39 @@ def test_ui_server_calendar_shell_includes_date_controls_and_read_only_result_wi
     assert 'data-calendar-error-card="true" hidden' in html
     assert 'data-calendar-missing-card="true" hidden' in html
     assert 'No meal plan exists, you first need to <a href="/calculate">calculate</a> one.' in html
-    assert 'class="results-state" data-calendar-results-state="true" hidden' in html
+    assert 'class="results-state calendar-results-state" data-calendar-results-state="true" hidden' in html
     assert 'data-calendar-results="true" hidden' in html
+    assert 'data-calendar-daily-progress="true" hidden' in html
     assert 'data-calendar-results-totals="true"' in html
     assert 'data-calendar-results-meals="true"' in html
+    assert '<h2 class="calendar-section-heading">Day Plan</h2>' in html
+    assert (
+        '<h2 class="calendar-section-heading calendar-progress-heading">Day Progress</h2>'
+    ) in html
+    assert '<h2 class="calendar-section-heading calendar-meals-heading">Meal Plans</h2>' in html
+    assert "Saved Meal Plan" not in html
     assert "const calendarForm = document.querySelector('[data-calendar-form=\"true\"]');" in html
     assert "if (!calendarDateControl.value) {" in html
     assert "calendarDateControl.value = toIsoDate(new Date());" in html
     assert "const canonicalDate = normalizeCalendarDate(calendarDateControl.value);" in html
     assert "window.fetch(\"/api/v1/calendar/\" + canonicalDate, {" in html
+    assert '"/api/v1/log/search?date=" + canonicalDate' in html
     assert 'method: "GET"' in html
     assert "if (response.status === 404) {" in html
     assert "showCalendarMissing();" in html
     assert "calendarDateControl.addEventListener(\"change\", () => {" in html
     assert "void loadCalendarPlan();" in html
     assert "const strategyBadgeClass = (value) => {" in html
-    assert "This calendar view is read-only." in html
+    assert "const aggregateLogsByMeal = (entries) => {" in html
+    assert "const actualValueClass = (actualValue, plannedValue) => {" in html
+    assert "const formatWholeNumber = (value) => {" in html
+    assert "const appendTotalsLine = (container, label, value, unit, valueClassName) => {" in html
+    assert "const renderDailyProgressBars = (plannedKcal, actualKcal) => {" in html
+    assert "calendarDailyProgress.hidden = false;" in html
+    assert 'planned: 30,' in html
+    assert 'actualToggle.textContent = (' in html
+    assert 'actualDetails.className = "meal-actual-details";' in html
+    assert "Calories: " in html
 
 
 def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None:
@@ -803,6 +862,7 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'data-log-date-next="true"' in html
     assert 'name="date"' in html
     assert 'name="meal"' in html
+    assert '<option value="training">Training</option>' in html
     assert 'name="name"' in html
     assert 'name="kcal"' in html
     assert 'name="carbs"' in html
@@ -814,12 +874,17 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'data-log-entry-success="true"' in html
     assert '<form class="form-stack" data-log-search-form="true">' in html
     assert 'class="log-search-controls"' in html
+    assert 'class="log-search-date-control"' in html
     assert 'name="date" type="date" aria-label="Search date"' in html
+    assert 'data-log-search-clear-date="true"' in html
+    assert 'aria-label="Clear date filter"' in html
     assert 'name="name" type="text"' in html
     assert 'name="meal"' in html
     assert 'data-log-search-submit="true"' in html
     assert 'data-log-results="true"' in html
     assert 'data-log-results-status="true"' in html
+    assert 'data-log-results-error-card="true" hidden' in html
+    assert 'data-log-results-error-summary="true"' in html
     assert 'data-log-results-list="true"' in html
     assert (
         "const logEntryForm = document.querySelector('[data-log-entry-form=\"true\"]');"
@@ -843,12 +908,22 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'logEntryBindings.applyAddEntry(entry);' in html
     assert "const logSearchSubmitButton = logSearchForm.querySelector(" in html
     assert '\'[data-log-search-submit="true"]\'' in html
+    assert "const logSearchClearDateButton = logSearchForm.querySelector(" in html
+    assert '\'[data-log-search-clear-date="true"]\'' in html
+    assert "const logResultsErrorCard = document.querySelector(" in html
+    assert '\'[data-log-results-error-card="true"]\'' in html
+    assert "const logResultsErrorSummary = document.querySelector(" in html
+    assert '\'[data-log-results-error-summary="true"]\'' in html
+    assert "const setLogResultsError = (message) => {" in html
     assert "const renderLogSearchResults = (entries) => {" in html
     assert 'row.setAttribute("data-log-result-row", "true");' in html
     assert 'caret.setAttribute("data-log-result-caret", "true");' in html
     assert 'addButton.setAttribute("data-log-result-add", "true");' in html
     assert 'editButton.setAttribute("data-log-result-edit", "true");' in html
     assert 'details.setAttribute("data-log-result-details", "true");' in html
+    assert ".log-result-details[hidden]" in html
+    assert 'caret.setAttribute("aria-expanded", "false");' in html
+    assert 'caret.setAttribute("aria-expanded", expanded ? "true" : "false");' in html
     assert 'caret.textContent = expanded ? "v" : ">";' in html
     assert "const createSearchQuery = () => {" in html
     assert "const runLogSearch = async () => {" in html
@@ -859,11 +934,19 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert "if (" in html
     assert "logSearchDateControl" in html
     assert '"value" in logSearchDateControl' in html
-    assert "if (!logSearchDateControl.value) {" in html
-    assert "logSearchDateControl.value = toIsoDate(new Date());" in html
+    assert "const activateLogSearchDateFilter = () => {" in html
+    assert "logSearchDateControl.addEventListener(\"focus\", () => {" in html
+    assert "logSearchDateControl.addEventListener(\"click\", () => {" in html
+    assert "activateLogSearchDateFilter();" in html
+    assert "logSearchDateControl.value = \"\";" in html
+    assert "logSearchClearDateButton.addEventListener(\"click\", () => {" in html
+    assert 'setLogResultsStatus("Date filter cleared.");' in html
+    assert 'setLogResultsError("");' in html
     assert 'setLogResultsStatus("No results loaded.");' in html
     assert 'setLogResultsStatus("No matching entries.");' in html
     assert 'setLogResultsStatus("Search failed.");' in html
+    assert "formatApiErrorMessage(errorPayload, \"Search failed.\")" in html
+    assert "Unable to reach local log search API." in html
     assert 'setLogResultsStatus("Searching...");' in html
     assert "logSearchSubmitButton.disabled = true;" in html
     assert "logSearchSubmitButton.disabled = false;" in html
