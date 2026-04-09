@@ -43,7 +43,7 @@ flowchart LR
   - Browser UI -> REST JSON payload -> validated request DTO -> domain computations -> response DTO -> JSON response -> UI rendering.
 - Control flow overview:
   - `main()` -> command handler -> use-case service -> calculation engine -> formatter -> exit code.
-  - UI mode: `main()` -> UI launcher path -> local web server -> REST handler -> use-case service -> JSON response.
+- UI mode: `main()` -> UI launcher path -> local web server -> REST handler -> use-case service -> JSON response.
 - Separation of concerns:
   - Domain does not import CLI/infrastructure.
   - CLI has no business logic beyond presentation and command wiring.
@@ -112,14 +112,18 @@ mealplan/
 - Parsing strategy: `Typer` for command ergonomics and type-aware help.
 - Command model:
   - Root command: `mealplan`.
-  - Stable subcommands in Phase 9: `mealplan probe`, `mealplan calculate`, and `mealplan calendar`.
-  - `probe` remains a deterministic scaffolding command and must not change behavior when evolving `calculate`/`calendar`.
+  - Stable subcommands in Phase 9: `mealplan probe`, `mealplan calculate`, `mealplan calendar`, and `mealplan log`.
+  - `probe` remains a deterministic scaffolding command and must not change behavior when evolving `calculate`/`calendar`/`log`.
   - `calculate` is a production boundary and accepts the canonical flags:
     - required: `--date`, `--age`, `--gender`, `--height`, `--weight`, `--activity`, `--carbs`, `--training-tomorrow`
     - optional: `--vo2max`, `--training-zones`, `--training-before`, `--format`, `--debug`
   - `calendar` is a production boundary for retrieval and accepts:
     - required: `--date`
     - optional: `--format`
+  - `log` is a production boundary for persistent food entries:
+    - upsert callback mode (`mealplan log`) accepts required flags `--date --meal --name --kcal --carbs --fat --protein --fiber`
+    - optional upsert flags: `--uuid` (update), `--quantity` (default `1.0`), and exclusive `--json` payload mode
+    - `mealplan log search` supports optional filters `--date`, `--name`, and `--meal` with optional-AND semantics
   - `--date` for both commands must be canonical `YYYYMMDD`.
   - Successful `calculate` persists the response payload by date key; later saves for the same date overwrite.
   - `calculate`/`calendar` share output rendering behavior for `json|text|table`.
@@ -150,6 +154,7 @@ mealplan/
 - Startup model:
   - `mealplan --ui` starts a local HTTP server bound to a loopback interface by default.
   - The same server process serves both inline shell routes and REST API routes.
+  - Root shell route `/` renders the Calendar view by default.
   - UI mode does not require a Node.js runtime in production.
   - Startup prints the local URL for the user to open manually; automatic browser launch is not part of the initial design.
 - Runtime model:
@@ -171,12 +176,19 @@ mealplan/
   - `GET /api/v1/health`
   - `PUT /api/v1/calendar/{date}`
   - `GET /api/v1/calendar/{date}`
+  - `POST /api/v1/log`
+  - `PUT /api/v1/log/{uuid}`
+  - `GET /api/v1/log/search`
 - Calculation contract:
   - `POST /api/v1/calculate` accepts the canonical `MealPlanRequest` JSON shape from `src/mealplan/application/contracts.py`.
   - Successful responses return the canonical `MealPlanResponse` JSON shape from `src/mealplan/application/contracts.py`.
   - `PUT /api/v1/calendar/{date}` accepts canonical `MealPlanResponse` JSON and persists it under canonical date key `YYYYMMDD`.
   - `GET /api/v1/calendar/{date}` returns canonical stored `MealPlanResponse` JSON for that date.
   - Missing calendar dates return HTTP `404` with canonical `calendar_not_found` error envelope.
+  - `POST /api/v1/log` accepts canonical `FoodLogUpsertRequest` JSON without UUID and returns canonical persisted `FoodLogEntry`.
+  - `PUT /api/v1/log/{uuid}` accepts canonical upsert payload, treats path UUID as canonical identity, and returns canonical persisted `FoodLogEntry`.
+  - Unknown `PUT /api/v1/log/{uuid}` targets return HTTP `404` with canonical `log_not_found` envelope.
+  - `GET /api/v1/log/search` accepts optional singleton query params `date`, `name`, and `meal`, applies optional-AND filtering, and returns canonical `FoodLogEntry[]` sorted newest-first, capped to the latest 25 matches.
   - Warnings currently emitted on CLI stderr should be exposed in a structured field or response metadata once the enhancement is specified; until then, warning transport remains an open design point.
 - Error contract:
   - Validation failures map to HTTP `400`.
@@ -548,7 +560,7 @@ mealplan/
 - UI packaging:
   - Distribute the Python package as the canonical install target.
   - Package the local web adapter and inline UI shell with the Python distribution so `mealplan --ui` works after installation without a Node.js runtime.
-  - Verify packaged UI runtime in install-smoke checks by launching `mealplan --ui` from an installed wheel and asserting `/calculate`, `/api/v1/health`, and `POST /api/v1/calculate`.
+  - Verify packaged UI runtime in install-smoke checks by launching `mealplan --ui` from an installed wheel and asserting `/` (default calendar), `/calendar`, `/api/v1/health`, and `POST /api/v1/calculate`.
 - Binary build:
   - Consider PyInstaller/PEX only if standalone distribution becomes required.
 - Installation footprint:
@@ -589,7 +601,7 @@ mealplan/
 - The REST API is the only supported integration path between browser UI and Python backend.
 - UI-facing request and response shapes should reuse existing DTOs first and only diverge with explicit ADR-backed justification.
 - The style guide in [STYLEGUIDE.md](/Users/Oliver.Koeth/work/mealplan-cli/docs/STYLEGUIDE.md) is the visual basis for the UI implementation.
-- The current UI shell supports `/settings`, `/calculate`, and `/calendar`; future screens should follow the same adapter boundaries and navigation wiring.
+- The current UI shell supports `/`, `/settings`, `/calculate`, `/calendar`, and `/log`; future screens should follow the same adapter boundaries and navigation wiring.
 - `mealplan --ui` prints the local URL for manual browser opening; it does not auto-launch a browser.
 - UI shell/API runtime is packaged with the Python distribution so installed UI mode does not depend on Node.js.
 - Local server lifecycle contract for `--ui`:
@@ -598,7 +610,7 @@ mealplan/
   - On port collision, probe sequentially `8766..8775` and bind the first free port.
   - If no port is free in that range, fail startup with a clear error and non-zero exit code.
   - Startup prints:
-    - `UI available at http://127.0.0.1:<port>/calculate`
+    - `UI available at http://127.0.0.1:<port>/calendar`
     - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
   - Graceful shutdown behavior:
     - Handle `SIGINT` and `SIGTERM`.
@@ -612,6 +624,7 @@ mealplan/
   - The Calculate `Save` action persists the currently displayed plan to `PUT /api/v1/calendar/{date}` using canonical `YYYYMMDD`.
   - Pressing `Save` acknowledges and clears current results state, returning to calculate input state until a new calculation is triggered.
   - `/calendar` is read-only and retrieves persisted plans via `GET /api/v1/calendar/{date}`.
+  - `/log` search date filter starts cleared/inactive and auto-fills with today on first activation (focus/click).
 - Command growth model:
   - Future CLI commands should map cleanly either to REST endpoints, UI routes, or both.
   - Shared application services remain the source of truth for command behavior.

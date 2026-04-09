@@ -12,6 +12,8 @@ from typing import Literal
 import typer
 
 from mealplan.application.contracts import (
+    FoodLogSearchRequest,
+    FoodLogUpsertRequest,
     MealPlanRequest,
     MealPlanResponse,
     ProbeRequest,
@@ -21,7 +23,7 @@ from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
 from mealplan.application.stub import run_probe
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, TrainingLoadTomorrow
-from mealplan.infrastructure import JsonCalendarStore
+from mealplan.infrastructure import JsonCalendarStore, JsonFoodLogStore
 from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 from mealplan.web import run_ui_server
@@ -31,6 +33,18 @@ app = typer.Typer(
     invoke_without_command=True,
     help="Mealplan command-line interface.",
 )
+log_app = typer.Typer(
+    no_args_is_help=False,
+    invoke_without_command=True,
+    help=(
+        "Create or update food-log entries.\n\n"
+        "JSON example:\n"
+        "mealplan log --json "
+        "'{\"date\":\"20260408\",\"meal\":\"lunch\",\"name\":\"Oats\",\"kcal\":380,"
+        "\"carbs\":55,\"fat\":8,\"protein\":14,\"fiber\":9}'"
+    ),
+)
+app.add_typer(log_app, name="log")
 _DEBUG_MODE = False
 
 SIMULATED_ERROR_OPTION = typer.Option(
@@ -85,6 +99,62 @@ UI_OPTION = typer.Option(
 )
 OutputFormat = Literal["json", "text", "table"]
 CALENDAR_STORE_PATH_ENV = "MEALPLAN_CALENDAR_STORE_PATH"
+FOOD_LOG_STORE_PATH_ENV = "MEALPLAN_FOOD_LOG_STORE_PATH"
+LOG_UUID_OPTION = typer.Option(
+    None,
+    "--uuid",
+    help="Existing UUID for update operations.",
+)
+LOG_DATE_OPTION = typer.Option(
+    None,
+    "--date",
+    help="Date key in YYYYMMDD format.",
+)
+LOG_MEAL_OPTION = typer.Option(
+    None,
+    "--meal",
+    help="Meal name.",
+)
+LOG_NAME_OPTION = typer.Option(
+    None,
+    "--name",
+    help="Food name.",
+)
+LOG_KCAL_OPTION = typer.Option(
+    None,
+    "--kcal",
+    help="Calories in kcal.",
+)
+LOG_CARBS_OPTION = typer.Option(
+    None,
+    "--carbs",
+    help="Carbs in grams.",
+)
+LOG_FAT_OPTION = typer.Option(
+    None,
+    "--fat",
+    help="Fat in grams.",
+)
+LOG_PROTEIN_OPTION = typer.Option(
+    None,
+    "--protein",
+    help="Protein in grams.",
+)
+LOG_FIBER_OPTION = typer.Option(
+    None,
+    "--fiber",
+    help="Fiber in grams.",
+)
+LOG_QUANTITY_OPTION = typer.Option(
+    None,
+    "--quantity",
+    help="Optional quantity multiplier. Defaults to 1.0.",
+)
+LOG_JSON_OPTION = typer.Option(
+    None,
+    "--json",
+    help="One-shot JSON payload for create/update. Include uuid to update.",
+)
 
 
 @app.callback()
@@ -164,6 +234,62 @@ def calendar_command(
     typer.echo(_render_output(response=response, output_format=output_format))
 
 
+@log_app.callback()
+def log_command(
+    ctx: typer.Context,
+    uuid: str | None = LOG_UUID_OPTION,
+    date: str | None = LOG_DATE_OPTION,
+    meal: str | None = LOG_MEAL_OPTION,
+    name: str | None = LOG_NAME_OPTION,
+    kcal: float | None = LOG_KCAL_OPTION,
+    carbs: float | None = LOG_CARBS_OPTION,
+    fat: float | None = LOG_FAT_OPTION,
+    protein: float | None = LOG_PROTEIN_OPTION,
+    fiber: float | None = LOG_FIBER_OPTION,
+    quantity: float | None = LOG_QUANTITY_OPTION,
+    json_payload: str | None = LOG_JSON_OPTION,
+) -> None:
+    """Create or update food-log entries."""
+    if ctx.invoked_subcommand is not None:
+        return
+    payload = _build_log_payload(
+        uuid=uuid,
+        date=date,
+        meal=meal,
+        name=name,
+        kcal=kcal,
+        carbs=carbs,
+        fat=fat,
+        protein=protein,
+        fiber=fiber,
+        quantity=quantity,
+        json_payload=json_payload,
+    )
+    request = parse_contract(FoodLogUpsertRequest, payload)
+    store = JsonFoodLogStore(_food_log_store_path())
+    if request.uuid is not None:
+        response = store.update(request=request)
+    else:
+        response = store.create(request=request)
+    typer.echo(response.model_dump_json())
+
+
+@log_app.command("search")
+def log_search_command(
+    date: str | None = LOG_DATE_OPTION,
+    name: str | None = LOG_NAME_OPTION,
+    meal: str | None = LOG_MEAL_OPTION,
+) -> None:
+    """Search food-log entries with optional filters."""
+    request = parse_contract(
+        FoodLogSearchRequest,
+        {"date": date, "name": name, "meal": meal},
+    )
+    store = JsonFoodLogStore(_food_log_store_path())
+    response = store.search(request=request)
+    typer.echo(json.dumps([entry.model_dump(mode="json") for entry in response]))
+
+
 def _persist_calendar_entry(*, date_key: str, response: MealPlanResponse) -> None:
     store = JsonCalendarStore(_calendar_store_path())
     store.save(date_key=date_key, payload=response.model_dump(mode="json"))
@@ -174,6 +300,77 @@ def _calendar_store_path() -> Path:
     if configured_path:
         return Path(configured_path).expanduser()
     return Path.home() / ".mealplan" / "calendar.json"
+
+
+def _food_log_store_path() -> Path:
+    configured_path = os.getenv(FOOD_LOG_STORE_PATH_ENV)
+    if configured_path:
+        return Path(configured_path).expanduser()
+    return Path.home() / ".mealplan" / "food-log.json"
+
+
+def _build_log_payload(
+    *,
+    uuid: str | None,
+    date: str | None,
+    meal: str | None,
+    name: str | None,
+    kcal: float | None,
+    carbs: float | None,
+    fat: float | None,
+    protein: float | None,
+    fiber: float | None,
+    quantity: float | None,
+    json_payload: str | None,
+) -> dict[str, object]:
+    flagged_values = [uuid, date, meal, name, kcal, carbs, fat, protein, fiber, quantity]
+    if json_payload is not None:
+        if any(value is not None for value in flagged_values):
+            raise ValidationError("--json cannot be combined with individual field flags")
+        return _parse_log_json_payload(json_payload)
+
+    missing_required = [
+        option
+        for option, value in (
+            ("--date", date),
+            ("--meal", meal),
+            ("--name", name),
+            ("--kcal", kcal),
+            ("--carbs", carbs),
+            ("--fat", fat),
+            ("--protein", protein),
+            ("--fiber", fiber),
+        )
+        if value is None
+    ]
+    if missing_required:
+        raise ValidationError(f"log: missing required flags: {', '.join(missing_required)}")
+
+    payload: dict[str, object] = {
+        "date": date,
+        "meal": meal,
+        "name": name,
+        "kcal": kcal,
+        "carbs": carbs,
+        "fat": fat,
+        "protein": protein,
+        "fiber": fiber,
+    }
+    if uuid is not None:
+        payload["uuid"] = uuid
+    if quantity is not None:
+        payload["quantity"] = quantity
+    return payload
+
+
+def _parse_log_json_payload(raw_payload: str) -> dict[str, object]:
+    try:
+        parsed = json.loads(raw_payload)
+    except json.JSONDecodeError as error:
+        raise ValidationError(f"json: invalid JSON: {error.msg}") from error
+    if not isinstance(parsed, dict):
+        raise ValidationError("json: expected JSON object payload")
+    return dict(parsed)
 
 
 def _build_training_session_payload(

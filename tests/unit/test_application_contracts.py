@@ -9,6 +9,9 @@ from pydantic import ValidationError as PydanticValidationError
 
 from mealplan.application.contracts import (
     CONTRACT_UNITS_POLICY,
+    FoodLogEntry,
+    FoodLogSearchRequest,
+    FoodLogUpsertRequest,
     MealPlanRequest,
     MealPlanResponse,
     ProbeRequest,
@@ -395,6 +398,119 @@ def test_meal_plan_response_placeholder_instantiates_full_shape() -> None:
     assert [meal.carbs_strategy for meal in response.meals] == ["low"] * 6
 
 
+def test_food_log_upsert_request_parses_canonical_payload() -> None:
+    request = FoodLogUpsertRequest.model_validate(
+        {
+            "date": "20260408",
+            "meal": "lunch",
+            "name": "Greek yogurt bowl",
+            "kcal": 420.0,
+            "carbs": 45.0,
+            "fat": 11.0,
+            "protein": 33.0,
+            "fiber": 8.0,
+        }
+    )
+
+    assert request.uuid is None
+    assert request.quantity == 1.0
+    assert request.date == "20260408"
+
+
+def test_food_log_upsert_request_accepts_uuid_for_update_paths() -> None:
+    request = FoodLogUpsertRequest.model_validate(
+        {
+            "uuid": "4c3e42af-8c83-4702-b580-c6412838ef35",
+            "date": "20260408",
+            "meal": "dinner",
+            "name": "Salmon plate",
+            "kcal": 560.0,
+            "carbs": 32.0,
+            "fat": 24.0,
+            "protein": 46.0,
+            "fiber": 6.0,
+            "quantity": 1.5,
+        }
+    )
+
+    assert request.uuid == "4c3e42af-8c83-4702-b580-c6412838ef35"
+    assert request.quantity == 1.5
+
+
+@pytest.mark.parametrize("invalid_date", ["2026-04-08", "2026048", "20260230"])
+def test_food_log_models_reject_non_canonical_dates(invalid_date: str) -> None:
+    with pytest.raises(PydanticValidationError) as upsert_error:
+        FoodLogUpsertRequest.model_validate(
+            {
+                "date": invalid_date,
+                "meal": "breakfast",
+                "name": "Oats",
+                "kcal": 300.0,
+                "carbs": 40.0,
+                "fat": 7.0,
+                "protein": 12.0,
+                "fiber": 5.0,
+            }
+        )
+    _assert_validation_error_types(upsert_error.value, {"value_error"})
+
+    with pytest.raises(PydanticValidationError) as search_error:
+        FoodLogSearchRequest.model_validate({"date": invalid_date})
+    _assert_validation_error_types(search_error.value, {"value_error"})
+
+    with pytest.raises(PydanticValidationError) as entry_error:
+        FoodLogEntry.model_validate(
+            {
+                "uuid": "a93f6d76-e0ef-4c6f-a33e-f08d4f96eb80",
+                "date": invalid_date,
+                "meal": "lunch",
+                "name": "Chicken wrap",
+                "kcal": 470.0,
+                "carbs": 39.0,
+                "fat": 16.0,
+                "protein": 34.0,
+                "fiber": 4.0,
+            }
+        )
+    _assert_validation_error_types(entry_error.value, {"value_error"})
+
+
+def test_food_log_search_request_supports_optional_filters() -> None:
+    request = FoodLogSearchRequest.model_validate({"name": "yogurt", "meal": "lunch"})
+
+    assert request.date is None
+    assert request.name == "yogurt"
+    assert request.meal == "lunch"
+
+
+def test_food_log_entry_serializes_canonical_shape() -> None:
+    entry = FoodLogEntry.model_validate(
+        {
+            "uuid": "a93f6d76-e0ef-4c6f-a33e-f08d4f96eb80",
+            "date": "20260408",
+            "meal": "lunch",
+            "name": "Chicken wrap",
+            "kcal": 470.0,
+            "carbs": 39.0,
+            "fat": 16.0,
+            "protein": 34.0,
+            "fiber": 4.0,
+        }
+    )
+
+    assert entry.model_dump() == {
+        "uuid": "a93f6d76-e0ef-4c6f-a33e-f08d4f96eb80",
+        "date": "20260408",
+        "meal": "lunch",
+        "name": "Chicken wrap",
+        "kcal": 470.0,
+        "carbs": 39.0,
+        "fat": 16.0,
+        "protein": 34.0,
+        "fiber": 4.0,
+    }
+
+
 def test_contract_units_policy_covers_request_and_response_units() -> None:
     """Contract module should publish explicit units metadata and legacy notes."""
     assert CONTRACT_UNITS_POLICY == {
@@ -410,6 +526,10 @@ def test_contract_units_policy_covers_request_and_response_units() -> None:
         "fat_g": "g",
         "total_kcal": "kcal",
         "kcal": "kcal",
+        "carbs": "g",
+        "fat": "g",
+        "protein": "g",
+        "fiber": "g",
     }
 
     assert MealPlanRequest.model_fields["age"].description == "Age in years."

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mealplan.application.contracts import MealPlanRequest, ProbeRequest
+from mealplan.application.contracts import FoodLogSearchRequest, MealPlanRequest, ProbeRequest
 from mealplan.application.parsing import parse_contract
 from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import ExitCode, map_exception_to_exit_code
@@ -46,3 +46,13 @@ def test_parse_contract_error_message_is_deterministic_for_nested_paths(
 
     assert errors[0] == errors[1]
     assert "training_session.zones_minutes" in errors[0]
+
+
+def test_parse_contract_maps_food_log_date_format_errors_to_validation_error() -> None:
+    try:
+        parse_contract(FoodLogSearchRequest, {"date": "2026-04-08"})
+    except ValidationError as error:
+        assert str(error) == "date: Value error, expected YYYYMMDD"
+        assert map_exception_to_exit_code(error) is ExitCode.VALIDATION
+    else:
+        raise AssertionError("Expected parse failure for non-canonical food-log date.")

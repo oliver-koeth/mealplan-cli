@@ -86,11 +86,12 @@ The tool must be fully machine-executable without ambiguity.
 -   Default preferred port is `8765`; on collision, probe sequentially through `8775`.
 -   If all ports in `8765..8775` are occupied, startup fails with non-zero exit and clear messaging.
 -   Startup output includes:
-    - `UI available at http://127.0.0.1:<port>/calculate`
+    - `UI available at http://127.0.0.1:<port>/calendar`
     - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
 -   The server does not auto-launch a browser.
 -   On `SIGINT`/`SIGTERM`, stop accepting new requests immediately, drain in-flight requests up to 5 seconds, and exit with code `0`.
 -   The same process serves both shell routes and API routes.
+-   Root shell route `/` defaults to the Calendar view.
 
 ### 3A.1 Local API Endpoints
 
@@ -100,6 +101,29 @@ The tool must be fully machine-executable without ambiguity.
 -   `GET /api/v1/calendar/{date}` returns the canonical stored meal plan for that date.
 -   Date path parameters are validated/normalized to canonical `YYYYMMDD`.
 -   Calendar retrieval for a missing date returns HTTP `404` with `error.code=calendar_not_found`.
+-   `/calendar` UI renders meal-level planned and actual rows per meal:
+    - render meal cards with `training` first, then canonical meal order
+    - planned values come from persisted calendar `MealPlanResponse.meals[*]`
+    - actual values are summed by meal from `GET /api/v1/log/search?date=YYYYMMDD`
+    - each meal shows one actual summed total even when multiple log entries exist for that meal
+    - clicking `Actuals` expands meal details to show each matching log entry line with kcal/carbs/fat/protein
+    - use `Day Plan` as calendar result heading and `Meal Plans` heading before individual meals
+    - render full-width daily kcal progress bars below totals cards with:
+      - `Planned` bar in white
+      - `Actual` bar colored by threshold against planned total kcal (`<80%` red, `80%..120%` green, `>120%` red)
+    - totals cards render both `Planned` and `Actual` values for each metric
+    - totals cards remove decimal places from displayed values
+    - totals cards use a single unified orange style
+    - totals cards include `Total kcal`, `Training kcal`, `Carbs`, `Fat`, `Protein`, and `Fiber`
+    - totals card excludes `TDEE`
+    - `Fiber` planned value is fixed at `30 g`; actual is summed from same-day logs
+    - actual value color thresholds (numbers only, relative to planned for same metric):
+      - `< 80%`: red
+      - `80%..120%`: green
+      - `> 120%`: red
+-   `/log` search UI date filter behavior:
+    - initial state is cleared/inactive (same as pressing clear `X`)
+    - on first date activation (focus/click), it auto-initializes with today
 -   Error mapping:
     - HTTP `400` with `error.code=validation_error` for validation failures
     - HTTP `422` with `error.code=domain_rule_error` for domain rule failures

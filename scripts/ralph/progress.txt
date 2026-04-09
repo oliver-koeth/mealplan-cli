@@ -1,189 +1,254 @@
 # Ralph Progress Log
-## Codebase Patterns
-- Calendar persistence uses `JsonCalendarStore` with a JSON object root keyed by canonical `YYYYMMDD`; missing entries should raise deterministic `DomainRuleError` (`calendar.<date>: meal plan not found`) instead of returning `None`.
-- CLI calendar persistence should resolve storage from `MEALPLAN_CALENDAR_STORE_PATH` when set and otherwise use `~/.mealplan/calendar.json` so saves are stable across working directories and easily isolated in tests.
-- CLI calendar retrieval should parse persisted payloads via `parse_contract(MealPlanResponse, payload)` before rendering with shared `_render_output(...)` so `calendar` and `calculate` stay format-consistent (`json|text|table`).
-- UI calendar API routes should parse `/api/v1/calendar/{date}` path segments, normalize dates to canonical `YYYYMMDD` before store access, and map missing-date `DomainRuleError` to HTTP `404` with canonical `calendar_not_found` error envelope details.
-- Calculate page defaults should reuse settings-storage keys (`activity_level`, `training_load_tomorrow`, `training_before_meal`) and only backfill from `mealplan.ui.settings.v1` when no day-specific value exists in `mealplan.ui.calculate.v1`.
-- In `ui_server.py` `_APP_SHELL_TEMPLATE`, escape literal JavaScript regex end anchors as `$$` (not `$`) so `string.Template` placeholder substitution does not crash HTML rendering.
-- In `ui_server.py`, when adding a new top-level page, update `_PAGE_CONTENT`, `do_GET` route dispatch, and `_render_app_shell` active-nav substitutions together so navigation and routing stay in sync.
-- Keep calendar-persistence documentation synchronized in the same iteration: update `README.md`, `docs/REQUIREMENTS.md`, and `docs/ARCHITECTURE.md` together whenever CLI `--date`/`calendar`, UI `/calendar`, or `/api/v1/calendar/{date}` contracts change.
+Started: Wed Apr  8 15:40:02 CEST 2026
 
-Started: Mon Apr  6 17:09:55 CEST 2026
----
-## 2026-04-06 17:19:53 CEST - US-001
+## Codebase Patterns
+- For canonical `YYYYMMDD` date fields in application boundary contracts, reuse one shared validator helper in `src/mealplan/application/contracts.py` so boundary parse failures remain deterministic (`date: Value error, expected YYYYMMDD`).
+- For UUID-keyed JSON persistence adapters, mirror `JsonCalendarStore` conventions: auto-create missing files with `{}` root, raise deterministic `ConfigError` prefixes (`log.store:`), and keep not-found domain errors namespaced (`log.<uuid>: entry not found`).
+- For food-log retrieval semantics, keep filtering centralized in `JsonFoodLogStore.search` with optional-AND behavior (`date` exact, `meal` exact, `name` case-insensitive substring) and return canonical `FoodLogEntry` rows sorted newest-first.
+- For new CLI persistence features, follow the env-override pattern used by calendar/log commands: read `MEALPLAN_*_STORE_PATH` first and default to a stable `~/.mealplan/*.json` path so tests can isolate storage and CLI behavior stays deterministic.
+- For web write endpoints that target UUID-keyed persistence, treat the route path UUID as canonical (`PUT /api/v1/log/{uuid}`), inject it into parsed contracts before store updates, and map `log.<uuid>: entry not found` to structured HTTP `404` API errors.
+- For web GET filter APIs, parse query params as singletons (reject repeated params with `ValidationError`) and pass the normalized map through `parse_contract(...)` so validation failures keep canonical structured error details.
+- For each new top-level UI page in `src/mealplan/web/ui_server.py`, update all four surfaces together: `_PAGE_CONTENT` entry, nav markup + `_render_app_shell(...)` active placeholder substitution, `do_GET` route handling, and HTML shell assertions in `tests/unit/test_web_ui_server.py`.
+- For `/log` entry-form client workflows, treat a non-empty `uuid` control as edit mode (`Save` + `PUT /api/v1/log/{uuid}`), default empty `uuid` to create mode (`Add` + `POST /api/v1/log`), and clear success callouts on subsequent user input.
+- For `_APP_SHELL_TEMPLATE` inline JavaScript in `src/mealplan/web/ui_server.py`, escape literal dollar signs as `$$` (including regex end anchors) or `string.Template.substitute(...)` will fail and break all HTML routes.
+- For `PUT /api/v1/log/{uuid}` handlers/tests, treat the path UUID as canonical and ignore any body UUID to prevent identity drift between transport layers.
+
+## [2026-04-08 15:43:02 CEST] - US-001
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
 - What was implemented
-- Added file-backed calendar persistence in `src/mealplan/infrastructure/calendar_store.py` via `JsonCalendarStore` with canonical date validation (`YYYYMMDD`), automatic file creation, overwrite semantics, and deterministic missing-date errors.
-- Exported the new store from `src/mealplan/infrastructure/__init__.py`.
-- Added unit coverage in `tests/unit/test_calendar_store.py` for create-on-missing, overwrite behavior, missing-date error pathway, invalid date validation, and malformed store root handling.
+- Added canonical food-log contract DTOs in the application boundary: `FoodLogUpsertRequest` (optional `uuid`, default `quantity=1.0`), `FoodLogSearchRequest` (optional `date`/`name`/`meal` filters), and `FoodLogEntry` response shape (`uuid`, `date`, `meal`, `name`, `kcal`, `carbs`, `fat`, `protein`, `fiber`).
+- Added shared canonical date normalization in contracts and wired `field_validator` checks on all food-log date fields to enforce strict `YYYYMMDD`.
+- Extended unit and parsing tests to cover food-log DTO parsing, default quantity behavior, optional filter behavior, canonical response serialization, and deterministic parse error mapping for invalid dates.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (357 passed).
 - Files changed
-- src/mealplan/infrastructure/__init__.py
-- src/mealplan/infrastructure/calendar_store.py
-- tests/unit/test_calendar_store.py
-- scripts/ralph/prd.json
-- scripts/ralph/progress.txt
-- AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/application/contracts.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_application_contracts.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_application_parsing.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
 - **Learnings for future iterations:**
 - Patterns discovered (e.g., "this codebase uses X for Y")
-- The infrastructure layer now has a canonical JSON persistence adapter for date-keyed calendar plans; downstream CLI/API stories should reuse it instead of introducing parallel storage code.
+- Boundary DTO additions should include strict typing plus parsing tests that assert stable error categories/types rather than brittle full-message snapshots.
 - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-- This environment lacks `.venv/bin/uv`, so `make quality` fails; use `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` directly for reliable local quality checks.
+- `make quality` assumes `.venv/bin/uv`; when that path is absent in local runs, execute equivalent gates directly with `uv run ...`.
 - Useful context (e.g., "the evaluation panel is in component X")
-- Deterministic not-found behavior is encoded as `DomainRuleError`, which aligns with future CLI `ExitCode.DOMAIN` handling for missing calendar dates.
+- Contract units metadata is asserted in tests; when adding new nutrition boundary fields, update `CONTRACT_UNITS_POLICY` and its test expectation together.
 ---
-## 2026-04-06 17:24:47 CEST - US-002
+
+## [2026-04-08 15:47:06 CEST] - US-002
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
 - What was implemented
-- Extended `mealplan calculate` with required `--date` input (`YYYYMMDD`) and persisted successful calculation responses under that date via `JsonCalendarStore`.
-- Added CLI storage-path resolution using `MEALPLAN_CALENDAR_STORE_PATH` override and default fallback `~/.mealplan/calendar.json`.
-- Preserved calculate output behavior for `json|text|table` while adding save-on-success overwrite semantics for existing date entries.
-- Added CLI coverage for persistence save, overwrite behavior, and invalid `--date` validation (`exit code 2`).
+- Added `JsonFoodLogStore` in infrastructure for dedicated file-backed food logging (`food-log.json` in tests), including create and update flows.
+- Implemented create semantics with backend-generated UUIDs, update semantics requiring existing UUID, and deterministic unknown-UUID errors (`log.<uuid>: entry not found`).
+- Implemented quantity scaling in persistence flow so `kcal`, `carbs`, `fat`, `protein`, and `fiber` are multiplied before save; `quantity` is intentionally not persisted.
+- Added robust store I/O handling to auto-create missing storage files and reject invalid JSON root shapes with deterministic config errors.
+- Exported the new adapter from `mealplan.infrastructure`.
+- Added/ran unit tests for create/update behavior, quantity scaling, file creation, validation guardrails, and config-error paths.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (363 passed).
 - Files changed
-- src/mealplan/cli/main.py
-- tests/cli/test_calculate.py
-- tests/cli/test_error_handling.py
-- tests/golden/test_cli_golden.py
-- scripts/ralph/prd.json
-- scripts/ralph/progress.txt
-- AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/__init__.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
 - **Learnings for future iterations:**
 - Patterns discovered (e.g., "this codebase uses X for Y")
-- CLI-related test suites centralize required command args in `_required_calculate_args()` helpers; update those first when introducing required flags.
+- For new JSON persistence adapters, preserve the existing calendar-store ergonomics: lazy store bootstrap, deterministic error-prefix taxonomy, and JSON-object root validation.
 - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-- Some subprocess/golden fixtures build calculate args inline, so helper updates alone do not cover all required-flag callsites.
+- `FoodLogUpsertRequest` defaults `quantity` to `1.0`; adapter logic still must apply multiplier explicitly and never persist `quantity`.
 - Useful context (e.g., "the evaluation panel is in component X")
-- `JsonCalendarStore.save(...)` already enforces canonical date validation and overwrite behavior, so CLI command logic can delegate date-key rules directly to infrastructure.
+- `FoodLogEntry` is the canonical persisted/returned shape for log records, so store writes should serialize from that model (`model_dump(mode=\"json\")`) to keep boundaries aligned.
 ---
-## 2026-04-06 17:27:47 CEST - US-003
+
+## [2026-04-08 15:50:08 CEST] - US-003
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
 - What was implemented
-- Added `mealplan calendar` in `src/mealplan/cli/main.py` with required `--date` and shared `--format` (`json|text|table`) support.
-- Wired calendar retrieval through `JsonCalendarStore.get(...)`, then validated persisted payloads with `parse_contract(MealPlanResponse, ...)` before rendering.
-- Implemented missing-date behavior through the existing deterministic domain error pathway so `main()` maps it to exit code `3`.
-- Added CLI coverage in `tests/cli/test_calendar.py` for JSON retrieval, text/table rendering, help text, invalid date validation (`exit 2`), and missing-date domain exit behavior (`exit 3`).
+- Added `JsonFoodLogStore.search(request=FoodLogSearchRequest)` with optional-AND filtering over persisted entries (`date` exact match, `meal` exact match, `name` case-insensitive substring match).
+- Implemented canonical search-result ordering as newest-first by date, returning canonical `FoodLogEntry` objects.
+- Added store unit coverage for optional-AND behavior, single-filter cases, case-insensitive substring matching, newest-first ordering, and canonical entry-shape returns.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (369 passed).
 - Files changed
-- src/mealplan/cli/main.py
-- tests/cli/test_calendar.py
-- scripts/ralph/prd.json
-- scripts/ralph/progress.txt
-- AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
 - **Learnings for future iterations:**
 - Patterns discovered (e.g., "this codebase uses X for Y")
-- Keep `calendar` output parity by routing both commands through the same `_render_output(...)` path and `OutputFormat` literal options.
+- Food-log search semantics are centralized in `JsonFoodLogStore.search`; keep CLI/API adapters thin and reuse this method to preserve consistent optional-AND filtering and ordering behavior.
 - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-- Exit code `3` for missing calendar dates is produced only when invoking `main()`/module entrypoint (for example via subprocess), not by command-only function tests.
+- `FoodLogSearchRequest.name` matching is intentionally case-insensitive substring, so future tests/clients should not assume exact-name matching.
 - Useful context (e.g., "the evaluation panel is in component X")
-- `calendar --help` automatically documents `--date`/`--format` behavior from shared Typer option constants, so reuse existing option definitions to keep docs synchronized.
+- Search responses should be emitted as canonical `FoodLogEntry` models to keep boundary shape aligned for upcoming CLI/REST stories.
 ---
-## 2026-04-06 17:32:26 CEST - US-004
+
+## [2026-04-08 15:55:13 CEST] - US-004
 Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
 - What was implemented
-- Added web API calendar endpoints in `src/mealplan/web/ui_server.py`: `PUT /api/v1/calendar/{date}` to persist a `MealPlanResponse` payload and `GET /api/v1/calendar/{date}` to retrieve it.
-- Implemented calendar route parsing and explicit date normalization to canonical `YYYYMMDD` before persistence/retrieval.
-- Wired UI server calendar storage to `JsonCalendarStore` with `MEALPLAN_CALENDAR_STORE_PATH` override and default `~/.mealplan/calendar.json`.
-- Added structured missing-date behavior for calendar retrieval: deterministic `DomainRuleError` is mapped to HTTP `404` with canonical envelope code `calendar_not_found`.
-- Added unit coverage for round-trip persistence/retrieval, overwrite semantics, invalid-date validation, and structured not-found responses.
+- Added a top-level `mealplan log` Typer sub-app with create/update upsert behavior backed by `JsonFoodLogStore`.
+- Implemented required field-flag mode (`--date --meal --name --kcal --carbs --fat --protein --fiber`), optional `--quantity` defaulting to contract value `1.0`, and one-shot `--json` payload mode.
+- Enforced `--json` exclusivity against individual field flags; payloads with `uuid` now route to update, payloads without `uuid` route to create.
+- Added deterministic log-store path resolution via `MEALPLAN_FOOD_LOG_STORE_PATH` override with default `~/.mealplan/food-log.json`.
+- Added CLI tests covering create, quantity scaling, JSON mode, update-via-uuid, mixed-input rejection, unknown-uuid domain error mapping, and `mealplan log --help` JSON example text.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (376 passed).
 - Files changed
-- src/mealplan/web/ui_server.py
-- tests/unit/test_web_ui_server.py
-- scripts/ralph/prd.json
-- scripts/ralph/progress.txt
-- AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/cli/main.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/cli/test_log.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
 - **Learnings for future iterations:**
 - Patterns discovered (e.g., "this codebase uses X for Y")
-- UI API handlers should isolate route matching with parsed request paths (`urlsplit(self.path).path`) before dispatching path-parameter endpoints to avoid query-string coupling.
+- For new CLI feature stores, follow the calendar pattern: expose a dedicated `MEALPLAN_*_STORE_PATH` env override plus a stable home-directory default path to keep tests isolated and CLI behavior deterministic.
 - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-- Calendar endpoint date validation must happen before store calls so invalid path params consistently map to the canonical HTTP `400` `validation_error` envelope.
+- To keep `mealplan log search` extensible for the next story, `log` is now a Typer sub-app callback; future `search` work should be added as a `log_app.command(...)` subcommand rather than a new top-level command.
 - Useful context (e.g., "the evaluation panel is in component X")
-- `parse_contract(MealPlanResponse, payload)` should be used on both calendar writes and reads to keep persisted payload contracts aligned with UI/API expectations.
+- `mealplan log --help` now includes an explicit `--json` example in sub-app help text, and CLI coverage lives in `tests/cli/test_log.py`.
 ---
-## 2026-04-06 17:35:19 CEST - US-005
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+
+## [2026-04-08 16:53:30 CEST] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
 - What was implemented
-- Extended Settings -> Planning Defaults to persist `activity_level`, `training_load_tomorrow`, and `training_before_meal` using the existing `mealplan.ui.settings.v1` local-storage flow.
-- Added calculate-page initialization fallback logic that applies those settings defaults only when `mealplan.ui.calculate.v1` has no day-specific value for the same fields.
-- Updated request payload assembly to fall back to settings defaults for activity/training context when day-specific values are unset.
-- Expanded UI server shell tests to verify new defaults controls, shared allowed values, settings storage binding, and calculate fallback wiring.
+- Added REST food-log write routes in the UI server: `POST /api/v1/log` (create) and `PUT /api/v1/log/{uuid}` (update).
+- Wired both handlers to parse `FoodLogUpsertRequest` via `parse_contract(...)`, so date/meal and payload-shape validation stays at the canonical contract boundary.
+- Added UUID-path update semantics by injecting `{uuid}` from route into the parsed payload before calling `JsonFoodLogStore.update(...)`.
+- Implemented structured unknown-UUID handling for log updates: `log.<uuid>: entry not found` now maps to HTTP `404` with envelope code `log_not_found`.
+- Added UI-server tests covering create success, update success, unknown-UUID 404 mapping, and invalid-date 400 validation mapping.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (382 passed).
 - Files changed
-- src/mealplan/web/ui_server.py
-- tests/unit/test_web_ui_server.py
-- AGENT.md
-- scripts/ralph/prd.json
-- scripts/ralph/progress.txt
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
 - **Learnings for future iterations:**
 - Patterns discovered (e.g., "this codebase uses X for Y")
-- The UI shell prefers shared field names across settings and calculate forms so defaults can flow via local-storage snapshots without extra mapping logic.
+- For write routes that include an entity identifier in the URL, keep the path identifier authoritative and inject it into boundary contracts before persistence to avoid body/path drift.
 - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-- When adding inline JS behavior in `ui_server.py`, keep `tests/unit/test_web_ui_server.py` string assertions synchronized or tests will fail despite runtime-valid scripts.
+- `parse_contract(...)` date validation details currently surface `Value error, expected YYYYMMDD`; endpoint tests should assert stable field + canonical message wording.
 - Useful context (e.g., "the evaluation panel is in component X")
-- Calculate defaults are intentionally one-way at initialization: settings backfill only when day-specific values are absent, preserving per-day overrides in calculate storage.
+- UI server API tests live in `tests/unit/test_web_ui_server.py` and use local HTTP helpers (`_post_json`, `_put_json_expect_http_error`) against a real in-process server thread for route-level verification.
 ---
-## 2026-04-06 17:39:14 CEST - US-006
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
+## [2026-04-08 17:03:24 CEST] - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
 - What was implemented
-- Added date controls to the Calculate page (native `type="date"` picker plus `<`/`>` day-shift buttons) in the Day Inputs/Results row and defaulted the control to current local date when unset.
-- Added client-side canonical date normalization (`YYYY-MM-DD` -> `YYYYMMDD`) before backend persistence calls.
-- Wired Calculate Results `Save` to persist the currently displayed meal-plan payload (including active +/-100 kcal display scaling) to `PUT /api/v1/calendar/{date}` with overwrite semantics and status feedback.
-- Kept calculate request/output behavior intact while disabling date/save controls during in-flight backend calls.
-- Expanded UI shell tests to assert date controls, canonical date conversion wiring, calendar save fetch flow, and save-status UI hooks.
+- Added `GET /api/v1/log/search` to the UI server and routed it in `do_GET`.
+- Implemented optional query-param parsing for `date`, `name`, and `meal`, then validated the filter payload through `parse_contract(FoodLogSearchRequest, ...)`.
+- Wired endpoint execution to `JsonFoodLogStore.search(...)`, returning canonical JSON array entries.
+- Added validation/error handling for search requests using the existing structured API error envelope style (`validation_error` with deterministic `details` fields).
+- Added query parsing guardrails to reject repeated filter params deterministically (`<field>: expected single query parameter`).
+- Added/updated endpoint tests for optional-AND search filtering, canonical response shape, invalid-date query handling, and duplicate query-param validation mapping.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (385 passed).
 - Files changed
-- src/mealplan/web/ui_server.py
-- tests/unit/test_web_ui_server.py
-- AGENT.md
-- scripts/ralph/prd.json
-- scripts/ralph/progress.txt
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
 - **Learnings for future iterations:**
 - Patterns discovered (e.g., "this codebase uses X for Y")
-- For inline UI save workflows in `ui_server.py`, derive calendar save payloads from the same rendered results model (`buildScaledResults`) to keep saved data aligned with what the user sees.
+- For GET endpoints with optional filters, normalize query params to single values before contract parsing to keep duplicate-key behavior deterministic and validation-envelope-friendly.
 - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-- `_APP_SHELL_TEMPLATE` is backed by `string.Template`; unescaped JavaScript regex `$` anchors must be written as `$$` or route rendering fails at runtime.
+- `do_GET` routing in `ui_server.py` relies on `_request_path()` (path-only), so query-bearing endpoints need explicit handlers keyed by path plus separate query extraction.
 - Useful context (e.g., "the evaluation panel is in component X")
-- Browser-level behavior was verified via existing HTTP shell/UI regression tests (`tests/unit/test_web_ui_server.py` and `tests/cli/test_ui_mode.py`) because no dedicated browser automation harness is present in this repo.
+- Existing web API tests already provide `_get_json(...)`/`_get_json_expect_http_error(...)` helpers, so new GET endpoint coverage can follow the same in-process server pattern without additional fixtures.
 ---
-## 2026-04-06 17:43:47 CEST - US-007
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-6.txt
+
+## [2026-04-08 17:07:53 CEST] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
 - What was implemented
-- Added a new top-level `/calendar` web view in `src/mealplan/web/ui_server.py` and exposed Calendar in primary navigation alongside Settings and Calculate with correct active-state highlighting.
-- Implemented Calendar page UI with date picker plus `<`/`>` day navigation controls, current-local-date initialization, canonical date normalization before backend lookup, and read-only results rendering using the same totals/meal information structure as calculate results.
-- Wired calendar page client flow to `GET /api/v1/calendar/{date}` with explicit missing-plan handling that shows the exact message `No meal plan exists, you first need to calculate one.` and links `calculate` to `/calculate`.
-- Kept Calendar display read-only by omitting calculate-only adjustment/save controls.
-- Added/updated UI server tests for Calendar route navigation state and shell wiring, including date controls, canonical fetch path, missing-plan message/link, and read-only view contract.
-- Verified frontend behavior through repository-available checks: unit HTML/JS shell assertions plus live `mealplan --ui` request validation of `/calendar` content.
+- Added top-level `Log` UI route (`/log`) and navigation item, including active-state wiring in the app shell template.
+- Added a dedicated Log page layout with ordered regions: entry form, search controls, and search results.
+- Implemented Log entry-form shell fields including read-only `uuid`, full nutrition inputs, and full-width date row with `<` / `>` controls.
+- Added client-side Log date initialization so entry and search date controls default to current date when empty.
+- Added/updated UI-server tests for Log route navigation state and required shell structure/wiring.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (387 passed).
 - Files changed
-- src/mealplan/web/ui_server.py
-- tests/unit/test_web_ui_server.py
-- AGENT.md
-- scripts/ralph/prd.json
-- scripts/ralph/progress.txt
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
 - **Learnings for future iterations:**
 - Patterns discovered (e.g., "this codebase uses X for Y")
-- Top-level UI pages in `ui_server.py` are a 3-point change: page template content, route dispatch, and nav active-state substitution must all be updated together.
+- Top-level UI page work in this codebase is enforced by shell tests that assert exact rendered HTML/JS markers; add those tests in the same iteration as page scaffolding.
 - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-- In this environment `make quality` fails because `.venv/bin/uv` is absent; run `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` directly.
+- Inline script assertions are sensitive to multiline formatting; assert stable substrings rather than very long exact one-line snippets.
 - Useful context (e.g., "the evaluation panel is in component X")
-- This repo currently verifies frontend stories through HTML/JS server-shell tests and local UI server HTTP checks, not dedicated browser automation tooling.
+- Log page shell now exists at `/log` with `data-log-entry-form`, `data-log-search-form`, and `data-log-results` anchors for follow-up interaction stories.
 ---
-## 2026-04-06 17:47:46 CEST - US-008
-Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
+## [2026-04-08 17:11:49 CEST] - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
 - What was implemented
-- Updated `README.md` CLI/UI documentation to include canonical date-keyed behavior: required `--date` for `calculate`, new `calendar` command usage, default persistence path/override, and expanded UI/API route lists including `/calendar` and `/api/v1/calendar/{date}`.
-- Updated canonical requirements docs in `docs/REQUIREMENTS.md` to capture date-keyed persistence scope, command-specific required `--date`, calendar API endpoints (`PUT`/`GET`), and CLI exit semantics for missing calendar entries.
-- Updated `docs/ARCHITECTURE.md` to align command model and adapter contracts with implemented behavior (`mealplan calendar`, canonical `YYYYMMDD` date handling, calendar REST endpoints, and read-only Calendar view retrieval flow).
-- Added a reusable documentation-sync convention to `AGENT.md` for all future calendar contract updates.
-- Verified regression stability with quality checks: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (349 passed).
+- Implemented Log entry-form submit wiring in the UI script: default Add mode now posts to `POST /api/v1/log`, while populated UUID switches the primary action to Save and submits updates via `PUT /api/v1/log/{uuid}`.
+- Added entry-form payload normalization and numeric parsing for date/meal/name/nutrition fields before API submission.
+- Added form reset behavior after successful Add/Save: reset fields, clear UUID, and reinitialize date to current date.
+- Added a full-width green success callout below the entry action button, shown only after successful Add/Save and cleared when users edit inputs or date controls.
+- Extended Log shell tests to assert Add/Save mode wiring markers, success-callout anchors, and endpoint/method script hooks.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (387 passed).
 - Files changed
-- README.md
-- docs/REQUIREMENTS.md
-- docs/ARCHITECTURE.md
-- AGENT.md
-- scripts/ralph/prd.json
-- scripts/ralph/progress.txt
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
 - **Learnings for future iterations:**
 - Patterns discovered (e.g., "this codebase uses X for Y")
-- Calendar contract updates are cross-cutting across CLI, UI, and API surfaces; documentation must be treated as part of the contract and updated in lockstep across README and canonical docs.
+- The Log entry form already has reusable mode state and submit markers (`data-log-entry-submit`, `data-log-entry-success`), so result-row Edit/Add actions should set UUID and field values then call the same mode update path instead of duplicating submit logic.
 - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-- `make quality` still relies on `.venv/bin/uv` and fails in this environment; run `uv run ...` commands directly for reliable local verification.
+- HTML shell tests in `tests/unit/test_web_ui_server.py` are sensitive to inline-template formatting; assert durable substrings/markers rather than full multiline tag strings.
 - Useful context (e.g., "the evaluation panel is in component X")
-- Existing regression suites already cover calendar behavior across CLI/API/UI (`tests/cli/test_calculate.py`, `tests/cli/test_calendar.py`, `tests/unit/test_web_ui_server.py`), so this iteration focused on contract-document alignment.
+- Log form UX logic lives in the inline script branch guarded by `if (logEntryForm)`, near existing date-control wiring and before calendar/calculate behaviors.
+---
+## [2026-04-08 17:16:47 CEST] - US-010
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- What was implemented
+- Implemented `/log` search results rendering and interaction wiring in the UI script: `Search` now calls `GET /api/v1/log/search` with optional date/name/meal query params and renders dynamic result rows.
+- Added per-result-row controls and behavior: caret toggle for expandable details, `Edit` action to copy all fields (including `uuid`) into the entry form and switch submit mode to `Save`, and `Add` action to copy row values while forcing `date=today` and clearing `uuid` so mode becomes `Add`.
+- Added shared log-entry bindings (`applyEditEntry` / `applyAddEntry`) so search-result actions reuse existing form mode/success behavior without duplicating submit logic.
+- Updated Log page shell markup/styles for results status/list regions and row layout markers required for interaction testing.
+- Added/updated shell tests asserting search wiring and interaction markers for caret/add/edit/details rendering hooks.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (387 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For result-to-form workflows on `/log`, keep row actions delegated through shared form-binding helpers so mode switching (`Add`/`Save`) and success-reset behavior stay centralized.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- `_APP_SHELL_TEMPLATE` uses `string.Template`; unescaped `$` in inline JS (like regex end anchors) will crash route rendering, so use `$$` for literal dollar signs.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Log search results now expose stable markers (`data-log-result-row|caret|add|edit|details`) that are asserted in `tests/unit/test_web_ui_server.py` and intended for future UI interaction stories.
+---
+## [2026-04-08 17:37:09 CEST] - US-011
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- What was implemented
+- Hardened food-log store tests with additional edge coverage: update-path `quantity` scaling verification and deterministic config failure when persisted entry payloads are non-object JSON values.
+- Extended CLI log tests with additional `log search` coverage for case-insensitive single-name filtering and deterministic invalid-date exit-code mapping (`2`) with canonical validation messaging.
+- Extended web API/UI tests with log-route edge cases: `PUT /api/v1/log/{uuid}` path UUID precedence over request-body UUID, search-without-filters newest-first ordering, and explicit `/log` shell assertions for search status-state wiring (`Searching...`, `No matching entries.`, failure status, submit disable/enable).
+- Updated canonical docs for persistent-log contracts/routes and usage:
+  - Added enhancement brief `enhance-006-persistent-log`
+  - Updated architecture command/API boundary sections for `mealplan log`, `/api/v1/log`, and `/api/v1/log/search`
+  - Updated README CLI/UI/API usage to include persistent-log workflows and storage env overrides.
+- Ran quality checks successfully using `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` (393 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_food_log_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/cli/test_log.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/docs/ARCHITECTURE.md
+- /Users/Oliver.Koeth/work/mealplan-cli/docs/enhancements/enhance-006-persistent-log.md
+- /Users/Oliver.Koeth/work/mealplan-cli/README.md
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+- Patterns discovered (e.g., "this codebase uses X for Y")
+- For REST updates that identify resources by path (`PUT /api/v1/log/{uuid}`), tests should pin path-UUID precedence explicitly so request-body UUID drift cannot silently change persistence targets.
+- Gotchas encountered (e.g., "don't forget to update Z when changing W")
+- Existing `/log` UI tests are shell-marker assertions against inline JavaScript; when interaction behavior changes, update durable status/action marker assertions rather than brittle full-template snapshots.
+- Useful context (e.g., "the evaluation panel is in component X")
+- Persistent-log docs now live across `docs/enhancements/enhance-006-persistent-log.md`, `docs/ARCHITECTURE.md` command/API boundary sections, and README log usage examples; keep these synchronized when log contracts/routes evolve.
 ---

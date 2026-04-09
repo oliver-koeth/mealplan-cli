@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime
 from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
 
 from mealplan.domain.enums import (
     ActivityLevel,
@@ -20,6 +30,7 @@ from mealplan.domain.model import CANONICAL_MEAL_ORDER
 SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtime"]
 TrainingZoneKey = Literal["1", "2", "3", "4", "5"]
 TrainingBeforeMeal = MealName | Literal["training"]
+FoodLogMeal = MealName | Literal["training"]
 CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "age": "years",
     "height_cm": "cm",
@@ -33,7 +44,12 @@ CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "fat_g": "g",
     "total_kcal": "kcal",
     "kcal": "kcal",
+    "carbs": "g",
+    "fat": "g",
+    "protein": "g",
+    "fiber": "g",
 }
+_DATE_KEY_FORMAT = "%Y%m%d"
 
 
 class BoundaryModel(BaseModel):
@@ -68,6 +84,60 @@ class MealPlanRequest(BoundaryModel):
     carb_mode: CarbMode
     training_load_tomorrow: TrainingLoadTomorrow
     training_session: TrainingSession | None = None
+
+
+class FoodLogUpsertRequest(BoundaryModel):
+    """Canonical request DTO for food-log create/update operations."""
+
+    uuid: StrictStr | None = None
+    date: StrictStr
+    meal: FoodLogMeal
+    name: StrictStr
+    kcal: StrictFloat
+    carbs: StrictFloat
+    fat: StrictFloat
+    protein: StrictFloat
+    fiber: StrictFloat
+    quantity: StrictFloat = 1.0
+
+    @field_validator("date")
+    @classmethod
+    def _validate_date(cls, value: str) -> str:
+        return _normalize_date_key(value)
+
+
+class FoodLogSearchRequest(BoundaryModel):
+    """Canonical request DTO for optional-filter food-log search."""
+
+    date: StrictStr | None = None
+    name: StrictStr | None = None
+    meal: FoodLogMeal | None = None
+
+    @field_validator("date")
+    @classmethod
+    def _validate_date(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _normalize_date_key(value)
+
+
+class FoodLogEntry(BoundaryModel):
+    """Canonical response DTO for persisted food-log entries."""
+
+    uuid: StrictStr
+    date: StrictStr
+    meal: FoodLogMeal
+    name: StrictStr
+    kcal: StrictFloat
+    carbs: StrictFloat
+    fat: StrictFloat
+    protein: StrictFloat
+    fiber: StrictFloat
+
+    @field_validator("date")
+    @classmethod
+    def _validate_date(cls, value: str) -> str:
+        return _normalize_date_key(value)
 
 
 class MealAllocation(BoundaryModel):
@@ -168,3 +238,14 @@ class ProbeResponse(BoundaryModel):
 
     # TODO(phase-2): Replace message-only shape with structured domain output.
     message: str = Field(description="Deterministic placeholder output.")
+
+
+def _normalize_date_key(date_key: str) -> str:
+    try:
+        parsed = datetime.strptime(date_key, _DATE_KEY_FORMAT)
+    except ValueError as error:
+        raise ValueError("expected YYYYMMDD") from error
+    canonical = parsed.strftime(_DATE_KEY_FORMAT)
+    if canonical != date_key:
+        raise ValueError("expected YYYYMMDD")
+    return canonical

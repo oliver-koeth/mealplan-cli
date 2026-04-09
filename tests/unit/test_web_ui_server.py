@@ -245,6 +245,358 @@ def test_ui_server_calendar_missing_date_returns_structured_not_found(
     ]
 
 
+def test_ui_server_log_post_creates_entry_and_returns_canonical_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+    payload = {
+        "date": "20260408",
+        "meal": "breakfast",
+        "name": "Eggs",
+        "kcal": 210.0,
+        "carbs": 2.0,
+        "fat": 15.0,
+        "protein": 18.0,
+        "fiber": 0.0,
+    }
+
+    with _running_test_server() as port:
+        status, response = _post_json(port, "/api/v1/log", payload)
+
+    assert status == 200
+    assert isinstance(response.get("uuid"), str)
+    assert response["date"] == "20260408"
+    assert response["meal"] == "breakfast"
+    assert response["name"] == "Eggs"
+    assert response["kcal"] == 210.0
+    assert response["carbs"] == 2.0
+    assert response["fat"] == 15.0
+    assert response["protein"] == 18.0
+    assert response["fiber"] == 0.0
+    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    assert response["uuid"] in stored
+
+
+def test_ui_server_log_put_updates_entry_for_uuid_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+    create_payload = {
+        "date": "20260408",
+        "meal": "lunch",
+        "name": "Oatmeal",
+        "kcal": 320.0,
+        "carbs": 52.0,
+        "fat": 7.0,
+        "protein": 12.0,
+        "fiber": 8.0,
+    }
+    update_payload = {
+        "date": "20260408",
+        "meal": "dinner",
+        "name": "Salmon",
+        "kcal": 450.0,
+        "carbs": 10.0,
+        "fat": 25.0,
+        "protein": 48.0,
+        "fiber": 0.0,
+    }
+
+    with _running_test_server() as port:
+        _, created = _post_json(port, "/api/v1/log", create_payload)
+        status, response = _put_json(
+            port,
+            f"/api/v1/log/{created['uuid']}",
+            update_payload,
+        )
+
+    assert status == 200
+    assert response["uuid"] == created["uuid"]
+    assert response["meal"] == "dinner"
+    assert response["name"] == "Salmon"
+    assert response["kcal"] == 450.0
+    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    assert stored[created["uuid"]]["name"] == "Salmon"
+
+
+def test_ui_server_log_put_uses_path_uuid_even_if_body_uuid_differs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+    create_payload = {
+        "date": "20260408",
+        "meal": "lunch",
+        "name": "Oatmeal",
+        "kcal": 320.0,
+        "carbs": 52.0,
+        "fat": 7.0,
+        "protein": 12.0,
+        "fiber": 8.0,
+    }
+    update_payload = {
+        "uuid": "body-uuid-should-be-ignored",
+        "date": "20260408",
+        "meal": "dinner",
+        "name": "Salmon",
+        "kcal": 450.0,
+        "carbs": 10.0,
+        "fat": 25.0,
+        "protein": 48.0,
+        "fiber": 0.0,
+    }
+
+    with _running_test_server() as port:
+        _, created = _post_json(port, "/api/v1/log", create_payload)
+        status, response = _put_json(
+            port,
+            f"/api/v1/log/{created['uuid']}",
+            update_payload,
+        )
+
+    assert status == 200
+    assert response["uuid"] == created["uuid"]
+    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    assert list(stored.keys()) == [created["uuid"]]
+    assert stored[created["uuid"]]["name"] == "Salmon"
+
+
+def test_ui_server_log_put_unknown_uuid_maps_to_structured_http_404(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(tmp_path / "food-log.json"))
+    payload = {
+        "date": "20260408",
+        "meal": "lunch",
+        "name": "Oatmeal",
+        "kcal": 320.0,
+        "carbs": 52.0,
+        "fat": 7.0,
+        "protein": 12.0,
+        "fiber": 8.0,
+    }
+
+    with _running_test_server() as port:
+        status, response = _put_json_expect_http_error(port, "/api/v1/log/missing-uuid", payload)
+
+    assert status == 404
+    assert response["error"]["code"] == "log_not_found"
+    assert response["error"]["message"] == "Log entry not found."
+    assert isinstance(response["error"]["request_id"], str)
+    assert response["error"]["details"] == [
+        {"field": "log.missing-uuid", "message": "entry not found"}
+    ]
+
+
+def test_ui_server_log_post_invalid_date_maps_to_http_400(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(tmp_path / "food-log.json"))
+    payload = {
+        "date": "2026-04-08",
+        "meal": "breakfast",
+        "name": "Eggs",
+        "kcal": 210.0,
+        "carbs": 2.0,
+        "fat": 15.0,
+        "protein": 18.0,
+        "fiber": 0.0,
+    }
+
+    with _running_test_server() as port:
+        status, response = _post_json_expect_http_error(port, "/api/v1/log", payload)
+
+    assert status == 400
+    assert response["error"]["code"] == "validation_error"
+    assert response["error"]["message"] == "Request validation failed."
+    assert isinstance(response["error"]["request_id"], str)
+    assert response["error"]["details"] == [
+        {"field": "date", "message": "Value error, expected YYYYMMDD"}
+    ]
+
+
+def test_ui_server_log_search_supports_optional_and_filters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+    breakfast = {
+        "date": "20260408",
+        "meal": "breakfast",
+        "name": "Greek Yogurt",
+        "kcal": 180.0,
+        "carbs": 12.0,
+        "fat": 8.0,
+        "protein": 16.0,
+        "fiber": 0.0,
+    }
+    dinner = {
+        "date": "20260408",
+        "meal": "dinner",
+        "name": "Salmon Bowl",
+        "kcal": 420.0,
+        "carbs": 35.0,
+        "fat": 18.0,
+        "protein": 32.0,
+        "fiber": 4.0,
+    }
+    prior_day = {
+        "date": "20260407",
+        "meal": "dinner",
+        "name": "Yogurt Chicken",
+        "kcal": 390.0,
+        "carbs": 20.0,
+        "fat": 14.0,
+        "protein": 40.0,
+        "fiber": 3.0,
+    }
+
+    with _running_test_server() as port:
+        _post_json(port, "/api/v1/log", breakfast)
+        _post_json(port, "/api/v1/log", dinner)
+        _post_json(port, "/api/v1/log", prior_day)
+        status, response = _get_json(
+            port,
+            "/api/v1/log/search?date=20260408&meal=dinner&name=sal",
+        )
+
+    assert status == 200
+    assert isinstance(response, list)
+    assert len(response) == 1
+    match = response[0]
+    assert isinstance(match["uuid"], str)
+    assert match["date"] == "20260408"
+    assert match["meal"] == "dinner"
+    assert match["name"] == "Salmon Bowl"
+    assert match["kcal"] == 420.0
+    assert match["carbs"] == 35.0
+    assert match["fat"] == 18.0
+    assert match["protein"] == 32.0
+    assert match["fiber"] == 4.0
+
+
+def test_ui_server_log_search_without_filters_returns_newest_first(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+
+    with _running_test_server() as port:
+        _post_json(
+            port,
+            "/api/v1/log",
+            {
+                "date": "20260407",
+                "meal": "breakfast",
+                "name": "Eggs",
+                "kcal": 210.0,
+                "carbs": 2.0,
+                "fat": 15.0,
+                "protein": 18.0,
+                "fiber": 0.0,
+            },
+        )
+        _post_json(
+            port,
+            "/api/v1/log",
+            {
+                "date": "20260408",
+                "meal": "lunch",
+                "name": "Oatmeal",
+                "kcal": 320.0,
+                "carbs": 52.0,
+                "fat": 7.0,
+                "protein": 12.0,
+                "fiber": 8.0,
+            },
+        )
+        status, response = _get_json(port, "/api/v1/log/search")
+
+    assert status == 200
+    assert isinstance(response, list)
+    assert [entry["date"] for entry in response] == ["20260408", "20260407"]
+
+
+def test_ui_server_log_search_returns_latest_25_matches_only(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(store_path))
+
+    with _running_test_server() as port:
+        for day in range(1, 31):
+            _post_json(
+                port,
+                "/api/v1/log",
+                {
+                    "date": f"202604{day:02d}",
+                    "meal": "lunch",
+                    "name": f"Meal {day}",
+                    "kcal": float(300 + day),
+                    "carbs": 30.0,
+                    "fat": 10.0,
+                    "protein": 20.0,
+                    "fiber": 4.0,
+                },
+            )
+        status, response = _get_json(port, "/api/v1/log/search")
+
+    assert status == 200
+    assert isinstance(response, list)
+    assert len(response) == 25
+    assert response[0]["date"] == "20260430"
+    assert response[-1]["date"] == "20260406"
+
+
+def test_ui_server_log_search_invalid_date_maps_to_http_400(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(tmp_path / "food-log.json"))
+
+    with _running_test_server() as port:
+        status, response = _get_json_expect_http_error(port, "/api/v1/log/search?date=2026-04-08")
+
+    assert status == 400
+    assert response["error"]["code"] == "validation_error"
+    assert response["error"]["message"] == "Request validation failed."
+    assert isinstance(response["error"]["request_id"], str)
+    assert response["error"]["details"] == [
+        {"field": "date", "message": "Value error, expected YYYYMMDD"}
+    ]
+
+
+def test_ui_server_log_search_duplicate_query_param_maps_to_http_400(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(tmp_path / "food-log.json"))
+
+    with _running_test_server() as port:
+        status, response = _get_json_expect_http_error(
+            port,
+            "/api/v1/log/search?date=20260408&date=20260409",
+        )
+
+    assert status == 400
+    assert response["error"]["code"] == "validation_error"
+    assert response["error"]["message"] == "Request validation failed."
+    assert isinstance(response["error"]["request_id"], str)
+    assert response["error"]["details"] == [
+        {"field": "date", "message": "expected single query parameter"}
+    ]
+
+
 def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
     with _running_test_server() as port:
         status, html = _get_html(port, "/settings")
@@ -254,6 +606,7 @@ def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
     assert '<a class="nav-link" href="/settings" aria-current="page">Settings</a>' in html
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
+    assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
     assert "Athlete profile and defaults" in html
 
 
@@ -305,6 +658,7 @@ def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None
     assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="nav-link" href="/calculate" aria-current="page">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
+    assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
     assert "Daily training and meal-plan calculation" in html
     assert '<form class="form-stack" data-settings-form="true">' not in html
 
@@ -318,7 +672,31 @@ def test_ui_server_calendar_shell_exposes_navigation_and_active_state() -> None:
     assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="page">Calendar</a>' in html
+    assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
     assert "Date-based meal-plan lookup" in html
+
+
+def test_ui_server_root_path_defaults_to_calendar_view() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/")
+
+    assert status == 200
+    assert '<a class="nav-link" href="/calendar" aria-current="page">Calendar</a>' in html
+    assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
+    assert "Date-based meal-plan lookup" in html
+
+
+def test_ui_server_log_shell_exposes_navigation_and_active_state() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/log")
+
+    assert status == 200
+    assert '<header class="app-header">' in html
+    assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
+    assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
+    assert '<a class="nav-link" href="/log" aria-current="page">Log</a>' in html
+    assert "Food log entry and search" in html
 
 
 def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_script() -> None:
@@ -438,22 +816,141 @@ def test_ui_server_calendar_shell_includes_date_controls_and_read_only_result_wi
     assert 'data-calendar-error-card="true" hidden' in html
     assert 'data-calendar-missing-card="true" hidden' in html
     assert 'No meal plan exists, you first need to <a href="/calculate">calculate</a> one.' in html
-    assert 'class="results-state" data-calendar-results-state="true" hidden' in html
+    assert 'class="results-state calendar-results-state"' in html
+    assert 'data-calendar-results-state="true"' in html
     assert 'data-calendar-results="true" hidden' in html
+    assert 'data-calendar-daily-progress="true" hidden' in html
     assert 'data-calendar-results-totals="true"' in html
     assert 'data-calendar-results-meals="true"' in html
+    assert '<h2 class="calendar-section-heading">Day Plan</h2>' in html
+    assert (
+        '<h2 class="calendar-section-heading calendar-progress-heading">Day Progress</h2>'
+    ) in html
+    assert '<h2 class="calendar-section-heading calendar-meals-heading">Meal Plans</h2>' in html
+    assert "Saved Meal Plan" not in html
     assert "const calendarForm = document.querySelector('[data-calendar-form=\"true\"]');" in html
     assert "if (!calendarDateControl.value) {" in html
     assert "calendarDateControl.value = toIsoDate(new Date());" in html
     assert "const canonicalDate = normalizeCalendarDate(calendarDateControl.value);" in html
     assert "window.fetch(\"/api/v1/calendar/\" + canonicalDate, {" in html
+    assert '"/api/v1/log/search?date=" + canonicalDate' in html
     assert 'method: "GET"' in html
     assert "if (response.status === 404) {" in html
     assert "showCalendarMissing();" in html
     assert "calendarDateControl.addEventListener(\"change\", () => {" in html
     assert "void loadCalendarPlan();" in html
     assert "const strategyBadgeClass = (value) => {" in html
-    assert "This calendar view is read-only." in html
+    assert "const aggregateLogsByMeal = (entries) => {" in html
+    assert "const actualValueClass = (actualValue, plannedValue) => {" in html
+    assert "const formatWholeNumber = (value) => {" in html
+    assert "const appendTotalsLine = (container, label, value, unit, valueClassName) => {" in html
+    assert "const renderDailyProgressBars = (plannedKcal, actualKcal) => {" in html
+    assert "calendarDailyProgress.hidden = false;" in html
+    assert 'planned: 30,' in html
+    assert 'actualToggle.textContent = (' in html
+    assert 'actualDetails.className = "meal-actual-details";' in html
+    assert "Calories: " in html
+
+
+def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/log")
+
+    assert status == 200
+    assert '<form class="form-stack" data-log-entry-form="true">' in html
+    assert 'name="uuid" type="text" readonly' in html
+    assert 'data-log-date-prev="true"' in html
+    assert 'data-log-date-next="true"' in html
+    assert 'name="date"' in html
+    assert 'name="meal"' in html
+    assert '<option value="training">Training</option>' in html
+    assert 'name="name"' in html
+    assert 'name="kcal"' in html
+    assert 'name="carbs"' in html
+    assert 'name="fat"' in html
+    assert 'name="protein"' in html
+    assert 'name="fiber"' in html
+    assert 'data-log-entry-submit="true"' in html
+    assert 'class="success-callout"' in html
+    assert 'data-log-entry-success="true"' in html
+    assert '<form class="form-stack" data-log-search-form="true">' in html
+    assert 'class="log-search-controls"' in html
+    assert 'class="log-search-date-control"' in html
+    assert 'name="date" type="date" aria-label="Search date"' in html
+    assert 'data-log-search-clear-date="true"' in html
+    assert 'aria-label="Clear date filter"' in html
+    assert 'name="name" type="text"' in html
+    assert 'name="meal"' in html
+    assert 'data-log-search-submit="true"' in html
+    assert 'data-log-results="true"' in html
+    assert 'data-log-results-status="true"' in html
+    assert 'data-log-results-error-card="true" hidden' in html
+    assert 'data-log-results-error-summary="true"' in html
+    assert 'data-log-results-list="true"' in html
+    assert (
+        "const logEntryForm = document.querySelector('[data-log-entry-form=\"true\"]');"
+    ) in html
+    assert (
+        "const logSearchForm = document.querySelector('[data-log-search-form=\"true\"]');"
+    ) in html
+    assert "if (!logDateControl.value) {" in html
+    assert "logDateControl.value = toIsoDate(new Date());" in html
+    assert "const updateLogEntryMode = () => {" in html
+    assert 'logEntrySubmitButton.textContent = isEditMode ? "Save" : "Add";' in html
+    assert "const createLogEntryPayload = () => {" in html
+    assert 'const endpoint = isEditMode ? ("/api/v1/log/" + uuid) : "/api/v1/log";' in html
+    assert 'const method = isEditMode ? "PUT" : "POST";' in html
+    assert "await window.fetch(endpoint, {" in html
+    assert "resetLogEntryForm();" in html
+    assert 'setLogEntrySuccess(isEditMode ? "Entry saved." : "Entry added.");' in html
+    assert "let logEntryBindings = null;" in html
+    assert "const fillLogEntryForm = (entry, mode) => {" in html
+    assert 'logEntryBindings.applyEditEntry(entry);' in html
+    assert 'logEntryBindings.applyAddEntry(entry);' in html
+    assert "const logSearchSubmitButton = logSearchForm.querySelector(" in html
+    assert '\'[data-log-search-submit="true"]\'' in html
+    assert "const logSearchClearDateButton = logSearchForm.querySelector(" in html
+    assert '\'[data-log-search-clear-date="true"]\'' in html
+    assert "const logResultsErrorCard = document.querySelector(" in html
+    assert '\'[data-log-results-error-card="true"]\'' in html
+    assert "const logResultsErrorSummary = document.querySelector(" in html
+    assert '\'[data-log-results-error-summary="true"]\'' in html
+    assert "const setLogResultsError = (message) => {" in html
+    assert "const renderLogSearchResults = (entries) => {" in html
+    assert 'row.setAttribute("data-log-result-row", "true");' in html
+    assert 'caret.setAttribute("data-log-result-caret", "true");' in html
+    assert 'addButton.setAttribute("data-log-result-add", "true");' in html
+    assert 'editButton.setAttribute("data-log-result-edit", "true");' in html
+    assert 'details.setAttribute("data-log-result-details", "true");' in html
+    assert ".log-result-details[hidden]" in html
+    assert 'caret.setAttribute("aria-expanded", "false");' in html
+    assert 'caret.setAttribute("aria-expanded", expanded ? "true" : "false");' in html
+    assert 'caret.textContent = expanded ? "v" : ">";' in html
+    assert "const createSearchQuery = () => {" in html
+    assert "const runLogSearch = async () => {" in html
+    assert (
+        'const endpoint = query ? ("/api/v1/log/search?" + query) : "/api/v1/log/search";'
+    ) in html
+    assert "void runLogSearch();" in html
+    assert "if (" in html
+    assert "logSearchDateControl" in html
+    assert '"value" in logSearchDateControl' in html
+    assert "const activateLogSearchDateFilter = () => {" in html
+    assert "logSearchDateControl.addEventListener(\"focus\", () => {" in html
+    assert "logSearchDateControl.addEventListener(\"click\", () => {" in html
+    assert "activateLogSearchDateFilter();" in html
+    assert "logSearchDateControl.value = \"\";" in html
+    assert "logSearchClearDateButton.addEventListener(\"click\", () => {" in html
+    assert 'setLogResultsStatus("Date filter cleared.");' in html
+    assert 'setLogResultsError("");' in html
+    assert 'setLogResultsStatus("No results loaded.");' in html
+    assert 'setLogResultsStatus("No matching entries.");' in html
+    assert 'setLogResultsStatus("Search failed.");' in html
+    assert "formatApiErrorMessage(errorPayload, \"Search failed.\")" in html
+    assert "Unable to reach local log search API." in html
+    assert 'setLogResultsStatus("Searching...");' in html
+    assert "logSearchSubmitButton.disabled = true;" in html
+    assert "logSearchSubmitButton.disabled = false;" in html
 
 
 def test_ui_server_calculate_maps_validation_error_to_http_400(
