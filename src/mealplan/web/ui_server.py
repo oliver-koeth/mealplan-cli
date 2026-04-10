@@ -354,6 +354,13 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         flex-wrap: nowrap;
       }
 
+      [data-calendar-form="true"] .date-controls {
+        align-items: center;
+        width: 100%;
+        flex-wrap: nowrap;
+        gap: 0.55rem;
+      }
+
       .date-controls label {
         min-width: 220px;
       }
@@ -373,9 +380,25 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         flex: 1 1 auto;
       }
 
+      [data-calendar-form="true"] .date-controls .date-input-wrap {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+
       .date-input-wrap {
         min-width: 220px;
         flex: 1 1 280px;
+      }
+
+      [data-calendar-date-prev="true"],
+      [data-calendar-date-next="true"] {
+        flex: 0 0 auto;
+        width: 2.6rem;
+        min-height: 2.6rem;
+        border-radius: 12px;
+        padding: 0;
+        font-size: 1.35rem;
+        line-height: 1;
       }
 
       .field-grid-single {
@@ -654,6 +677,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         flex-wrap: wrap;
         justify-content: flex-start;
         gap: 0.75rem;
+      }
+
+      .results-totals[hidden] {
+        display: none;
       }
 
       .results-total {
@@ -973,6 +1000,16 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         font-size: 1.12rem;
       }
 
+      .calendar-section-toggle {
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 0;
+      }
+
       .calendar-progress-heading {
         margin-top: 0;
         margin-bottom: 0.2rem;
@@ -1028,6 +1065,17 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
         }
+
+        [data-calendar-form="true"] .date-controls {
+          gap: 0.45rem;
+        }
+
+        [data-calendar-date-prev="true"],
+        [data-calendar-date-next="true"] {
+          width: 2.35rem;
+          min-height: 2.35rem;
+          font-size: 1.2rem;
+        }
       }
     </style>
   </head>
@@ -1062,6 +1110,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       (() => {
         const settingsStorageKey = "mealplan.ui.settings.v1";
         const calculateStorageKey = "mealplan.ui.calculate.v1";
+        const calendarDayPlanExpandedStorageKey = "mealplan.ui.calendar.day_plan_expanded.v1";
         const supportedThemes = new Set(["light", "dark"]);
 
         const readLocalStorageObject = (storageKey) => {
@@ -1718,6 +1767,12 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             '[data-calendar-daily-progress="true"]'
           );
           const calendarMealsGrid = document.querySelector('[data-calendar-results-meals="true"]');
+          const calendarDayPlanToggle = document.querySelector(
+            '[data-calendar-day-plan-toggle="true"]'
+          );
+          const calendarDayPlanTotals = document.querySelector(
+            '[data-calendar-day-plan-totals="true"]'
+          );
           if (
             calendarDateControl
             && "value" in calendarDateControl
@@ -1730,6 +1785,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             && calendarTotalsGrid
             && calendarDailyProgress
             && calendarMealsGrid
+            && calendarDayPlanToggle
+            && calendarDayPlanTotals
           ) {
             if (!calendarDateControl.value) {
               calendarDateControl.value = toIsoDate(new Date());
@@ -1743,12 +1800,30 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               "dinner",
               "evening-snack",
             ];
+            let isCalendarDayPlanExpanded = (
+              window.localStorage.getItem(calendarDayPlanExpandedStorageKey) !== "false"
+            );
             const formatNumber = (value) => {
               if (!Number.isFinite(value)) {
                 return "-";
               }
               return Number(value).toFixed(2);
             };
+            const syncCalendarDayPlanToggle = () => {
+              calendarDayPlanTotals.hidden = !isCalendarDayPlanExpanded;
+              calendarDayPlanToggle.setAttribute(
+                "aria-expanded",
+                isCalendarDayPlanExpanded ? "true" : "false"
+              );
+              calendarDayPlanToggle.textContent = (
+                (isCalendarDayPlanExpanded ? "▾ " : "▸ ") + "Day Plan"
+              );
+              window.localStorage.setItem(
+                calendarDayPlanExpandedStorageKey,
+                isCalendarDayPlanExpanded ? "true" : "false"
+              );
+            };
+            syncCalendarDayPlanToggle();
             const formatWholeNumber = (value) => {
               if (!Number.isFinite(value)) {
                 return "-";
@@ -2191,6 +2266,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 calendarMealsGrid.appendChild(card);
               }
               hideCalendarFeedback();
+              syncCalendarDayPlanToggle();
               calendarResultsPanel.hidden = false;
               calendarResultsState.hidden = false;
             };
@@ -2268,6 +2344,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 void loadCalendarPlan();
               });
             }
+            calendarDayPlanToggle.addEventListener("click", () => {
+              isCalendarDayPlanExpanded = !isCalendarDayPlanExpanded;
+              syncCalendarDayPlanToggle();
+            });
             calendarDateControl.addEventListener("change", () => {
               void loadCalendarPlan();
             });
@@ -3339,14 +3419,34 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
             data-calendar-results-state="true"
             hidden
           >
-            <section class="form-card results-panel" data-calendar-results="true" hidden>
-              <h2 class="calendar-section-heading">Day Plan</h2>
-              <section class="results-totals" data-calendar-results-totals="true"></section>
-              <h2 class="calendar-section-heading calendar-progress-heading">Day Progress</h2>
-              <section class="calendar-daily-progress" data-calendar-daily-progress="true" hidden>
+            <section class="form-stack" data-calendar-results="true" hidden>
+              <section class="form-card results-panel">
+                <h2 class="calendar-section-heading">
+                  <button
+                    class="calendar-section-toggle"
+                    type="button"
+                    data-calendar-day-plan-toggle="true"
+                    aria-expanded="true"
+                  >
+                    ▾ Day Plan
+                  </button>
+                </h2>
+                <section
+                  class="results-totals"
+                  data-calendar-results-totals="true"
+                  data-calendar-day-plan-totals="true"
+                >
+                </section>
               </section>
-              <h2 class="calendar-section-heading calendar-meals-heading">Meal Plans</h2>
-              <section class="results-meals" data-calendar-results-meals="true"></section>
+              <section class="form-card results-panel">
+                <h2 class="calendar-section-heading calendar-progress-heading">Day Progress</h2>
+                <section class="calendar-daily-progress" data-calendar-daily-progress="true" hidden>
+                </section>
+              </section>
+              <section class="form-card results-panel">
+                <h2 class="calendar-section-heading calendar-meals-heading">Meal Plans</h2>
+                <section class="results-meals" data-calendar-results-meals="true"></section>
+              </section>
             </section>
           </section>
         """,

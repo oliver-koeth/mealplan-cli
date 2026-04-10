@@ -27,6 +27,11 @@ Tests follow the same intent and are grouped by scope:
 3. Verify the command entrypoint:
    `uv run mealplan --help`
 
+## Deployment
+
+For Linux VPS installation and `systemd` service setup, see
+[`INSTALL.md`](INSTALL.md#linux-vps-systemd).
+
 ## Quality Checks
 
 - Run all local quality gates:
