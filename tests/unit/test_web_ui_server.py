@@ -873,7 +873,10 @@ def test_ui_server_calendar_shell_includes_date_controls_and_read_only_result_wi
     assert "const actualValueClass = (actualValue, plannedValue) => {" in html
     assert "const formatWholeNumber = (value) => {" in html
     assert "const appendTotalsLine = (container, label, value, unit, valueClassName) => {" in html
-    assert 'const calendarDayPlanExpandedStorageKey = "mealplan.ui.calendar.day_plan_expanded.v1";' in html
+    assert (
+        'const calendarDayPlanExpandedStorageKey = '
+        '"mealplan.ui.calendar.day_plan_expanded.v1";'
+    ) in html
     assert "const renderDailyProgressBars = (plannedKcal, actualKcal) => {" in html
     assert "calendarDailyProgress.hidden = false;" in html
     assert "const syncCalendarDayPlanToggle = () => {" in html

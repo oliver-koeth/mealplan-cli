@@ -146,6 +146,7 @@ When in doubt, update those source docs instead of expanding this file.
 115. For web GET endpoints with optional filters (for example `/api/v1/log/search`), parse query values as singletons (reject duplicates with `ValidationError`), then validate through `parse_contract(...)` so error envelopes keep deterministic `field: message` details.
 116. For `/log` entry-form UX wiring, derive Add-vs-Save mode from whether `uuid` is populated, submit to `POST /api/v1/log` or `PUT /api/v1/log/{uuid}` accordingly, and keep success feedback in a dedicated hidden callout marker (`data-log-entry-success`) that resets on new input.
 117. In `web/ui_server.py` `_APP_SHELL_TEMPLATE` JavaScript, escape regex/string literal dollar signs as `$$` (for example `/...$$/`) because `string.Template.substitute(...)` treats unescaped `$` as placeholders and will break page rendering.
+118. For user-identity persistence, use `src/mealplan/infrastructure/users_store.py::JsonUsersStore` with canonical env override `MEALPLAN_USERS_STORE_PATH` (default `~/.mealplan/users.json`), persist only token verifier metadata (never plaintext tokens), and keep file mode hardened to `0600` with warnings logged to `mealplan.security` when weaker permissions are observed.
 
 ## Ralph Runner
 

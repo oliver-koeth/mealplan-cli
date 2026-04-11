@@ -520,7 +520,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       .log-entry-json-control {
         min-height: 16rem;
         resize: vertical;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
       }
 
       .log-search-controls {
@@ -1441,9 +1442,15 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           );
           const logEntryToggle = logEntryForm.querySelector('[data-log-entry-toggle="true"]');
           const logEntryBody = logEntryForm.querySelector('[data-log-entry-body="true"]');
-          const logEntryFormFields = logEntryForm.querySelector('[data-log-entry-form-fields="true"]');
-          const logEntryJsonFields = logEntryForm.querySelector('[data-log-entry-json-fields="true"]');
-          const logEntryJsonControl = logEntryForm.querySelector('[data-log-entry-json-input="true"]');
+          const logEntryFormFields = logEntryForm.querySelector(
+            '[data-log-entry-form-fields="true"]'
+          );
+          const logEntryJsonFields = logEntryForm.querySelector(
+            '[data-log-entry-json-fields="true"]'
+          );
+          const logEntryJsonControl = logEntryForm.querySelector(
+            '[data-log-entry-json-input="true"]'
+          );
           const logPreviousDayButton = logEntryForm.querySelector('[data-log-date-prev="true"]');
           const logNextDayButton = logEntryForm.querySelector('[data-log-date-next="true"]');
           const logEntrySubmitButton = logEntryForm.querySelector('[data-log-entry-submit="true"]');
