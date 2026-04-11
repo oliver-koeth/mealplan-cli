@@ -7,6 +7,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For bearer token auth primitives, use `src/mealplan/infrastructure/auth_tokens.py` so token format stays `mpu_v1_...`, Argon2id verifier metadata (`algorithm`, `version`, `params`, `salt`, `hash`) remains deterministic, and verification returns `needs_rehash` when stored parameters are weaker than current defaults.
 - For set-user/auth API contract stories, define route constants and auth error defaults centrally in `src/mealplan/application/contracts.py` and use `_write_api_error` in `src/mealplan/web/ui_server.py` so canonical envelopes remain stable and `auth_rate_limited` can consistently include `Retry-After: 60`.
 - For user-partitioned storage filenames, use `src/mealplan/infrastructure/user_paths.py` helpers so email canonicalization (`trim -> lowercase`), filename sanitization (`[^a-zA-Z0-9.] -> _`), and storage-directory containment checks are applied consistently.
+- For bearer-protected API handlers in `src/mealplan/web/ui_server.py`, call `_require_authenticated_user(...)` before request parsing/store access so auth failures always short-circuit to canonical `auth_missing_token` / `auth_invalid_token` envelopes.
 
 ---
 
@@ -121,4 +122,29 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Use `Path(suffix).name == suffix` before combining filenames to deterministically reject path separators/traversal in user-derived suffix inputs.
   - Useful context (e.g., "the evaluation panel is in component X")
   - The project’s quality gate remains `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest`; all should be run after infrastructure helper additions because strict typing/linting quickly catches export-order drift.
+---
+
+## [2026-04-11 16:44:46 CEST] - US-005
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-4.txt
+- What was implemented
+- Added bearer-auth middleware helpers in `src/mealplan/web/ui_server.py`: `_extract_bearer_token` and `_require_authenticated_user`, backed by `JsonUsersStore` + `verify_bearer_token` lookup across persisted users.
+- Wired auth enforcement into all protected API handlers (`/api/v1/calculate`, `/api/v1/log`, `/api/v1/log/search`, `/api/v1/log/{uuid}`, `/api/v1/calendar/{date}` read/write) so missing tokens map to `401 auth_missing_token` and invalid/unknown tokens map to `401 auth_invalid_token`.
+- Kept `/api/v1/health` and set-user endpoints public, and preserved canonical structured API error envelopes with no redirects.
+- Updated UI server tests with default authenticated request setup and explicit unauthenticated cases to verify rejection paths.
+- Updated CLI UI mode integration test to provision a users store and send `Authorization: Bearer <token>` for protected calculate endpoint coverage.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (439 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/cli/test_ui_mode.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - In UI server tests, keep an autouse authenticated user fixture and allow per-request `auth=False` overrides so auth-gate coverage can be added without rewriting every existing protected-route test.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Enabling bearer auth on API routes requires updating CLI/UI-mode integration tests to provision `MEALPLAN_USERS_STORE_PATH` and include an Authorization header, otherwise endpoint assertions fail with `401`.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - Auth is intentionally checked before request-body/query parsing in protected handlers, so unauthenticated calls return auth errors instead of validation/domain errors.
 ---

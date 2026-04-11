@@ -7,11 +7,15 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
+
+from mealplan.infrastructure import JsonUsersStore, generate_bearer_token, hash_bearer_token
 
 UI_HOST = "127.0.0.1"
 UI_PORT_START_ENV = "MEALPLAN_UI_PORT_START"
@@ -72,11 +76,20 @@ def _discover_live_ui_port(*, port_start: int, port_end: int, timeout: float = 5
     raise AssertionError("UI server did not become reachable in time")
 
 
-def _post_json(port: int, path: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+def _post_json(
+    port: int,
+    path: str,
+    payload: dict[str, Any],
+    *,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    request_headers = {"Content-Type": "application/json"}
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(  # noqa: S310
         url=f"http://{UI_HOST}:{port}{path}",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
@@ -85,6 +98,17 @@ def _post_json(port: int, path: str, payload: dict[str, Any]) -> tuple[int, dict
     if not isinstance(parsed, dict):
         raise AssertionError("Expected JSON object response from calculate endpoint")
     return status, parsed
+
+
+def _create_test_user_store(path: Path) -> str:
+    users_store = JsonUsersStore(path)
+    token = generate_bearer_token()
+    users_store.upsert_user(
+        email="ui-test@example.com",
+        name="UI Test",
+        token_verifier=hash_bearer_token(token=token),
+    )
+    return token
 
 
 def test_ui_mode_starts_on_fallback_port_serves_shell_and_health_then_gracefully_stops() -> None:
@@ -138,58 +162,63 @@ def test_ui_mode_starts_on_fallback_port_serves_shell_and_health_then_gracefully
 
 def test_ui_mode_calculate_endpoint_accepts_canonical_request_payload() -> None:
     port_start, port_end = _find_consecutive_free_ports(count=1)
-    env = os.environ | {
-        "PYTHONUNBUFFERED": "1",
-        UI_PORT_START_ENV: str(port_start),
-        UI_PORT_END_ENV: str(port_end),
-    }
-    process = subprocess.Popen(  # noqa: S603
-        _ui_command(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=env,
-    )
-    try:
-        port = _discover_live_ui_port(port_start=port_start, port_end=port_end)
-        status, response_payload = _post_json(
-            port,
-            "/api/v1/calculate",
-            {
-                "age": 40,
-                "gender": "male",
-                "height_cm": 180,
-                "weight_kg": 75.0,
-                "activity_level": "medium",
-                "carb_mode": "periodized",
-                "training_load_tomorrow": "high",
-                "training_session": {
-                    "zones_minutes": {"1": 20, "2": 40, "3": 0, "4": 0, "5": 0},
-                    "training_before_meal": "lunch",
-                },
-            },
-        )
-
-        assert status == 200
-        assert response_payload.keys() >= {
-            "TDEE",
-            "training_kcal",
-            "protein_g",
-            "carbs_g",
-            "fat_g",
-            "total_kcal",
-            "meals",
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        users_store_path = Path(tmp_dir) / "users.json"
+        token = _create_test_user_store(users_store_path)
+        env = os.environ | {
+            "PYTHONUNBUFFERED": "1",
+            UI_PORT_START_ENV: str(port_start),
+            UI_PORT_END_ENV: str(port_end),
+            "MEALPLAN_USERS_STORE_PATH": str(users_store_path),
         }
-        meals = response_payload["meals"]
-        assert isinstance(meals, list)
-        assert len(meals) >= 6
-    finally:
-        process.terminate()
+        process = subprocess.Popen(  # noqa: S603
+            _ui_command(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
         try:
-            process.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.communicate(timeout=5)
+            port = _discover_live_ui_port(port_start=port_start, port_end=port_end)
+            status, response_payload = _post_json(
+                port,
+                "/api/v1/calculate",
+                {
+                    "age": 40,
+                    "gender": "male",
+                    "height_cm": 180,
+                    "weight_kg": 75.0,
+                    "activity_level": "medium",
+                    "carb_mode": "periodized",
+                    "training_load_tomorrow": "high",
+                    "training_session": {
+                        "zones_minutes": {"1": 20, "2": 40, "3": 0, "4": 0, "5": 0},
+                        "training_before_meal": "lunch",
+                    },
+                },
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+            assert status == 200
+            assert response_payload.keys() >= {
+                "TDEE",
+                "training_kcal",
+                "protein_g",
+                "carbs_g",
+                "fat_g",
+                "total_kcal",
+                "meals",
+            }
+            meals = response_payload["meals"]
+            assert isinstance(meals, list)
+            assert len(meals) >= 6
+        finally:
+            process.terminate()
+            try:
+                process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate(timeout=5)
 
 
 def test_ui_mode_fails_when_port_range_is_exhausted() -> None:

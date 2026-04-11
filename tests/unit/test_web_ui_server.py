@@ -19,8 +19,16 @@ from mealplan.application.contracts import (
     USERS_REGISTER_ROUTE,
     MealPlanResponse,
 )
+from mealplan.infrastructure import (
+    JsonUsersStore,
+    generate_bearer_token,
+    hash_bearer_token,
+    resolve_users_store_path,
+)
 from mealplan.shared.errors import DomainRuleError, ValidationError
 from mealplan.web import ui_server
+
+_DEFAULT_AUTH_HEADERS: dict[str, str] = {}
 
 
 def test_ui_server_default_port_window(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -64,23 +72,73 @@ def _running_test_server() -> Iterator[int]:
         serve_thread.join(timeout=2)
 
 
-def _post_json(port: int, path: str, payload: dict[str, Any]) -> tuple[int, object]:
+@pytest.fixture(autouse=True)
+def _configure_default_auth(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> Iterator[None]:
+    users_store_path = tmp_path / "users.json"
+    monkeypatch.setenv("MEALPLAN_USERS_STORE_PATH", str(users_store_path))
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(tmp_path / "food-log.json"))
+    monkeypatch.setenv(ui_server.CALENDAR_STORE_PATH_ENV, str(tmp_path / "calendar.json"))
+
+    users_store = JsonUsersStore(resolve_users_store_path())
+    token = generate_bearer_token()
+    users_store.upsert_user(
+        email="user@example.com",
+        name="Example User",
+        token_verifier=hash_bearer_token(token=token),
+    )
+
+    global _DEFAULT_AUTH_HEADERS
+    _DEFAULT_AUTH_HEADERS = {"Authorization": f"Bearer {token}"}
+    try:
+        yield
+    finally:
+        _DEFAULT_AUTH_HEADERS = {}
+
+
+def _post_json(
+    port: int,
+    path: str,
+    payload: dict[str, Any],
+    *,
+    headers: dict[str, str] | None = None,
+    auth: bool = True,
+) -> tuple[int, object]:
+    request_headers = {"Content-Type": "application/json"}
+    if auth:
+        request_headers.update(_DEFAULT_AUTH_HEADERS)
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(  # noqa: S310
         url=f"http://{ui_server.UI_HOST}:{port}{path}",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
         return response.status, json.loads(response.read().decode("utf-8"))
 
 
-def _post_json_expect_http_error(port: int, path: str, payload: object) -> tuple[int, object]:
+def _post_json_expect_http_error(
+    port: int,
+    path: str,
+    payload: object,
+    *,
+    headers: dict[str, str] | None = None,
+    auth: bool = True,
+) -> tuple[int, object]:
     body = json.dumps(payload).encode("utf-8")
+    request_headers = {"Content-Type": "application/json"}
+    if auth:
+        request_headers.update(_DEFAULT_AUTH_HEADERS)
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(  # noqa: S310
         url=f"http://{ui_server.UI_HOST}:{port}{path}",
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
         method="POST",
     )
     with pytest.raises(urllib.error.HTTPError) as error_info:
@@ -94,12 +152,20 @@ def _post_json_expect_http_error_with_headers(
     port: int,
     path: str,
     payload: object,
+    *,
+    headers: dict[str, str] | None = None,
+    auth: bool = True,
 ) -> tuple[int, object, dict[str, str]]:
     body = json.dumps(payload).encode("utf-8")
+    request_headers = {"Content-Type": "application/json"}
+    if auth:
+        request_headers.update(_DEFAULT_AUTH_HEADERS)
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(  # noqa: S310
         url=f"http://{ui_server.UI_HOST}:{port}{path}",
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
         method="POST",
     )
     with pytest.raises(urllib.error.HTTPError) as error_info:
@@ -110,22 +176,46 @@ def _post_json_expect_http_error_with_headers(
     return http_error.code, parsed, response_headers
 
 
-def _put_json(port: int, path: str, payload: dict[str, Any]) -> tuple[int, object]:
+def _put_json(
+    port: int,
+    path: str,
+    payload: dict[str, Any],
+    *,
+    headers: dict[str, str] | None = None,
+    auth: bool = True,
+) -> tuple[int, object]:
+    request_headers = {"Content-Type": "application/json"}
+    if auth:
+        request_headers.update(_DEFAULT_AUTH_HEADERS)
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(  # noqa: S310
         url=f"http://{ui_server.UI_HOST}:{port}{path}",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
         method="PUT",
     )
     with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
         return response.status, json.loads(response.read().decode("utf-8"))
 
 
-def _put_json_expect_http_error(port: int, path: str, payload: object) -> tuple[int, object]:
+def _put_json_expect_http_error(
+    port: int,
+    path: str,
+    payload: object,
+    *,
+    headers: dict[str, str] | None = None,
+    auth: bool = True,
+) -> tuple[int, object]:
+    request_headers = {"Content-Type": "application/json"}
+    if auth:
+        request_headers.update(_DEFAULT_AUTH_HEADERS)
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(  # noqa: S310
         url=f"http://{ui_server.UI_HOST}:{port}{path}",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
         method="PUT",
     )
     with pytest.raises(urllib.error.HTTPError) as error_info:
@@ -135,18 +225,42 @@ def _put_json_expect_http_error(port: int, path: str, payload: object) -> tuple[
     return http_error.code, parsed
 
 
-def _get_json(port: int, path: str) -> tuple[int, object]:
+def _get_json(
+    port: int,
+    path: str,
+    *,
+    headers: dict[str, str] | None = None,
+    auth: bool = True,
+) -> tuple[int, object]:
+    request_headers: dict[str, str] = {}
+    if auth:
+        request_headers.update(_DEFAULT_AUTH_HEADERS)
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(  # noqa: S310
         url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        headers=request_headers,
         method="GET",
     )
     with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
         return response.status, json.loads(response.read().decode("utf-8"))
 
 
-def _get_json_expect_http_error(port: int, path: str) -> tuple[int, object]:
+def _get_json_expect_http_error(
+    port: int,
+    path: str,
+    *,
+    headers: dict[str, str] | None = None,
+    auth: bool = True,
+) -> tuple[int, object]:
+    request_headers: dict[str, str] = {}
+    if auth:
+        request_headers.update(_DEFAULT_AUTH_HEADERS)
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(  # noqa: S310
         url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        headers=request_headers,
         method="GET",
     )
     with pytest.raises(urllib.error.HTTPError) as error_info:
@@ -350,6 +464,104 @@ def test_ui_server_auth_rate_limited_error_includes_retry_after_header(
         }
     }
     assert headers["Retry-After"] == "60"
+
+
+@pytest.mark.parametrize("path,method", [("/api/v1/calculate", "POST"), ("/api/v1/log", "POST")])
+def test_ui_server_protected_post_routes_reject_missing_token(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    path: str,
+    method: str,
+) -> None:
+    _ = method
+    _ = (monkeypatch, tmp_path)
+
+    with _running_test_server() as port:
+        status, payload = _post_json_expect_http_error(port, path, {}, auth=False)
+
+    assert status == 401
+    assert payload["error"]["code"] == "auth_missing_token"
+    assert payload["error"]["message"] == "Authorization bearer token is required."
+    assert isinstance(payload["error"]["request_id"], str)
+
+
+@pytest.mark.parametrize(
+    "path,request_payload",
+    [
+        ("/api/v1/log/search", None),
+        ("/api/v1/calendar/20260408", None),
+    ],
+)
+def test_ui_server_protected_get_routes_reject_missing_token(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    path: str,
+    request_payload: object | None,
+) -> None:
+    _ = request_payload
+    _ = (monkeypatch, tmp_path)
+
+    with _running_test_server() as port:
+        status, payload = _get_json_expect_http_error(port, path, auth=False)
+
+    assert status == 401
+    assert payload["error"]["code"] == "auth_missing_token"
+    assert payload["error"]["message"] == "Authorization bearer token is required."
+    assert isinstance(payload["error"]["request_id"], str)
+
+
+@pytest.mark.parametrize("path", ["/api/v1/calendar/20260408", "/api/v1/log/test-uuid"])
+def test_ui_server_protected_put_routes_reject_missing_token(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    path: str,
+) -> None:
+    _ = (monkeypatch, tmp_path)
+
+    with _running_test_server() as port:
+        status, payload = _put_json_expect_http_error(port, path, {}, auth=False)
+
+    assert status == 401
+    assert payload["error"]["code"] == "auth_missing_token"
+    assert payload["error"]["message"] == "Authorization bearer token is required."
+    assert isinstance(payload["error"]["request_id"], str)
+
+
+def test_ui_server_protected_routes_reject_invalid_and_unknown_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _ = (monkeypatch, tmp_path)
+    unknown_token = generate_bearer_token()
+
+    with _running_test_server() as port:
+        invalid_status, invalid_payload = _get_json_expect_http_error(
+            port,
+            "/api/v1/log/search",
+            headers={"Authorization": "Bearer not-canonical"},
+        )
+        unknown_status, unknown_payload = _get_json_expect_http_error(
+            port,
+            "/api/v1/log/search",
+            headers={"Authorization": f"Bearer {unknown_token}"},
+        )
+        health_status, health_payload = _get_json(port, "/api/v1/health")
+        status, payload = _get_json(port, "/api/v1/log/search")
+
+    assert invalid_status == 401
+    assert invalid_payload["error"]["code"] == "auth_invalid_token"
+    assert invalid_payload["error"]["message"] == "Authorization bearer token is invalid."
+    assert isinstance(invalid_payload["error"]["request_id"], str)
+
+    assert unknown_status == 401
+    assert unknown_payload["error"]["code"] == "auth_invalid_token"
+    assert unknown_payload["error"]["message"] == "Authorization bearer token is invalid."
+    assert isinstance(unknown_payload["error"]["request_id"], str)
+
+    assert health_status == 200
+    assert health_payload == {"status": "ok"}
+    assert status == 200
+    assert payload == []
 
 
 def test_ui_server_log_put_updates_entry_for_uuid_path(

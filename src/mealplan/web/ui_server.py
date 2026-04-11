@@ -32,7 +32,14 @@ from mealplan.application.contracts import (
 )
 from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
-from mealplan.infrastructure import JsonCalendarStore, JsonFoodLogStore
+from mealplan.infrastructure import (
+    JsonCalendarStore,
+    JsonFoodLogStore,
+    JsonUsersStore,
+    PersistedUser,
+    resolve_users_store_path,
+    verify_bearer_token,
+)
 from mealplan.shared.errors import DomainRuleError, ValidationError
 
 UI_HOST = "127.0.0.1"
@@ -4075,6 +4082,8 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_calculate_post(self) -> None:
         request_id = str(uuid4())
+        if self._require_authenticated_user(request_id=request_id) is None:
+            return
         try:
             payload = self._read_json_payload()
             request = parse_contract(MealPlanRequest, payload)
@@ -4121,6 +4130,8 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_log_post(self) -> None:
         request_id = str(uuid4())
+        if self._require_authenticated_user(request_id=request_id) is None:
+            return
         store = JsonFoodLogStore(_food_log_store_path())
         try:
             payload = self._read_json_payload()
@@ -4184,6 +4195,8 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_log_put(self, entry_uuid: str) -> None:
         request_id = str(uuid4())
+        if self._require_authenticated_user(request_id=request_id) is None:
+            return
         store = JsonFoodLogStore(_food_log_store_path())
         try:
             payload = dict(self._read_json_payload())
@@ -4230,6 +4243,8 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_log_search_get(self) -> None:
         request_id = str(uuid4())
+        if self._require_authenticated_user(request_id=request_id) is None:
+            return
         store = JsonFoodLogStore(_food_log_store_path())
         try:
             request = parse_contract(
@@ -4275,6 +4290,8 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_calendar_get(self, date_key: str) -> None:
         request_id = str(uuid4())
+        if self._require_authenticated_user(request_id=request_id) is None:
+            return
         store = JsonCalendarStore(_calendar_store_path())
         try:
             canonical_date = _normalize_calendar_date(date_key)
@@ -4320,6 +4337,8 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_calendar_put(self, date_key: str) -> None:
         request_id = str(uuid4())
+        if self._require_authenticated_user(request_id=request_id) is None:
+            return
         store = JsonCalendarStore(_calendar_store_path())
         try:
             payload = self._read_json_payload()
@@ -4357,6 +4376,35 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _request_path(self) -> str:
         return urlsplit(self.path).path
+
+    def _require_authenticated_user(self, *, request_id: str) -> PersistedUser | None:
+        token = self._extract_bearer_token()
+        if token is None:
+            self._write_auth_error(code="auth_missing_token", request_id=request_id)
+            return None
+
+        users_store = JsonUsersStore(resolve_users_store_path())
+        for user in users_store.list_users():
+            try:
+                verification = verify_bearer_token(token=token, verifier=user.token_verifier)
+            except ValidationError:
+                continue
+            if verification.is_valid:
+                return user
+
+        self._write_auth_error(code="auth_invalid_token", request_id=request_id)
+        return None
+
+    def _extract_bearer_token(self) -> str | None:
+        authorization_header = self.headers.get("Authorization")
+        if authorization_header is None:
+            return None
+        if not authorization_header.startswith("Bearer "):
+            return None
+        token = authorization_header[len("Bearer ") :].strip()
+        if not token:
+            return None
+        return token
 
     def _single_query_param(self, name: str) -> str | None:
         query_params = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
