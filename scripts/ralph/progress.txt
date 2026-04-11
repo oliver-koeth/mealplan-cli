@@ -6,6 +6,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - Treat users-store file permissions as a security signal: target `0600`, continue execution when weaker bits are detected, and emit warnings via `mealplan.security` instead of hard-failing runtime operations.
 - For bearer token auth primitives, use `src/mealplan/infrastructure/auth_tokens.py` so token format stays `mpu_v1_...`, Argon2id verifier metadata (`algorithm`, `version`, `params`, `salt`, `hash`) remains deterministic, and verification returns `needs_rehash` when stored parameters are weaker than current defaults.
 - For set-user/auth API contract stories, define route constants and auth error defaults centrally in `src/mealplan/application/contracts.py` and use `_write_api_error` in `src/mealplan/web/ui_server.py` so canonical envelopes remain stable and `auth_rate_limited` can consistently include `Retry-After: 60`.
+- For user-partitioned storage filenames, use `src/mealplan/infrastructure/user_paths.py` helpers so email canonicalization (`trim -> lowercase`), filename sanitization (`[^a-zA-Z0-9.] -> _`), and storage-directory containment checks are applied consistently.
 
 ---
 
@@ -94,4 +95,30 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - When validating error payloads through pydantic envelope models, serialize with `exclude_none=True`; otherwise optional fields appear as explicit `null` and can break existing error-shape assertions.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `tests/unit/test_web_ui_server.py` can verify response headers by reading `urllib.error.HTTPError.headers`; this is useful for `Retry-After` assertions on auth-rate-limit paths.
+---
+
+## [2026-04-11 16:37:53 CEST] - US-004
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- What was implemented
+- Added `src/mealplan/infrastructure/user_paths.py` with canonical helpers for multi-user file partitioning:
+  - `canonicalize_user_email` enforces email normalization order `trim -> lowercase`.
+  - `user_email_to_filename_prefix` replaces every non-`[a-zA-Z0-9.]` character with `_` (including `koeth@acm.org -> koeth_acm.org`).
+  - `resolve_user_partitioned_path` builds `<user-prefix>-<suffix>` filenames and rejects invalid suffix basenames while guaranteeing resolved paths remain under the configured storage directory.
+- Exported new helpers from `src/mealplan/infrastructure/__init__.py` for downstream CLI/web usage in upcoming stories.
+- Added unit coverage in `tests/unit/test_user_paths.py` for canonicalization, deterministic filename mapping, example mapping behavior, containment-safe path resolution, and traversal/invalid filename rejection cases.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (432 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/__init__.py
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/user_paths.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_user_paths.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - `resolve_user_partitioned_path` should be the single entrypoint for per-user file naming/resolution so upcoming API/CLI user-scoping stories inherit consistent sanitization and containment behavior.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Use `Path(suffix).name == suffix` before combining filenames to deterministically reject path separators/traversal in user-derived suffix inputs.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - The project’s quality gate remains `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest`; all should be run after infrastructure helper additions because strict typing/linting quickly catches export-order drift.
 ---

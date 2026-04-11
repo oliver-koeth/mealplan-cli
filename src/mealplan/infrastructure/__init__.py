@@ -14,6 +14,11 @@ from mealplan.infrastructure.auth_tokens import (
 )
 from mealplan.infrastructure.calendar_store import JsonCalendarStore
 from mealplan.infrastructure.food_log_store import JsonFoodLogStore
+from mealplan.infrastructure.user_paths import (
+    canonicalize_user_email,
+    resolve_user_partitioned_path,
+    user_email_to_filename_prefix,
+)
 from mealplan.infrastructure.users_store import (
     DEFAULT_USERS_STORE_PATH,
     USERS_STORE_PATH_ENV,
@@ -40,6 +45,9 @@ __all__ = [
     "TokenVerificationResult",
     "generate_bearer_token",
     "hash_bearer_token",
+    "canonicalize_user_email",
+    "resolve_user_partitioned_path",
     "resolve_users_store_path",
+    "user_email_to_filename_prefix",
     "verify_bearer_token",
 ]
