@@ -699,6 +699,21 @@ def test_ui_server_log_shell_exposes_navigation_and_active_state() -> None:
     assert "Food log entry and search" in html
 
 
+def test_ui_server_privacy_shell_serves_gpt_action_policy_page() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/privacy")
+
+    assert status == 200
+    assert '<header class="app-header">' in html
+    assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
+    assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
+    assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
+    assert "GPT Action Privacy Policy" in html
+    assert "POST /api/v1/log" in html
+    assert "Last updated: 2026-04-11." in html
+
+
 def test_ui_server_calculate_shell_includes_typed_day_controls_and_storage_script() -> None:
     with _running_test_server() as port:
         status, html = _get_html(port, "/calculate")

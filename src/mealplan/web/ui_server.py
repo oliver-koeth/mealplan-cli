@@ -3745,6 +3745,75 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
           </section>
         """,
     },
+    "privacy": {
+        "section_label": "Privacy",
+        "title": "GPT Action Privacy Policy",
+        "description": (
+            "Privacy information for the Mealplan GPT Action endpoint at "
+            "https://mealplan.tcfix.me/api/v1/log."
+        ),
+        "content_html": """
+          <section class="form-card">
+            <h2>Scope</h2>
+            <p>
+              This policy applies to requests sent by GPT Actions to the Mealplan logging endpoint
+              (`POST /api/v1/log`) on `mealplan.tcfix.me`.
+            </p>
+          </section>
+          <section class="form-card">
+            <h2>Data Processed</h2>
+            <p>
+              The service processes only the fields required to store a meal-log entry:
+              `date`, `meal`, `name`, `kcal`, `carbs`, `fat`, `protein`, and `fiber`.
+            </p>
+            <p>
+              The service generates and returns a `uuid` for each stored entry.
+            </p>
+          </section>
+          <section class="form-card">
+            <h2>Purpose of Processing</h2>
+            <p>
+              Data is processed solely to create and maintain nutrition log entries requested by
+              the user.
+            </p>
+          </section>
+          <section class="form-card">
+            <h2>Storage and Retention</h2>
+            <p>
+              Entries are stored on the server file configured by `MEALPLAN_FOOD_LOG_STORE_PATH`.
+              Data remains stored until it is updated or deleted by the service operator.
+            </p>
+          </section>
+          <section class="form-card">
+            <h2>Data Sharing</h2>
+            <p>
+              Submitted meal-log data is not sold. Data is shared only with infrastructure
+              providers required to host and operate the service.
+            </p>
+          </section>
+          <section class="form-card">
+            <h2>Security</h2>
+            <p>
+              The public endpoint is intended to be served over HTTPS/TLS. Access controls and API
+              authentication can be added by the service operator as needed.
+            </p>
+          </section>
+          <section class="form-card">
+            <h2>User Rights and Contact</h2>
+            <p>
+              To request correction or deletion of logged entries, contact the service operator for
+              this deployment.
+            </p>
+          </section>
+          <section class="form-card">
+            <h2>Policy Updates</h2>
+            <p>Last updated: 2026-04-11.</p>
+            <p>
+              This policy may be updated when the endpoint behavior or data handling changes.
+            </p>
+          </section>
+        """,
+    },
 }
 
 
@@ -3813,6 +3882,9 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/settings":
             self._write_html(_render_app_shell("settings"))
+            return
+        if path == "/privacy":
+            self._write_html(_render_app_shell("privacy"))
             return
         if path == "/api/v1/health":
             self._write_json(HTTPStatus.OK, {"status": "ok"})
