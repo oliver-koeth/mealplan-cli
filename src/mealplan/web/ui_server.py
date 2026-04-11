@@ -1359,6 +1359,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           const logPreviousDayButton = logEntryForm.querySelector('[data-log-date-prev="true"]');
           const logNextDayButton = logEntryForm.querySelector('[data-log-date-next="true"]');
           const logEntrySubmitButton = logEntryForm.querySelector('[data-log-entry-submit="true"]');
+          const logEntryPasteButton = logEntryForm.querySelector('[data-log-entry-paste="true"]');
           const logEntrySuccessCallout = document.querySelector('[data-log-entry-success="true"]');
           if (
             logDateControl
@@ -1385,6 +1386,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             && logEntryJsonControl
             && "value" in logEntryJsonControl
             && logEntrySubmitButton
+            && logEntryPasteButton
             && logEntrySuccessCallout
           ) {
             let logEntryView = "form";
@@ -1425,6 +1427,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               logEntryView = nextView;
               logEntryFormFields.hidden = nextView !== "form";
               logEntryJsonFields.hidden = nextView !== "json";
+              logEntryPasteButton.hidden = nextView !== "json";
               logEntryViewToggleButton.setAttribute(
                 "aria-pressed",
                 nextView === "json" ? "true" : "false"
@@ -1618,6 +1621,20 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 setLogEntrySuccess("");
               } finally {
                 logEntrySubmitButton.disabled = false;
+              }
+            });
+
+            logEntryPasteButton.addEventListener("click", async () => {
+              if (logEntryView !== "json") {
+                return;
+              }
+              try {
+                const clipboardText = await navigator.clipboard.readText();
+                logEntryJsonControl.value = clipboardText;
+              } catch {
+                return;
+              } finally {
+                setLogEntrySuccess("");
               }
             });
           }
@@ -3663,6 +3680,14 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
               <div class="actions">
                 <button class="primary-button" type="button" data-log-entry-submit="true">
                   Add
+                </button>
+                <button
+                  class="primary-button secondary-button"
+                  type="button"
+                  data-log-entry-paste="true"
+                  hidden
+                >
+                  Paste
                 </button>
               </div>
               <section
