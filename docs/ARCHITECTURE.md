@@ -8,7 +8,7 @@
   - Preserve one canonical calculation engine that can be driven by both CLI and local web UI adapters.
 - System boundaries:
   - In scope: input parsing, validation, calculation engine, periodization logic, JSON/plain output, and a local-only web server mode that serves UI shell pages and REST endpoints.
-  - Out of scope: cloud APIs, persistent user accounts, wearable integrations, remote telemetry.
+  - Out of scope: cloud APIs, wearable integrations, remote telemetry.
 - Responsibilities:
   - This package is responsible for stateless computation, local interaction surfaces, and result formatting.
   - This CLI is not responsible for meal recipe generation, grocery planning, or coaching advice.
@@ -166,7 +166,8 @@ mealplan/
   - The web mode is another adapter over the same application layer, not a rewrite of orchestration logic.
 - Local-only scope:
   - Initial UI mode is local desktop/browser usage only.
-  - No authentication, multi-user session management, or remote deployment assumptions are part of the initial design.
+  - Web/API access uses bearer-token authentication with per-user local data partitioning.
+  - The local architecture supports multiple users sharing one running service while keeping file-level data isolation.
 
 ## 5B. REST API Boundary
 - API purpose:
@@ -174,12 +175,24 @@ mealplan/
 - Endpoint set:
   - `POST /api/v1/calculate`
   - `GET /api/v1/health`
+  - `POST /api/v1/users/register`
+  - `POST /api/v1/users/attach-token`
+  - `POST /api/v1/users/exchange-token`
   - `PUT /api/v1/calendar/{date}`
   - `GET /api/v1/calendar/{date}`
   - `POST /api/v1/log`
   - `PUT /api/v1/log/{uuid}`
   - `GET /api/v1/log/search`
 - Calculation contract:
+  - User-management contracts:
+    - `POST /api/v1/users/register` creates a new canonicalized user record and returns a plaintext bearer token once.
+    - `POST /api/v1/users/attach-token` validates user email and token pairing.
+    - `POST /api/v1/users/exchange-token` rotates an existing valid token and invalidates the previous one immediately.
+  - Protected-route auth:
+    - `POST /api/v1/calculate`, calendar routes, and log routes are bearer-protected.
+    - `GET /api/v1/health` and `/api/v1/users/*` endpoints are public.
+    - Protected requests must include `Authorization: Bearer <token>`.
+    - Auth rate limiting applies per `client_ip + endpoint` with threshold `100` requests/minute and `60` second cooldown.
   - `POST /api/v1/calculate` accepts the canonical `MealPlanRequest` JSON shape from `src/mealplan/application/contracts.py`.
   - Successful responses return the canonical `MealPlanResponse` JSON shape from `src/mealplan/application/contracts.py`.
   - `PUT /api/v1/calendar/{date}` accepts canonical `MealPlanResponse` JSON and persists it under canonical date key `YYYYMMDD`.
@@ -194,6 +207,11 @@ mealplan/
   - Validation failures map to HTTP `400`.
   - Domain rule violations map to HTTP `422`.
   - Unexpected runtime/infrastructure failures map to HTTP `500`.
+  - Auth/user-management defaults:
+    - HTTP `401` => `auth_missing_token` and `auth_invalid_token`
+    - HTTP `403` => `auth_token_email_mismatch`
+    - HTTP `409` => `user_already_exists`
+    - HTTP `429` => `auth_rate_limited` with `Retry-After: 60`
   - Error bodies should be structured and machine-readable; they must not depend on terminal-oriented formatting.
   - Canonical error response shape:
     - `error.code`: stable machine-readable code
@@ -522,10 +540,19 @@ mealplan/
 - Code execution safety:
   - Never evaluate input (`eval`, dynamic import) from user payloads.
 - Secrets handling:
-  - No secrets currently required; if added, read from env and never log.
+  - Bearer tokens are issued to clients and may be stored in browser `localStorage` (`mealplan.ui.auth.v1`) for UI flows.
+  - Because localStorage is JavaScript-accessible, XSS can expose tokens; keep script delivery same-origin and avoid inline third-party scripts.
 - Web-mode constraints:
   - Bind to loopback by default unless a future ADR explicitly broadens exposure.
   - Serve only packaged static assets and defined API routes; no arbitrary file browsing.
+  - HTML responses send baseline CSP:
+    - `default-src 'self'`
+    - `script-src 'self'`
+    - `style-src 'self' 'unsafe-inline'`
+    - `object-src 'none'`
+    - `base-uri 'none'`
+    - `frame-ancestors 'none'`
+    - `form-action 'self'`
   - Disable debug tracebacks in HTTP responses by default.
 
 ## 18. Extensibility Model

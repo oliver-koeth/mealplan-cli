@@ -4463,25 +4463,29 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
         "section_label": "Privacy",
         "title": "GPT Action Privacy Policy",
         "description": (
-            "Privacy information for the Mealplan GPT Action endpoint at "
-            "https://mealplan.tcfix.me/api/v1/log."
+            "Privacy information for Mealplan GPT Action and local UI/API data handling."
         ),
         "content_html": """
           <section class="form-card">
             <h2>Scope</h2>
             <p>
-              This policy applies to requests sent by GPT Actions to the Mealplan logging endpoint
-              (`POST /api/v1/log`) on `mealplan.tcfix.me`.
+              This policy applies to requests sent by GPT Actions to Mealplan API endpoints and
+              to local UI/API usage that stores user and nutrition data on the running host.
+            </p>
+            <p>
+              Covered endpoints include nutrition logging (for example `POST /api/v1/log`) and
+              user/token lifecycle endpoints under `/api/v1/users/*`.
             </p>
           </section>
           <section class="form-card">
             <h2>Data Processed</h2>
             <p>
-              The service processes only the fields required to store a meal-log entry:
+              The service processes fields required for user identity and nutrition logging:
+              user identity fields (`email`, `name`, token verifier metadata) and meal-log fields
               `date`, `meal`, `name`, `kcal`, `carbs`, `fat`, `protein`, and `fiber`.
             </p>
             <p>
-              The service generates and returns a `uuid` for each stored entry.
+              The service generates and returns a `uuid` for each stored log entry.
             </p>
           </section>
           <section class="form-card">
@@ -4494,7 +4498,12 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
           <section class="form-card">
             <h2>Storage and Retention</h2>
             <p>
-              Entries are stored on the server file configured by `MEALPLAN_FOOD_LOG_STORE_PATH`.
+              Users are stored in `~/.mealplan/users.json` (override:
+              `MEALPLAN_USERS_STORE_PATH`), food logs in `~/.mealplan/food-log.json`
+              (`MEALPLAN_FOOD_LOG_STORE_PATH`), and calendar plans in
+              `~/.mealplan/calendar.json` (`MEALPLAN_CALENDAR_STORE_PATH`).
+            </p>
+            <p>
               Data remains stored until it is updated or deleted by the service operator.
             </p>
           </section>
@@ -4508,8 +4517,24 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
           <section class="form-card">
             <h2>Security</h2>
             <p>
-              The public endpoint is intended to be served over HTTPS/TLS. Access controls and API
-              authentication can be added by the service operator as needed.
+              Bearer authentication is required on protected API routes. Register and token-attach
+              flows are public endpoints, but protected routes require
+              `Authorization: Bearer &lt;token&gt;`.
+            </p>
+            <p>
+              Plaintext bearer tokens are never persisted in users storage; only hashed verifier
+              metadata is stored.
+            </p>
+            <p>
+              UI auth state stores the token in browser `localStorage` key
+              `mealplan.ui.auth.v1`. Because localStorage is JavaScript-accessible, XSS can expose
+              tokens; keep strict CSP and avoid inline third-party scripts.
+            </p>
+            <p>
+              CSP baseline for HTML responses is:
+              `default-src 'self'`, `script-src 'self'`, `style-src 'self' 'unsafe-inline'`,
+              `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`,
+              `form-action 'self'`.
             </p>
           </section>
           <section class="form-card">

@@ -196,6 +196,9 @@ Date-keyed storage defaults to `~/.mealplan/calendar.json`. Override with
 Food-log storage defaults to `~/.mealplan/food-log.json`. Override with
 `MEALPLAN_FOOD_LOG_STORE_PATH` when needed for isolated runs or tests.
 
+Users storage defaults to `~/.mealplan/users.json`. Override with
+`MEALPLAN_USERS_STORE_PATH` when needed for isolated runs or tests.
+
 ## Local UI Mode
 
 - Start local UI mode:
@@ -207,8 +210,29 @@ Food-log storage defaults to `~/.mealplan/food-log.json`. Override with
     - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
   - Does not auto-launch a browser
 - Local endpoints:
-  - UI routes: `/settings`, `/calculate`, `/calendar`, `/log`
-  - API routes: `GET /api/v1/health`, `POST /api/v1/calculate`, `PUT /api/v1/calendar/{date}`, `GET /api/v1/calendar/{date}`, `POST /api/v1/log`, `PUT /api/v1/log/{uuid}`, `GET /api/v1/log/search`
+  - UI routes: `/set-user`, `/settings`, `/calculate`, `/calendar`, `/log`, `/privacy`
+  - Public API routes:
+    - `GET /api/v1/health`
+    - `POST /api/v1/users/register` (returns plaintext token once; persisted value is hashed verifier only)
+    - `POST /api/v1/users/attach-token`
+    - `POST /api/v1/users/exchange-token`
+  - Bearer-protected API routes:
+    - `POST /api/v1/calculate`
+    - `PUT /api/v1/calendar/{date}`
+    - `GET /api/v1/calendar/{date}`
+    - `POST /api/v1/log`
+    - `PUT /api/v1/log/{uuid}`
+    - `GET /api/v1/log/search`
+  - Protected API requests require `Authorization: Bearer <token>`.
+  - Auth error defaults:
+    - `401 auth_missing_token`
+    - `401 auth_invalid_token`
+    - `403 auth_token_email_mismatch`
+    - `409 user_already_exists`
+    - `429 auth_rate_limited` with `Retry-After: 60`
+  - Bearer brute-force protection baseline:
+    - `100` requests/minute per `client_ip + endpoint` key on protected endpoints
+    - `60` second cooldown for breached keys
   - Calendar UI behavior:
     - per meal, render planned totals from saved plan plus actual totals summed from same-day log entries
     - `Actuals` can be expanded to view line-by-line log items
@@ -220,6 +244,25 @@ Food-log storage defaults to `~/.mealplan/food-log.json`. Override with
   - Log search behavior:
     - date filter starts cleared/inactive by default
     - when date is activated (focus/click), it initializes with today
+
+## UI Security Notes
+
+- Auth token browser storage:
+  - The Set User and Settings flows store bearer tokens in `localStorage` key
+    `mealplan.ui.auth.v1`.
+  - Because `localStorage` is reachable by JavaScript in-page, XSS can expose
+    stored tokens.
+- CSP and script policy:
+  - UI HTML responses send this baseline header:
+    - `default-src 'self'`
+    - `script-src 'self'`
+    - `style-src 'self' 'unsafe-inline'`
+    - `object-src 'none'`
+    - `base-uri 'none'`
+    - `frame-ancestors 'none'`
+    - `form-action 'self'`
+  - UI script delivery is same-origin (`/static/app-shell.js`), and inline
+    third-party scripts are not used.
 
 ## Exit Codes and Debug Behavior
 

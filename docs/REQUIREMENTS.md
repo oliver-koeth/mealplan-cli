@@ -96,6 +96,10 @@ The tool must be fully machine-executable without ambiguity.
 ### 3A.1 Local API Endpoints
 
 -   `GET /api/v1/health` returns `{ "status": "ok" }`.
+-   Public user-management endpoints:
+    - `POST /api/v1/users/register`
+    - `POST /api/v1/users/attach-token`
+    - `POST /api/v1/users/exchange-token`
 -   `POST /api/v1/calculate` accepts canonical `MealPlanRequest` JSON and returns canonical `MealPlanResponse` JSON.
 -   `PUT /api/v1/calendar/{date}` persists a canonical `MealPlanResponse` payload for the requested canonical date.
 -   `GET /api/v1/calendar/{date}` returns the canonical stored meal plan for that date.
@@ -130,6 +134,42 @@ The tool must be fully machine-executable without ambiguity.
     - HTTP `500` with `error.code=internal_error` for unexpected failures
 -   Error payload shape:
     `{ "error": { "code": string, "message": string, "request_id": string, "details"?: [{ "field"?: string, "message": string }] } }`
+
+### 3A.2 Multi-User Auth and Security Contract
+
+-   Protected API routes require header `Authorization: Bearer <token>`:
+    - `POST /api/v1/calculate`
+    - `PUT /api/v1/calendar/{date}`
+    - `GET /api/v1/calendar/{date}`
+    - `POST /api/v1/log`
+    - `PUT /api/v1/log/{uuid}`
+    - `GET /api/v1/log/search`
+-   Auth default failures for user and protected APIs:
+    - `401` + `auth_missing_token`
+    - `401` + `auth_invalid_token`
+    - `403` + `auth_token_email_mismatch`
+    - `409` + `user_already_exists`
+    - `429` + `auth_rate_limited` with header `Retry-After: 60`
+-   Baseline abuse protection:
+    - applies to all bearer-protected routes
+    - keyed by `IP + endpoint`
+    - threshold `100` requests/minute
+    - breach cooldown `60` seconds
+-   Users persistence:
+    - canonical users store file is `~/.mealplan/users.json` (override `MEALPLAN_USERS_STORE_PATH`)
+    - persisted records include canonicalized `email`, `name`, and token verifier metadata
+    - plaintext bearer tokens are never persisted in users storage
+-   UI token storage and XSS note:
+    - UI stores bearer token in browser `localStorage` (`mealplan.ui.auth.v1`) for authenticated requests
+    - localStorage introduces XSS token-exposure risk; UI delivery must avoid inline third-party scripts
+-   CSP baseline for UI HTML responses:
+    - `default-src 'self'`
+    - `script-src 'self'`
+    - `style-src 'self' 'unsafe-inline'`
+    - `object-src 'none'`
+    - `base-uri 'none'`
+    - `frame-ancestors 'none'`
+    - `form-action 'self'`
 
 ------------------------------------------------------------------------
 

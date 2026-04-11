@@ -159,6 +159,7 @@ When in doubt, update those source docs instead of expanding this file.
 128. For Set User token-session UX in `web/ui_server.py`, keep logout and rotation actions bound to auth-storage state: `logout` must remove `mealplan.ui.auth.v1` and restore a clean setup view, while `rotate` must call `POST /api/v1/users/exchange-token` and persist only the returned replacement token.
 129. For Settings token visibility in `web/ui_server.py`, render the bearer token in a read-only control that is masked by default, require an explicit Reveal/Hide toggle for plaintext display, and re-mask on auth-state changes to reduce accidental exposure.
 130. For UI mode integration coverage in `tests/cli/test_ui_mode.py`, prefer subprocess-launched `mealplan --ui` tests that verify set-user route/script markers and exercise the register-to-authenticated flow by calling `/api/v1/users/register` then a protected endpoint with/without `Authorization` headers.
+131. When bearer-auth, multi-user storage, or CSP behavior changes, update `README.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, and the in-app privacy copy in `src/mealplan/web/ui_server.py` in the same iteration to keep canonical docs and UI policy text aligned.
 
 ## Ralph Runner
 

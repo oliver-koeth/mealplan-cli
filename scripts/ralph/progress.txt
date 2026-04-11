@@ -16,6 +16,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For Set User token-session actions in `src/mealplan/web/ui_server.py`, derive visibility from `readAuthToken()`, clear auth with `localStorage.removeItem("mealplan.ui.auth.v1")` on logout, and rotate credentials only through `POST /api/v1/users/exchange-token` before updating local storage.
 - For Settings token display in `src/mealplan/web/ui_server.py`, keep the token control read-only, mask it by default, and allow plaintext visibility only through an explicit reveal/hide toggle that re-masks on auth-state changes.
 - For UI mode auth-flow integration in `tests/cli/test_ui_mode.py`, launch `mealplan --ui` as a subprocess, assert set-user/redirect script markers from served HTML, then validate register-to-protected-endpoint flow by calling `/api/v1/users/register` and reusing the returned bearer token on a protected API route.
+- When auth/multi-user security behavior changes, update the canonical docs set together (`README.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, and UI privacy copy in `src/mealplan/web/ui_server.py`) so operational guidance, architecture narrative, and user-facing policy text do not drift.
 
 ---
 
@@ -355,5 +356,32 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
   - Protected API responses in this codebase may be JSON arrays (for example `/api/v1/log/search`), so shared test helpers should not assume object-only payloads for successful calls.
   - Useful context (e.g., "the evaluation panel is in component X")
-  - Register endpoint responses (`/api/v1/users/register`) are sufficient to seed authenticated UI-mode integration requests without pre-populating `users.json` fixtures.
+- Register endpoint responses (`/api/v1/users/register`) are sufficient to seed authenticated UI-mode integration requests without pre-populating `users.json` fixtures.
+---
+## [2026-04-11 17:40:10 CEST] - US-014
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-3.txt
+- What was implemented
+- Updated canonical documentation for bearer auth and multi-user behavior:
+  - `README.md` now documents users store defaults/override (`MEALPLAN_USERS_STORE_PATH`), public vs bearer-protected UI/API routes, canonical auth error defaults (`auth_missing_token`, `auth_invalid_token`, `auth_token_email_mismatch`, `user_already_exists`, `auth_rate_limited`), Retry-After behavior, and baseline rate limits.
+  - Added UI security notes in `README.md` covering localStorage token risk (XSS exposure), strict same-origin script delivery, and CSP baseline directives.
+  - `docs/REQUIREMENTS.md` now includes explicit multi-user auth/security contract details: protected routes, auth error defaults, rate-limit contract, users.json persistence rules (no plaintext token persistence), localStorage risk note, and CSP baseline.
+  - `docs/ARCHITECTURE.md` now reflects implemented auth/multi-user architecture (no longer out-of-scope), includes `/api/v1/users/*` routes in REST boundary docs, adds protected/public route rules, auth error defaults, and security section guidance for localStorage risk plus CSP baseline.
+- Updated in-app privacy policy copy in `src/mealplan/web/ui_server.py` to align with current behavior: multi-user data scope, users/calendar/log store locations, bearer auth on protected routes, no plaintext token persistence, localStorage XSS risk, and CSP baseline.
+- Added reusable documentation-sync guidance to `AGENT.md` and consolidated the same pattern under `## Codebase Patterns`.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (456 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/README.md
+- /Users/Oliver.Koeth/work/mealplan-cli/docs/ARCHITECTURE.md
+- /Users/Oliver.Koeth/work/mealplan-cli/docs/REQUIREMENTS.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Keep auth/multi-user doc updates synchronized across `README.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, and the `/privacy` in-app policy text to avoid contradictory operator/user guidance.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Existing privacy-page tests assert specific markers (for example `POST /api/v1/log` and `Last updated`), so preserve those anchors when revising policy language.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - The implemented CSP baseline is served via `_UI_CONTENT_SECURITY_POLICY` and should remain source-of-truth for both runtime headers and documentation text.
 ---
