@@ -883,7 +883,7 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'name="protein"' in html
     assert 'name="fiber"' in html
     assert 'data-log-entry-submit="true"' in html
-    assert 'data-log-entry-paste="true"' in html
+    assert 'data-log-entry-clear="true"' in html
     assert 'class="success-callout"' in html
     assert 'data-log-entry-success="true"' in html
     assert '<form class="form-stack" data-log-search-form="true">' in html
@@ -914,7 +914,7 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert "const switchLogEntryView = (nextView) => {" in html
     assert 'logEntryFormFields.hidden = nextView !== "form";' in html
     assert 'logEntryJsonFields.hidden = nextView !== "json";' in html
-    assert 'logEntryPasteButton.hidden = nextView !== "json";' in html
+    assert 'logEntryClearButton.hidden = nextView !== "json";' in html
     assert 'logEntryViewToggleButton.setAttribute(' in html
     assert '"aria-pressed",' in html
     assert 'switchLogEntryView("form");' in html
@@ -926,9 +926,8 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'const endpoint = isEditMode ? ("/api/v1/log/" + uuid) : "/api/v1/log";' in html
     assert 'const method = isEditMode ? "PUT" : "POST";' in html
     assert "await window.fetch(endpoint, {" in html
-    assert "logEntryPasteButton.addEventListener(\"click\", async () => {" in html
-    assert "const clipboardText = await navigator.clipboard.readText();" in html
-    assert "logEntryJsonControl.value = clipboardText;" in html
+    assert "logEntryClearButton.addEventListener(\"click\", () => {" in html
+    assert 'logEntryJsonControl.value = "";' in html
     assert "resetLogEntryForm();" in html
     assert 'setLogEntrySuccess(isEditMode ? "Entry saved." : "Entry added.");' in html
     assert "let logEntryBindings = null;" in html
