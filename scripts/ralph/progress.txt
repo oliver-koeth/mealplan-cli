@@ -12,6 +12,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For set-user token lifecycle flows, canonicalize request emails with `canonicalize_user_email`, resolve bearer ownership via `_resolve_user_for_token(...)`, and persist user-token mutations through `JsonUsersStore` lock+fsync+atomic-rename writes.
 - For bearer-protected calendar/log handlers in `src/mealplan/web/ui_server.py`, derive storage files from authenticated user identity using `resolve_user_partitioned_path(...)` so persistence is always per-user (`<user-prefix>-calendar.json` and `<user-prefix>-food-log.json`) under the configured storage directory.
 - For CLI multi-user persistence in `src/mealplan/cli/main.py`, keep `--user` optional and enforce existence via `JsonUsersStore(resolve_users_store_path())`; only when user exists should calendar/log paths switch to `resolve_user_partitioned_path(...)`, otherwise keep legacy non-prefixed paths.
+- For CSP-hardening of the web shell in `src/mealplan/web/ui_server.py`, keep UI logic in the inline script block but also expose the same code from a same-origin endpoint (`/static/app-shell.js`) and send strict `script-src 'self'` headers so browser behavior remains stable when inline execution is blocked.
 
 ---
 
@@ -253,4 +254,35 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - User-scoped store files are created lazily by `JsonCalendarStore`/`JsonFoodLogStore`, so tests should assert the legacy base file is absent (not empty) when `--user` routing is active.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `log search` requires its own `--user` option on the subcommand signature for ergonomic invocation (`mealplan log search --user ...`) in addition to the log callback path.
+---
+## [2026-04-11 17:16:02 CEST] - US-010
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- What was implemented
+- Added a dedicated `/set-user` shell page in `src/mealplan/web/ui_server.py` with two UI flows:
+  - register user (`email`, `name`) via `POST /api/v1/users/register`,
+  - attach existing token (`email`, `token`) via `POST /api/v1/users/attach-token`.
+- Register success now renders an amber warning callout that shows the one-time token value and warns it must be stored safely.
+- Added client-side shell-route guard in UI script so `/`, `/calculate`, `/calendar`, `/log`, and `/settings` redirect to `/set-user` when no token exists in local storage.
+- Added token persistence helpers (`mealplan.ui.auth.v1`) and wired all protected UI API calls to send `Authorization: Bearer <token>` headers.
+- Added strict CSP-compatible script delivery:
+  - HTML responses now include `Content-Security-Policy` baseline with `script-src 'self'`.
+  - UI script is also served from `/static/app-shell.js` using extracted inline script source so strict no-inline execution remains functional.
+- Extended unit coverage for new set-user page shell markers, secondary nav active state, CSP header behavior, external script route delivery, and auth/redirect script helpers.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (454 passed).
+- Browser verification:
+  - Attempted Playwright-based headless browser validation (redirect/register/auth-header capture flow) using `npx playwright`.
+  - Environment lacked a directly usable Playwright test-runtime module path for ad-hoc scripts, so browser verification could not be completed in this iteration despite multiple execution attempts.
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - When hardening UI script delivery for strict CSP, serving `/static/app-shell.js` from the same inline source avoids behavior drift while preserving existing shell tests and deterministic route logic.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `npx playwright` CLI availability does not guarantee the local Node module import path needed by ad-hoc script execution; browser automation setup may require dedicated project-level Playwright dependencies/config.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - For this shell architecture, `data-*` markers plus script-string assertions in `tests/unit/test_web_ui_server.py` are the quickest regression net for route guards, auth header wiring, and CSP delivery without adding new frontend tooling.
 ---

@@ -155,6 +155,7 @@ When in doubt, update those source docs instead of expanding this file.
 124. For set-user token lifecycle routes (`/api/v1/users/register|attach-token|exchange-token`), canonicalize incoming email with `canonicalize_user_email`, resolve tokens through `_resolve_user_for_token(...)`, and persist token changes via `JsonUsersStore` mutation helpers so writes remain lock+fsync+atomic-rename safe.
 125. For bearer-protected calendar/log API handlers, resolve store paths from the authenticated user via `resolve_user_partitioned_path(...)` so persistence always targets `<user-prefix>-calendar.json` / `<user-prefix>-food-log.json` under the configured storage directory.
 126. For CLI multi-user storage (`calculate`, `calendar`, `log`, `log search`), treat `--user` as optional: when present canonicalize and verify existence via `JsonUsersStore(resolve_users_store_path())`, then derive per-user filenames with `resolve_user_partitioned_path(...)`; when omitted, preserve legacy non-prefixed file paths.
+127. For UI shell script hardening in `web/ui_server.py`, keep the inline script as the canonical source but also serve it via a same-origin route (`/static/app-shell.js`) and set a strict CSP (`script-src 'self'`) on HTML responses; this preserves behavior while keeping the UI compatible with strict no-inline execution.
 
 ## Ralph Runner
 

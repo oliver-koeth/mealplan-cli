@@ -68,6 +68,16 @@ AUTH_RATE_LIMIT_MAX_REQUESTS = 100
 AUTH_RATE_LIMIT_WINDOW_SECONDS = 60.0
 AUTH_RATE_LIMIT_COOLDOWN_SECONDS = 60.0
 _DATE_KEY_FORMAT = "%Y%m%d"
+_APP_SHELL_SCRIPT_ROUTE = "/static/app-shell.js"
+_UI_CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "object-src 'none'; "
+    "base-uri 'none'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'"
+)
 
 
 @dataclass
@@ -818,6 +828,27 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         color: #bbf7d0;
       }
 
+      .warning-callout {
+        border-radius: 12px;
+        border: 1px solid rgba(245, 158, 11, 0.55);
+        background: linear-gradient(145deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.18));
+        color: #78350f;
+        padding: 0.75rem;
+        width: 100%;
+        margin-top: 0.85rem;
+        margin-bottom: 0.35rem;
+      }
+
+      .warning-callout p {
+        margin: 0;
+        color: inherit;
+        font-size: 0.82rem;
+      }
+
+      :root[data-theme="dark"] .warning-callout {
+        color: #fcd34d;
+      }
+
       .alert-card h2 {
         margin: 0;
         font-size: 0.86rem;
@@ -1265,6 +1296,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           <details class="header-menu">
             <summary class="menu-button" aria-label="Open menu">☰</summary>
             <nav class="header-menu-panel" aria-label="Secondary">
+              <a class="menu-link" href="/set-user" aria-current="$set_user_current">Set User</a>
               <a class="menu-link" href="/settings" aria-current="$settings_current">Settings</a>
               <a class="menu-link" href="/privacy" aria-current="$privacy_current">Privacy</a>
             </nav>
@@ -1293,11 +1325,13 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         </article>
       </section>
     </main>
-    <script>
+    <script data-app-shell-inline="true">
       (() => {
         const settingsStorageKey = "mealplan.ui.settings.v1";
         const calculateStorageKey = "mealplan.ui.calculate.v1";
         const calendarDayPlanExpandedStorageKey = "mealplan.ui.calendar.day_plan_expanded.v1";
+        const authStorageKey = "mealplan.ui.auth.v1";
+        const protectedShellRoutes = new Set(["/", "/calculate", "/calendar", "/log", "/settings"]);
         const supportedThemes = new Set(["light", "dark"]);
 
         const readLocalStorageObject = (storageKey) => {
@@ -1314,6 +1348,41 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           } catch {
             return {};
           }
+        };
+
+        const readAuthState = () => readLocalStorageObject(authStorageKey);
+
+        const readAuthToken = () => {
+          const authState = readAuthState();
+          return typeof authState.token === "string" ? authState.token.trim() : "";
+        };
+
+        const writeAuthState = (nextState) => {
+          if (!nextState || typeof nextState !== "object") {
+            return;
+          }
+          window.localStorage.setItem(authStorageKey, JSON.stringify(nextState));
+        };
+
+        const applyProtectedRouteRedirect = () => {
+          const currentPath = window.location.pathname;
+          if (!protectedShellRoutes.has(currentPath)) {
+            return false;
+          }
+          if (readAuthToken()) {
+            return false;
+          }
+          window.location.replace("/set-user");
+          return true;
+        };
+
+        const createAuthorizedHeaders = (headers = {}) => {
+          const merged = {...headers};
+          const token = readAuthToken();
+          if (token) {
+            merged.Authorization = "Bearer " + token;
+          }
+          return merged;
         };
 
         const bindLocalStorageForm = (form, storageKey, fields) => {
@@ -1363,6 +1432,9 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           typeof settingsSnapshot.ui_theme === "string" ? settingsSnapshot.ui_theme : ""
         );
         applyTheme(persistedTheme);
+        if (applyProtectedRouteRedirect()) {
+          return;
+        }
 
         const readFormValues = (form, fields) => {
           if (!form) {
@@ -1474,6 +1546,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           }
         }
 
+        const setUserRegisterForm = document.querySelector('[data-set-user-register-form="true"]');
+        const setUserAttachForm = document.querySelector('[data-set-user-attach-form="true"]');
         const calculateForm = document.querySelector('[data-calculate-form="true"]');
         const calendarForm = document.querySelector('[data-calendar-form="true"]');
         const logEntryForm = document.querySelector('[data-log-entry-form="true"]');
@@ -1493,6 +1567,184 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           parsedBase.setDate(parsedBase.getDate() + deltaDays);
           dateControl.value = toIsoDate(parsedBase);
         };
+
+        if (setUserRegisterForm && setUserAttachForm) {
+          const registerEmailControl = setUserRegisterForm.elements.namedItem("email");
+          const registerNameControl = setUserRegisterForm.elements.namedItem("name");
+          const registerSubmitButton = setUserRegisterForm.querySelector(
+            '[data-set-user-register-submit="true"]'
+          );
+          const registerStatus = document.querySelector('[data-set-user-register-status="true"]');
+          const registerTokenCard = document.querySelector('[data-set-user-register-token="true"]');
+          const registerTokenValue = document.querySelector(
+            '[data-set-user-register-token-value="true"]'
+          );
+
+          const attachEmailControl = setUserAttachForm.elements.namedItem("email");
+          const attachTokenControl = setUserAttachForm.elements.namedItem("token");
+          const attachSubmitButton = setUserAttachForm.querySelector(
+            '[data-set-user-attach-submit="true"]'
+          );
+          const attachStatus = document.querySelector('[data-set-user-attach-status="true"]');
+
+          if (
+            registerEmailControl
+            && "value" in registerEmailControl
+            && registerNameControl
+            && "value" in registerNameControl
+            && registerSubmitButton
+            && registerStatus
+            && registerTokenCard
+            && registerTokenValue
+            && attachEmailControl
+            && "value" in attachEmailControl
+            && attachTokenControl
+            && "value" in attachTokenControl
+            && attachSubmitButton
+            && attachStatus
+          ) {
+            const setRegisterStatus = (message) => {
+              registerStatus.textContent = message;
+            };
+
+            const setAttachStatus = (message) => {
+              attachStatus.textContent = message;
+            };
+
+            const hideRegisterToken = () => {
+              registerTokenCard.hidden = true;
+              registerTokenValue.textContent = "";
+            };
+
+            hideRegisterToken();
+            setRegisterStatus("");
+            setAttachStatus("");
+
+            const maybePrefillEmail = () => {
+              const authState = readAuthState();
+              if (!registerEmailControl.value && typeof authState.email === "string") {
+                registerEmailControl.value = authState.email;
+              }
+              if (!attachEmailControl.value && typeof authState.email === "string") {
+                attachEmailControl.value = authState.email;
+              }
+            };
+            maybePrefillEmail();
+
+            registerSubmitButton.addEventListener("click", async () => {
+              const email = registerEmailControl.value.trim();
+              const name = registerNameControl.value.trim();
+              hideRegisterToken();
+              if (!email || !name) {
+                setRegisterStatus("Email and name are required.");
+                return;
+              }
+              registerSubmitButton.disabled = true;
+              setRegisterStatus("Registering user...");
+              try {
+                const response = await window.fetch("/api/v1/users/register", {
+                  method: "POST",
+                  headers: {"Content-Type": "application/json"},
+                  body: JSON.stringify({email, name}),
+                });
+                let payload = null;
+                try {
+                  payload = await response.json();
+                } catch {
+                  payload = null;
+                }
+                if (!response.ok) {
+                  const errorPayload = payload?.error ?? null;
+                  setRegisterStatus(
+                    formatApiErrorMessage(errorPayload, "Unable to register user.")
+                  );
+                  return;
+                }
+                const token = typeof payload?.token === "string" ? payload.token : "";
+                const canonicalEmail = typeof payload?.email === "string" ? payload.email : email;
+                const persistedName = typeof payload?.name === "string" ? payload.name : name;
+                if (!token) {
+                  setRegisterStatus("Registration succeeded but token response was missing.");
+                  return;
+                }
+                writeAuthState({
+                  email: canonicalEmail,
+                  name: persistedName,
+                  token,
+                });
+                registerTokenValue.textContent = token;
+                registerTokenCard.hidden = false;
+                attachEmailControl.value = canonicalEmail;
+                setRegisterStatus("User registered. Token saved in this browser.");
+              } catch (error) {
+                const rootCause = (
+                  error && typeof error === "object" && "message" in error
+                    ? String(error.message)
+                    : ""
+                );
+                setRegisterStatus(
+                  rootCause ? ("Unable to reach local auth API. " + rootCause) :
+                    "Unable to reach local auth API."
+                );
+              } finally {
+                registerSubmitButton.disabled = false;
+              }
+            });
+
+            attachSubmitButton.addEventListener("click", async () => {
+              const email = attachEmailControl.value.trim();
+              const token = attachTokenControl.value.trim();
+              setAttachStatus("");
+              if (!email || !token) {
+                setAttachStatus("Email and token are required.");
+                return;
+              }
+              attachSubmitButton.disabled = true;
+              setAttachStatus("Validating token...");
+              try {
+                const response = await window.fetch("/api/v1/users/attach-token", {
+                  method: "POST",
+                  headers: {"Content-Type": "application/json"},
+                  body: JSON.stringify({email, token}),
+                });
+                let payload = null;
+                try {
+                  payload = await response.json();
+                } catch {
+                  payload = null;
+                }
+                if (!response.ok) {
+                  const errorPayload = payload?.error ?? null;
+                  setAttachStatus(
+                    formatApiErrorMessage(errorPayload, "Unable to attach token.")
+                  );
+                  return;
+                }
+                const canonicalEmail = typeof payload?.email === "string" ? payload.email : email;
+                const name = typeof payload?.name === "string" ? payload.name : "";
+                writeAuthState({
+                  email: canonicalEmail,
+                  name,
+                  token,
+                });
+                registerEmailControl.value = canonicalEmail;
+                setAttachStatus("Token attached and saved in this browser.");
+              } catch (error) {
+                const rootCause = (
+                  error && typeof error === "object" && "message" in error
+                    ? String(error.message)
+                    : ""
+                );
+                setAttachStatus(
+                  rootCause ? ("Unable to reach local auth API. " + rootCause) :
+                    "Unable to reach local auth API."
+                );
+              } finally {
+                attachSubmitButton.disabled = false;
+              }
+            });
+          }
+        }
 
         if (logEntryForm) {
           const logDateControl = logEntryForm.elements.namedItem("date");
@@ -1793,7 +2045,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 const method = isEditMode ? "PUT" : "POST";
                 const response = await window.fetch(endpoint, {
                   method,
-                  headers: {"Content-Type": "application/json"},
+                  headers: createAuthorizedHeaders({"Content-Type": "application/json"}),
                   body: JSON.stringify(payload),
                 });
                 if (!response.ok) {
@@ -1996,7 +2248,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               try {
                 const query = createSearchQuery();
                 const endpoint = query ? ("/api/v1/log/search?" + query) : "/api/v1/log/search";
-                const response = await window.fetch(endpoint, {method: "GET"});
+                const response = await window.fetch(endpoint, {
+                  method: "GET",
+                  headers: createAuthorizedHeaders(),
+                });
                 if (!response.ok) {
                   let errorPayload = null;
                   try {
@@ -2612,6 +2867,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               try {
                 const response = await window.fetch("/api/v1/calendar/" + canonicalDate, {
                   method: "GET",
+                  headers: createAuthorizedHeaders(),
                 });
                 if (response.status === 404) {
                   showCalendarMissing();
@@ -2629,7 +2885,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 try {
                   const logsResponse = await window.fetch(
                     "/api/v1/log/search?date=" + canonicalDate,
-                    { method: "GET" }
+                    {method: "GET", headers: createAuthorizedHeaders()}
                   );
                   if (logsResponse.ok) {
                     const logsPayload = await logsResponse.json();
@@ -3289,7 +3545,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           try {
             const response = await window.fetch("/api/v1/calculate", {
               method: "POST",
-              headers: {"Content-Type": "application/json"},
+              headers: createAuthorizedHeaders({"Content-Type": "application/json"}),
               body: JSON.stringify(createRequestPayload()),
             });
             const payload = await response.json();
@@ -3331,7 +3587,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           try {
             const response = await window.fetch("/api/v1/calendar/" + canonicalDate, {
               method: "PUT",
-              headers: {"Content-Type": "application/json"},
+              headers: createAuthorizedHeaders({"Content-Type": "application/json"}),
               body: JSON.stringify(savePayload.payload),
             });
             if (!response.ok) {
@@ -3397,12 +3653,70 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         }
       })();
     </script>
+    <script src="/static/app-shell.js"></script>
   </body>
 </html>
 """)
 
 
 _PAGE_CONTENT: dict[str, dict[str, str]] = {
+    "set-user": {
+        "section_label": "Set User",
+        "title": "Register or attach your bearer token",
+        "description": (
+            "Before using calculate, calendar, and log pages, register a user or attach an "
+            "existing token for this browser."
+        ),
+        "content_html": """
+          <p class="section-label">User Setup</p>
+          <form class="form-stack" data-set-user-register-form="true">
+            <section class="form-card">
+              <h2>Register New User</h2>
+              <div class="field-grid">
+                <label>Email
+                  <input name="email" type="email" autocomplete="email" required />
+                </label>
+                <label>Name
+                  <input name="name" type="text" autocomplete="name" required />
+                </label>
+              </div>
+              <div class="actions">
+                <button class="primary-button" type="button" data-set-user-register-submit="true">
+                  Register
+                </button>
+                <span class="status-note" data-set-user-register-status="true" aria-live="polite">
+                </span>
+              </div>
+              <section class="warning-callout" data-set-user-register-token="true" hidden>
+                <p>
+                  Token shown once. Store it safely now:
+                  <code data-set-user-register-token-value="true"></code>
+                </p>
+              </section>
+            </section>
+          </form>
+          <form class="form-stack" data-set-user-attach-form="true">
+            <section class="form-card">
+              <h2>Attach Existing Token</h2>
+              <div class="field-grid">
+                <label>Email
+                  <input name="email" type="email" autocomplete="email" required />
+                </label>
+                <label>Bearer Token
+                  <input name="token" type="text" autocomplete="off" required />
+                </label>
+              </div>
+              <div class="actions">
+                <button class="primary-button" type="button" data-set-user-attach-submit="true">
+                  Attach Token
+                </button>
+                <span class="status-note" data-set-user-attach-status="true" aria-live="polite">
+                </span>
+              </div>
+            </section>
+          </form>
+        """,
+    },
     "settings": {
         "section_label": "Settings",
         "title": "Athlete profile and defaults",
@@ -4066,8 +4380,14 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = self._request_path()
+        if path == _APP_SHELL_SCRIPT_ROUTE:
+            self._write_javascript(_app_shell_inline_script())
+            return
         if path == "/":
             self._write_html(_render_app_shell("calendar"))
+            return
+        if path == "/set-user":
+            self._write_html(_render_app_shell("set-user"))
             return
         if path == "/calculate":
             self._write_html(_render_app_shell("calculate"))
@@ -4696,6 +5016,15 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         encoded = html.encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Security-Policy", _UI_CONTENT_SECURITY_POLICY)
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def _write_javascript(self, source: str) -> None:
+        encoded = source.encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/javascript; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
@@ -4724,12 +5053,28 @@ def _render_app_shell(active_page: str) -> str:
         title=content["title"],
         description=content["description"],
         content_html=content["content_html"],
+        set_user_current="page" if active_page == "set-user" else "false",
         settings_current="page" if active_page == "settings" else "false",
         privacy_current="page" if active_page == "privacy" else "false",
         calculate_current="page" if active_page == "calculate" else "false",
         calendar_current="page" if active_page == "calendar" else "false",
         log_current="page" if active_page == "log" else "false",
     )
+
+
+def _app_shell_inline_script() -> str:
+    template_body = _APP_SHELL_TEMPLATE.template
+    start_marker = '<script data-app-shell-inline="true">'
+    end_marker = "</script>"
+    start_index = template_body.find(start_marker)
+    if start_index < 0:
+        return ""
+    script_start = start_index + len(start_marker)
+    end_index = template_body.find(end_marker, script_start)
+    if end_index < 0:
+        return ""
+    script = template_body[script_start:end_index].strip()
+    return script.replace("$$", "$") + "\n"
 
 
 def _error_detail_from_exception(error: Exception) -> dict[str, str]:

@@ -312,6 +312,28 @@ def _get_html(port: int, path: str) -> tuple[int, str]:
         return response.status, response.read().decode("utf-8")
 
 
+def _get_html_with_headers(port: int, path: str) -> tuple[int, str, dict[str, str]]:
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
+        return (
+            response.status,
+            response.read().decode("utf-8"),
+            dict(response.headers.items()),
+        )
+
+
+def _get_text(port: int, path: str) -> tuple[int, str]:
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
+        return response.status, response.read().decode("utf-8")
+
+
 def _user_partitioned_store_path(*, base_store_path: Path, email: str) -> Path:
     return base_store_path.parent / f"{user_email_to_filename_prefix(email)}-{base_store_path.name}"
 
@@ -1191,6 +1213,25 @@ def test_ui_server_log_search_duplicate_query_param_maps_to_http_400(
     ]
 
 
+def test_ui_server_set_user_shell_exposes_register_attach_flows_and_active_state() -> None:
+    with _running_test_server() as port:
+        status, html = _get_html(port, "/set-user")
+
+    assert status == 200
+    assert '<a class="menu-link" href="/set-user" aria-current="page">Set User</a>' in html
+    assert '<a class="menu-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="menu-link" href="/privacy" aria-current="false">Privacy</a>' in html
+    assert '<form class="form-stack" data-set-user-register-form="true">' in html
+    assert 'data-set-user-register-submit="true"' in html
+    assert 'data-set-user-register-status="true"' in html
+    assert 'data-set-user-register-token="true" hidden' in html
+    assert 'data-set-user-register-token-value="true"' in html
+    assert '<form class="form-stack" data-set-user-attach-form="true">' in html
+    assert 'data-set-user-attach-submit="true"' in html
+    assert 'data-set-user-attach-status="true"' in html
+    assert "Token shown once. Store it safely now:" in html
+
+
 def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
     with _running_test_server() as port:
         status, html = _get_html(port, "/settings")
@@ -1198,6 +1239,7 @@ def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
     assert status == 200
     assert '<header class="app-header">' in html
     assert '<summary class="menu-button" aria-label="Open menu">☰</summary>' in html
+    assert '<a class="menu-link" href="/set-user" aria-current="false">Set User</a>' in html
     assert '<a class="menu-link" href="/settings" aria-current="page">Settings</a>' in html
     assert '<a class="menu-link" href="/privacy" aria-current="false">Privacy</a>' in html
     assert '<a class="nav-link" href="/settings"' not in html
@@ -1246,12 +1288,34 @@ def test_ui_server_settings_shell_includes_typed_settings_controls_and_storage_s
     assert 'window.localStorage.setItem(storageKey, JSON.stringify(readValues()));' in html
 
 
+def test_ui_server_shell_includes_redirect_auth_helpers_and_external_script_delivery() -> None:
+    with _running_test_server() as port:
+        status, html, headers = _get_html_with_headers(port, "/calculate")
+        script_status, script = _get_text(port, "/static/app-shell.js")
+
+    assert status == 200
+    assert headers["Content-Security-Policy"] == ui_server._UI_CONTENT_SECURITY_POLICY
+    assert '<script data-app-shell-inline="true">' in html
+    assert '<script src="/static/app-shell.js"></script>' in html
+    assert script_status == 200
+    assert "const authStorageKey = \"mealplan.ui.auth.v1\";" in script
+    assert (
+        "const protectedShellRoutes = new Set([\"/\", \"/calculate\", \"/calendar\", "
+        "\"/log\", \"/settings\"]);"
+    ) in script
+    assert "window.location.replace(\"/set-user\");" in script
+    assert "merged.Authorization = \"Bearer \" + token;" in script
+    assert "headers: createAuthorizedHeaders({\"Content-Type\": \"application/json\"})," in script
+    assert "headers: createAuthorizedHeaders()," in script
+
+
 def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None:
     with _running_test_server() as port:
         status, html = _get_html(port, "/calculate")
 
     assert status == 200
     assert '<header class="app-header">' in html
+    assert '<a class="menu-link" href="/set-user" aria-current="false">Set User</a>' in html
     assert '<a class="menu-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="menu-link" href="/privacy" aria-current="false">Privacy</a>' in html
     assert '<a class="nav-link" href="/settings"' not in html
@@ -1268,6 +1332,7 @@ def test_ui_server_calendar_shell_exposes_navigation_and_active_state() -> None:
 
     assert status == 200
     assert '<header class="app-header">' in html
+    assert '<a class="menu-link" href="/set-user" aria-current="false">Set User</a>' in html
     assert '<a class="menu-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="menu-link" href="/privacy" aria-current="false">Privacy</a>' in html
     assert '<a class="nav-link" href="/settings"' not in html
@@ -1293,6 +1358,7 @@ def test_ui_server_log_shell_exposes_navigation_and_active_state() -> None:
 
     assert status == 200
     assert '<header class="app-header">' in html
+    assert '<a class="menu-link" href="/set-user" aria-current="false">Set User</a>' in html
     assert '<a class="menu-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="menu-link" href="/privacy" aria-current="false">Privacy</a>' in html
     assert '<a class="nav-link" href="/settings"' not in html
@@ -1308,6 +1374,7 @@ def test_ui_server_privacy_shell_serves_gpt_action_policy_page() -> None:
 
     assert status == 200
     assert '<header class="app-header">' in html
+    assert '<a class="menu-link" href="/set-user" aria-current="false">Set User</a>' in html
     assert '<a class="menu-link" href="/settings" aria-current="false">Settings</a>' in html
     assert '<a class="menu-link" href="/privacy" aria-current="page">Privacy</a>' in html
     assert '<a class="nav-link" href="/settings"' not in html
