@@ -446,6 +446,17 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         font-size: 0.9rem;
       }
 
+      .set-user-stack {
+        display: grid;
+        gap: 0.95rem;
+        padding: 0.15rem 0.1rem;
+      }
+
+      .set-user-stack > form.form-stack,
+      .set-user-stack > .form-card {
+        margin: 0;
+      }
+
       [data-calculate-form="true"] .form-card h2 {
         font-size: 1.04rem;
         font-weight: 700;
@@ -3832,67 +3843,69 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
             "existing token for this browser."
         ),
         "content_html": """
-          <p class="section-label">User Setup</p>
-          <form class="form-stack" data-set-user-register-form="true">
-            <section class="form-card">
-              <h2>Register New User</h2>
-              <div class="field-grid">
-                <label>Email
-                  <input name="email" type="email" autocomplete="email" required />
-                </label>
-                <label>Name
-                  <input name="name" type="text" autocomplete="name" required />
-                </label>
-              </div>
-              <div class="actions">
-                <button class="primary-button" type="button" data-set-user-register-submit="true">
-                  Register
-                </button>
-                <span class="status-note" data-set-user-register-status="true" aria-live="polite">
-                </span>
-              </div>
-              <section class="warning-callout" data-set-user-register-token="true" hidden>
-                <p>
-                  Token shown once. Store it safely now:
-                  <code data-set-user-register-token-value="true"></code>
-                </p>
+          <p class="section-label calculate-section-label">User Setup</p>
+          <div class="set-user-stack">
+            <form class="form-stack" data-set-user-register-form="true">
+              <section class="form-card">
+                <h2>Register New User</h2>
+                <div class="field-grid">
+                  <label>Email
+                    <input name="email" type="email" autocomplete="email" required />
+                  </label>
+                  <label>Name
+                    <input name="name" type="text" autocomplete="name" required />
+                  </label>
+                </div>
+                <div class="actions">
+                  <button class="primary-button" type="button" data-set-user-register-submit="true">
+                    Register
+                  </button>
+                  <span class="status-note" data-set-user-register-status="true" aria-live="polite">
+                  </span>
+                </div>
+                <section class="warning-callout" data-set-user-register-token="true" hidden>
+                  <p>
+                    Token shown once. Store it safely now:
+                    <code data-set-user-register-token-value="true"></code>
+                  </p>
+                </section>
               </section>
-            </section>
-          </form>
-          <form class="form-stack" data-set-user-attach-form="true">
-            <section class="form-card">
-              <h2>Attach Existing Token</h2>
-              <div class="field-grid">
-                <label>Email
-                  <input name="email" type="email" autocomplete="email" required />
-                </label>
-                <label>Bearer Token
-                  <input name="token" type="text" autocomplete="off" required />
-                </label>
-              </div>
+            </form>
+            <form class="form-stack" data-set-user-attach-form="true">
+              <section class="form-card">
+                <h2>Attach Existing Token</h2>
+                <div class="field-grid">
+                  <label>Email
+                    <input name="email" type="email" autocomplete="email" required />
+                  </label>
+                  <label>Bearer Token
+                    <input name="token" type="text" autocomplete="off" required />
+                  </label>
+                </div>
+                <div class="actions">
+                  <button class="primary-button" type="button" data-set-user-attach-submit="true">
+                    Attach Token
+                  </button>
+                  <span class="status-note" data-set-user-attach-status="true" aria-live="polite">
+                  </span>
+                </div>
+              </section>
+            </form>
+            <section class="form-card" data-set-user-auth-actions="true" hidden>
+              <h2>Token Session</h2>
+              <p>Rotate or clear the token currently stored in this browser.</p>
               <div class="actions">
-                <button class="primary-button" type="button" data-set-user-attach-submit="true">
-                  Attach Token
+                <button class="primary-button" type="button" data-set-user-rotate-token="true">
+                  Rotate Token
                 </button>
-                <span class="status-note" data-set-user-attach-status="true" aria-live="polite">
+                <button class="primary-button" type="button" data-set-user-logout="true">
+                  Logout
+                </button>
+                <span class="status-note" data-set-user-auth-actions-status="true" aria-live="polite">
                 </span>
               </div>
             </section>
-          </form>
-          <section class="form-card" data-set-user-auth-actions="true" hidden>
-            <h2>Token Session</h2>
-            <p>Rotate or clear the token currently stored in this browser.</p>
-            <div class="actions">
-              <button class="secondary-button" type="button" data-set-user-rotate-token="true">
-                Rotate Token
-              </button>
-              <button class="secondary-button" type="button" data-set-user-logout="true">
-                Logout
-              </button>
-              <span class="status-note" data-set-user-auth-actions-status="true" aria-live="polite">
-              </span>
-            </div>
-          </section>
+          </div>
         """,
     },
     "settings": {
@@ -3903,7 +3916,7 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
             "managed separately on the calculate page."
         ),
         "content_html": """
-          <p class="section-label">Athlete Settings</p>
+          <p class="section-label calculate-section-label">Athlete Settings</p>
           <form class="form-stack" data-settings-form="true">
             <section class="form-card">
               <h2>Profile</h2>
@@ -3996,7 +4009,7 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
               </div>
               <div class="actions">
                 <button
-                  class="secondary-button"
+                  class="primary-button"
                   type="button"
                   data-settings-token-reveal="true"
                 >

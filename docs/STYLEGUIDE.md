@@ -213,6 +213,15 @@ Specs:
 - subtle shadow
 - optional small uppercase section title
 
+Multi-form pages (for example Set User) must use one parent stack wrapper around sibling form cards.
+Do not place multiple sibling forms/cards without a shared spacing container.
+
+Required defaults for multi-form stacks:
+
+- outer stack gap: 16px minimum
+- preserve breathing room around the stack inside its parent card
+- normalize form/card margins to `0` and rely on stack gap for rhythm
+
 ### 2. Metric Comparison Bar
 
 This is the key data component from FoodCoach and should remain central.
