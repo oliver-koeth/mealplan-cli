@@ -14,6 +14,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For CLI multi-user persistence in `src/mealplan/cli/main.py`, keep `--user` optional and enforce existence via `JsonUsersStore(resolve_users_store_path())`; only when user exists should calendar/log paths switch to `resolve_user_partitioned_path(...)`, otherwise keep legacy non-prefixed paths.
 - For CSP-hardening of the web shell in `src/mealplan/web/ui_server.py`, keep UI logic in the inline script block but also expose the same code from a same-origin endpoint (`/static/app-shell.js`) and send strict `script-src 'self'` headers so browser behavior remains stable when inline execution is blocked.
 - For Set User token-session actions in `src/mealplan/web/ui_server.py`, derive visibility from `readAuthToken()`, clear auth with `localStorage.removeItem("mealplan.ui.auth.v1")` on logout, and rotate credentials only through `POST /api/v1/users/exchange-token` before updating local storage.
+- For Settings token display in `src/mealplan/web/ui_server.py`, keep the token control read-only, mask it by default, and allow plaintext visibility only through an explicit reveal/hide toggle that re-masks on auth-state changes.
 
 ---
 
@@ -309,4 +310,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Local `npx playwright` may provide CLI commands without module imports; for scripted checks, use cached Playwright node modules via `NODE_PATH` if direct `require("playwright")` resolution fails.
   - Useful context (e.g., "the evaluation panel is in component X")
   - Existing shell tests intentionally assert rendered `data-*` markers and script snippets; keep this pattern when adding UI controls to avoid brittle DOM snapshot tests.
+---
+## [2026-04-11 17:32:50 CEST] - US-012
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-1.txt
+- What was implemented
+- Updated the Settings shell in `src/mealplan/web/ui_server.py` with a dedicated Bearer Token card that renders the stored auth token in a read-only input.
+- Added client-side token visibility controls on `/settings`: token is masked by default, `Reveal Token` explicitly shows plaintext, `Hide Token` remasks it, and no-token state disables reveal with guidance.
+- Wired auth-state change propagation (`mealplan-auth-state-changed`) so settings token visibility re-syncs after register/attach/rotate/logout and re-masks automatically.
+- Extended web shell unit coverage in `tests/unit/test_web_ui_server.py` for new settings token markup and script behavior markers.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (454 passed).
+- Browser verification passed with Playwright against a live local UI server: settings token input is read-only, initially masked, reveals on explicit action, and remasks on hide.
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Settings token presentation should subscribe to auth-state changes (local event + `storage`) so Set User actions and cross-tab updates do not leave stale visibility state.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - In this environment, Playwright may be available via `npx` CLI without module resolution from project root; use `NODE_PATH=$(ls -td ~/.npm/_npx/*/node_modules | head -n 1)` for scripted browser checks.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - Existing shell tests assert deterministic script snippets/`data-*` markers, which is the fastest regression net for inline app-shell behavior changes.
 ---

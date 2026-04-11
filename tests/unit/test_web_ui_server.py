@@ -1279,6 +1279,12 @@ def test_ui_server_settings_shell_includes_typed_settings_controls_and_storage_s
     assert '<option value="dark">Dark</option>' in html
     assert '<select name="ui_language" required>' in html
     assert '<option value="en">English</option>' in html
+    assert "<h2>Bearer Token</h2>" in html
+    assert 'data-settings-token-value="true"' in html
+    assert 'name="settings_bearer_token"' in html
+    assert "readonly" in html
+    assert 'data-settings-token-reveal="true"' in html
+    assert 'data-settings-token-status="true"' in html
     assert "const settingsStorageKey = " in html
     assert 'const supportedThemes = new Set(["light", "dark"]);' in html
     assert "applyTheme(persistedTheme);" in html
@@ -1310,7 +1316,15 @@ def test_ui_server_shell_includes_redirect_auth_helpers_and_external_script_deli
     ) in script
     assert "window.location.replace(\"/set-user\");" in script
     assert "merged.Authorization = \"Bearer \" + token;" in script
+    assert "window.dispatchEvent(new Event(\"mealplan-auth-state-changed\"));" in script
     assert "window.localStorage.removeItem(authStorageKey);" in script
+    assert "const maskToken = (token) => \"*\".repeat(token.length);" in script
+    assert "settingsTokenRevealButton.textContent = \"Reveal Token\";" in script
+    assert "settingsTokenRevealButton.textContent = \"Hide Token\";" in script
+    assert "settingsTokenValueControl.value = maskToken(token);" in script
+    assert "settingsTokenValueControl.value = token;" in script
+    assert "settingsTokenStatus.textContent = \"Token is masked.\";" in script
+    assert "settingsTokenStatus.textContent = \"Token is visible.\";" in script
     assert "headers: createAuthorizedHeaders({\"Content-Type\": \"application/json\"})," in script
     assert "headers: createAuthorizedHeaders()," in script
     assert 'window.fetch("/api/v1/users/exchange-token"' in script

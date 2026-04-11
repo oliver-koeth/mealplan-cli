@@ -1357,15 +1357,21 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           return typeof authState.token === "string" ? authState.token.trim() : "";
         };
 
+        const dispatchAuthStateChanged = () => {
+          window.dispatchEvent(new Event("mealplan-auth-state-changed"));
+        };
+
         const writeAuthState = (nextState) => {
           if (!nextState || typeof nextState !== "object") {
             return;
           }
           window.localStorage.setItem(authStorageKey, JSON.stringify(nextState));
+          dispatchAuthStateChanged();
         };
 
         const clearAuthState = () => {
           window.localStorage.removeItem(authStorageKey);
+          dispatchAuthStateChanged();
         };
 
         const applyProtectedRouteRedirect = () => {
@@ -1548,6 +1554,58 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               applyTheme(themeControl.value);
             });
           }
+        }
+        const settingsTokenValueControl = document.querySelector(
+          '[data-settings-token-value="true"]'
+        );
+        const settingsTokenRevealButton = document.querySelector(
+          '[data-settings-token-reveal="true"]'
+        );
+        const settingsTokenStatus = document.querySelector('[data-settings-token-status="true"]');
+        if (
+          settingsTokenValueControl
+          && "value" in settingsTokenValueControl
+          && settingsTokenRevealButton
+          && settingsTokenStatus
+        ) {
+          let isTokenRevealed = false;
+          const maskToken = (token) => "*".repeat(token.length);
+          const renderSettingsToken = () => {
+            const token = readAuthToken();
+            if (!token) {
+              isTokenRevealed = false;
+              settingsTokenRevealButton.disabled = true;
+              settingsTokenRevealButton.textContent = "Reveal Token";
+              settingsTokenValueControl.value = "";
+              settingsTokenStatus.textContent = "No bearer token attached in this browser.";
+              return;
+            }
+            settingsTokenRevealButton.disabled = false;
+            if (isTokenRevealed) {
+              settingsTokenRevealButton.textContent = "Hide Token";
+              settingsTokenValueControl.value = token;
+              settingsTokenStatus.textContent = "Token is visible.";
+              return;
+            }
+            settingsTokenRevealButton.textContent = "Reveal Token";
+            settingsTokenValueControl.value = maskToken(token);
+            settingsTokenStatus.textContent = "Token is masked.";
+          };
+          settingsTokenRevealButton.addEventListener("click", () => {
+            isTokenRevealed = !isTokenRevealed;
+            renderSettingsToken();
+          });
+          window.addEventListener("mealplan-auth-state-changed", () => {
+            isTokenRevealed = false;
+            renderSettingsToken();
+          });
+          window.addEventListener("storage", (event) => {
+            if (event.key === authStorageKey) {
+              isTokenRevealed = false;
+              renderSettingsToken();
+            }
+          });
+          renderSettingsToken();
         }
 
         const setUserRegisterForm = document.querySelector('[data-set-user-register-form="true"]');
@@ -3921,6 +3979,31 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                     <option value="en">English</option>
                   </select>
                 </label>
+              </div>
+            </section>
+            <section class="form-card">
+              <h2>Bearer Token</h2>
+              <p class="hint">Stored in this browser for authenticated API requests.</p>
+              <div class="field-grid-single">
+                <label>Current Token
+                  <input
+                    name="settings_bearer_token"
+                    type="text"
+                    readonly
+                    data-settings-token-value="true"
+                  />
+                </label>
+              </div>
+              <div class="actions">
+                <button
+                  class="secondary-button"
+                  type="button"
+                  data-settings-token-reveal="true"
+                >
+                  Reveal Token
+                </button>
+                <span class="status-note" data-settings-token-status="true" aria-live="polite">
+                </span>
               </div>
             </section>
           </form>
