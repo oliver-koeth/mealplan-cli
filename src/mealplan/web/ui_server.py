@@ -126,6 +126,84 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         flex-wrap: wrap;
       }
 
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+      }
+
+      .header-menu {
+        position: relative;
+      }
+
+      .header-menu > summary {
+        list-style: none;
+      }
+
+      .header-menu > summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .menu-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.1rem;
+        min-height: 2.1rem;
+        border-radius: 10px;
+        border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+        background: color-mix(in srgb, var(--surface) 95%, #1d4ed8 5%);
+        color: var(--text);
+        font-size: 1.05rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .header-menu[open] .menu-button {
+        border-color: var(--accent-strong);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+
+      .header-menu-panel {
+        position: absolute;
+        top: calc(100% + 0.45rem);
+        left: 0;
+        min-width: 10.5rem;
+        border-radius: 12px;
+        border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+        background: linear-gradient(
+          150deg,
+          color-mix(in srgb, var(--surface) 94%, #1d4ed8 6%),
+          color-mix(in srgb, var(--surface-muted) 96%, #0f172a 4%)
+        );
+        box-shadow: 0 12px 28px color-mix(in srgb, var(--shadow) 65%, transparent);
+        padding: 0.3rem;
+        display: grid;
+        gap: 0.2rem;
+        z-index: 30;
+      }
+
+      .menu-link {
+        text-decoration: none;
+        color: var(--text-muted);
+        font-size: 0.88rem;
+        padding: 0.35rem 0.52rem;
+        border-radius: 8px;
+        border: 1px solid transparent;
+      }
+
+      .menu-link:hover {
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 10%, transparent);
+      }
+
+      .menu-link[aria-current="page"] {
+        color: var(--accent);
+        border-color: var(--accent-strong);
+        background: color-mix(in srgb, var(--accent) 10%, transparent);
+        font-weight: 600;
+      }
+
       .brand {
         display: flex;
         align-items: baseline;
@@ -1115,12 +1193,20 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
   <body>
     <header class="app-header">
       <div class="header-inner">
-        <div class="brand">
-          <strong>Mealplan</strong>
-          <span>UI</span>
+        <div class="header-left">
+          <details class="header-menu">
+            <summary class="menu-button" aria-label="Open menu">☰</summary>
+            <nav class="header-menu-panel" aria-label="Secondary">
+              <a class="menu-link" href="/settings" aria-current="$settings_current">Settings</a>
+              <a class="menu-link" href="/privacy" aria-current="$privacy_current">Privacy</a>
+            </nav>
+          </details>
+          <div class="brand">
+            <strong>Mealplan</strong>
+            <span>UI</span>
+          </div>
         </div>
         <nav aria-label="Primary">
-          <a class="nav-link" href="/settings" aria-current="$settings_current">Settings</a>
           <a class="nav-link" href="/calculate" aria-current="$calculate_current">Calculate</a>
           <a class="nav-link" href="/calendar" aria-current="$calendar_current">Calendar</a>
           <a class="nav-link" href="/log" aria-current="$log_current">Log</a>
@@ -1353,6 +1439,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           const logEntryViewToggleButton = logEntryForm.querySelector(
             '[data-log-entry-view-toggle="true"]'
           );
+          const logEntryToggle = logEntryForm.querySelector('[data-log-entry-toggle="true"]');
+          const logEntryBody = logEntryForm.querySelector('[data-log-entry-body="true"]');
           const logEntryFormFields = logEntryForm.querySelector('[data-log-entry-form-fields="true"]');
           const logEntryJsonFields = logEntryForm.querySelector('[data-log-entry-json-fields="true"]');
           const logEntryJsonControl = logEntryForm.querySelector('[data-log-entry-json-input="true"]');
@@ -1381,6 +1469,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             && logFiberControl
             && "value" in logFiberControl
             && logEntryViewToggleButton
+            && logEntryToggle
+            && logEntryBody
             && logEntryFormFields
             && logEntryJsonFields
             && logEntryJsonControl
@@ -1389,7 +1479,24 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             && logEntryClearButton
             && logEntrySuccessCallout
           ) {
+            let isLogEntryExpanded = false;
             let logEntryView = "form";
+
+            const syncLogEntryToggle = () => {
+              logEntryBody.hidden = !isLogEntryExpanded;
+              logEntryToggle.setAttribute(
+                "aria-expanded",
+                isLogEntryExpanded ? "true" : "false"
+              );
+              logEntryToggle.textContent = (
+                (isLogEntryExpanded ? "▾ " : "▸ ") + "Entry Form"
+              );
+            };
+
+            const setLogEntryExpanded = (expanded) => {
+              isLogEntryExpanded = Boolean(expanded);
+              syncLogEntryToggle();
+            };
 
             const createEmptyLogEntryJson = () => ({
               meal: "",
@@ -1460,6 +1567,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               if (!entry || typeof entry !== "object") {
                 return;
               }
+              setLogEntryExpanded(true);
               switchLogEntryView("form");
               if (mode === "edit") {
                 logUuidControl.value = typeof entry.uuid === "string" ? entry.uuid : "";
@@ -1556,6 +1664,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             if (!logEntryJsonControl.value.trim()) {
               setLogEntryJsonValue(createEmptyLogEntryJson());
             }
+            setLogEntryExpanded(false);
             switchLogEntryView("form");
             updateLogEntryMode();
             setLogEntrySuccess("");
@@ -1579,6 +1688,9 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             logEntryViewToggleButton.addEventListener("click", () => {
               switchLogEntryView(logEntryView === "form" ? "json" : "form");
               setLogEntrySuccess("");
+            });
+            logEntryToggle.addEventListener("click", () => {
+              setLogEntryExpanded(!isLogEntryExpanded);
             });
             logEntryForm.addEventListener("input", () => {
               setLogEntrySuccess("");
@@ -3593,7 +3705,16 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
           <form class="form-stack" data-log-entry-form="true">
             <section class="form-card">
               <div class="log-entry-header">
-                <h2>Entry Form</h2>
+                <h2>
+                  <button
+                    class="calendar-section-toggle"
+                    type="button"
+                    data-log-entry-toggle="true"
+                    aria-expanded="false"
+                  >
+                    ▸ Entry Form
+                  </button>
+                </h2>
                 <button
                   class="primary-button secondary-button log-entry-view-toggle"
                   type="button"
@@ -3603,6 +3724,7 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                   JSON View
                 </button>
               </div>
+              <div data-log-entry-body="true" hidden>
               <div class="date-controls">
                 <button
                   class="primary-button secondary-button"
@@ -3691,6 +3813,7 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                 aria-live="polite"
               >
               </section>
+              </div>
             </section>
           </form>
           <p class="section-label calculate-section-label">Search Controls</p>
@@ -4258,6 +4381,7 @@ def _render_app_shell(active_page: str) -> str:
         description=content["description"],
         content_html=content["content_html"],
         settings_current="page" if active_page == "settings" else "false",
+        privacy_current="page" if active_page == "privacy" else "false",
         calculate_current="page" if active_page == "calculate" else "false",
         calendar_current="page" if active_page == "calendar" else "false",
         log_current="page" if active_page == "log" else "false",

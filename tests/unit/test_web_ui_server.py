@@ -603,7 +603,10 @@ def test_ui_server_settings_shell_exposes_navigation_and_active_state() -> None:
 
     assert status == 200
     assert '<header class="app-header">' in html
-    assert '<a class="nav-link" href="/settings" aria-current="page">Settings</a>' in html
+    assert '<summary class="menu-button" aria-label="Open menu">☰</summary>' in html
+    assert '<a class="menu-link" href="/settings" aria-current="page">Settings</a>' in html
+    assert '<a class="menu-link" href="/privacy" aria-current="false">Privacy</a>' in html
+    assert '<a class="nav-link" href="/settings"' not in html
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
     assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
@@ -655,7 +658,9 @@ def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None
 
     assert status == 200
     assert '<header class="app-header">' in html
-    assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="menu-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="menu-link" href="/privacy" aria-current="false">Privacy</a>' in html
+    assert '<a class="nav-link" href="/settings"' not in html
     assert '<a class="nav-link" href="/calculate" aria-current="page">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
     assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
@@ -669,7 +674,9 @@ def test_ui_server_calendar_shell_exposes_navigation_and_active_state() -> None:
 
     assert status == 200
     assert '<header class="app-header">' in html
-    assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="menu-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="menu-link" href="/privacy" aria-current="false">Privacy</a>' in html
+    assert '<a class="nav-link" href="/settings"' not in html
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="page">Calendar</a>' in html
     assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
@@ -692,7 +699,9 @@ def test_ui_server_log_shell_exposes_navigation_and_active_state() -> None:
 
     assert status == 200
     assert '<header class="app-header">' in html
-    assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="menu-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="menu-link" href="/privacy" aria-current="false">Privacy</a>' in html
+    assert '<a class="nav-link" href="/settings"' not in html
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
     assert '<a class="nav-link" href="/log" aria-current="page">Log</a>' in html
@@ -705,7 +714,9 @@ def test_ui_server_privacy_shell_serves_gpt_action_policy_page() -> None:
 
     assert status == 200
     assert '<header class="app-header">' in html
-    assert '<a class="nav-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="menu-link" href="/settings" aria-current="false">Settings</a>' in html
+    assert '<a class="menu-link" href="/privacy" aria-current="page">Privacy</a>' in html
+    assert '<a class="nav-link" href="/settings"' not in html
     assert '<a class="nav-link" href="/calculate" aria-current="false">Calculate</a>' in html
     assert '<a class="nav-link" href="/calendar" aria-current="false">Calendar</a>' in html
     assert '<a class="nav-link" href="/log" aria-current="false">Log</a>' in html
@@ -885,6 +896,10 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'data-log-date-next="true"' in html
     assert 'data-log-entry-view-toggle="true"' in html
     assert 'aria-pressed="false"' in html
+    assert 'data-log-entry-toggle="true"' in html
+    assert 'aria-expanded="false"' in html
+    assert "▸ Entry Form" in html
+    assert 'data-log-entry-body="true" hidden' in html
     assert 'data-log-entry-form-fields="true"' in html
     assert 'data-log-entry-json-fields="true" hidden' in html
     assert 'data-log-entry-json-input="true"' in html
@@ -923,6 +938,10 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     ) in html
     assert "if (!logDateControl.value) {" in html
     assert "logDateControl.value = toIsoDate(new Date());" in html
+    assert "let isLogEntryExpanded = false;" in html
+    assert "const syncLogEntryToggle = () => {" in html
+    assert "const setLogEntryExpanded = (expanded) => {" in html
+    assert 'setLogEntryExpanded(false);' in html
     assert 'let logEntryView = "form";' in html
     assert "const createEmptyLogEntryJson = () => ({" in html
     assert 'meal: "",' in html
@@ -947,7 +966,9 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'setLogEntrySuccess(isEditMode ? "Entry saved." : "Entry added.");' in html
     assert "let logEntryBindings = null;" in html
     assert "const fillLogEntryForm = (entry, mode) => {" in html
+    assert 'setLogEntryExpanded(true);' in html
     assert 'logEntryViewToggleButton.addEventListener("click", () => {' in html
+    assert 'logEntryToggle.addEventListener("click", () => {' in html
     assert 'logEntryBindings.applyEditEntry(entry);' in html
     assert 'logEntryBindings.applyAddEntry(entry);' in html
     assert "const logSearchSubmitButton = logSearchForm.querySelector(" in html
