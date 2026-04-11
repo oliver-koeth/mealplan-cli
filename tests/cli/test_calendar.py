@@ -14,7 +14,12 @@ from typer.testing import CliRunner
 
 from mealplan.application.contracts import MealPlanResponse
 from mealplan.cli.main import CALENDAR_STORE_PATH_ENV, app
-from mealplan.infrastructure import JsonCalendarStore
+from mealplan.infrastructure import (
+    USERS_STORE_PATH_ENV,
+    JsonCalendarStore,
+    JsonUsersStore,
+    user_email_to_filename_prefix,
+)
 
 runner = CliRunner()
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
@@ -48,6 +53,32 @@ def test_calendar_command_returns_persisted_payload_in_json(
     monkeypatch.setenv(CALENDAR_STORE_PATH_ENV, str(storage_path))
 
     result = runner.invoke(app, _required_calendar_args())
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == expected.model_dump(mode="json")
+
+
+def test_calendar_command_reads_user_partitioned_store_when_user_provided(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "calendar.json"
+    users_path = tmp_path / "users.json"
+    users_store = JsonUsersStore(users_path)
+    users_store.upsert_user(
+        email="alice@example.com",
+        name="Alice",
+        token_verifier={"algorithm": "argon2id", "hash": "hash-a"},
+    )
+    expected = MealPlanResponse.placeholder()
+    user_prefix = user_email_to_filename_prefix("alice@example.com")
+    user_calendar_path = tmp_path / f"{user_prefix}-calendar.json"
+    store = JsonCalendarStore(user_calendar_path)
+    store.save(date_key="20260406", payload=expected.model_dump(mode="json"))
+    monkeypatch.setenv(CALENDAR_STORE_PATH_ENV, str(storage_path))
+    monkeypatch.setenv(USERS_STORE_PATH_ENV, str(users_path))
+
+    result = runner.invoke(app, [*_required_calendar_args(), "--user", "ALICE@example.com"])
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == expected.model_dump(mode="json")
@@ -121,3 +152,31 @@ def test_calendar_invalid_date_format_returns_validation_exit_code(tmp_path: Pat
 
     assert result.returncode == 2
     assert "Error: date: expected YYYYMMDD" in result.stderr
+
+
+def test_calendar_unknown_user_returns_validation_exit_code(tmp_path: Path) -> None:
+    storage_path = tmp_path / "calendar.json"
+    users_path = tmp_path / "users.json"
+    env = dict(os.environ)
+    env[CALENDAR_STORE_PATH_ENV] = str(storage_path)
+    env[USERS_STORE_PATH_ENV] = str(users_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "calendar",
+            "--date",
+            "20260406",
+            "--user",
+            "missing@example.com",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 2
+    assert "Error: user: unknown user 'missing@example.com'" in result.stderr

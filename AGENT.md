@@ -154,6 +154,7 @@ When in doubt, update those source docs instead of expanding this file.
 123. For auth brute-force protection in `src/mealplan/web/ui_server.py`, pass a stable route-pattern `endpoint_key` into `_require_authenticated_user(...)` (for example `/api/v1/log/{uuid}`) so rate limiting stays keyed by IP+endpoint, and trust `X-Forwarded-For` only when `MEALPLAN_TRUSTED_PROXY_CIDRS` contains the socket remote IP.
 124. For set-user token lifecycle routes (`/api/v1/users/register|attach-token|exchange-token`), canonicalize incoming email with `canonicalize_user_email`, resolve tokens through `_resolve_user_for_token(...)`, and persist token changes via `JsonUsersStore` mutation helpers so writes remain lock+fsync+atomic-rename safe.
 125. For bearer-protected calendar/log API handlers, resolve store paths from the authenticated user via `resolve_user_partitioned_path(...)` so persistence always targets `<user-prefix>-calendar.json` / `<user-prefix>-food-log.json` under the configured storage directory.
+126. For CLI multi-user storage (`calculate`, `calendar`, `log`, `log search`), treat `--user` as optional: when present canonicalize and verify existence via `JsonUsersStore(resolve_users_store_path())`, then derive per-user filenames with `resolve_user_partitioned_path(...)`; when omitted, preserve legacy non-prefixed file paths.
 
 ## Ralph Runner
 

@@ -23,7 +23,14 @@ from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
 from mealplan.application.stub import run_probe
 from mealplan.domain.enums import ActivityLevel, CarbMode, Gender, TrainingLoadTomorrow
-from mealplan.infrastructure import JsonCalendarStore, JsonFoodLogStore
+from mealplan.infrastructure import (
+    JsonCalendarStore,
+    JsonFoodLogStore,
+    JsonUsersStore,
+    canonicalize_user_email,
+    resolve_user_partitioned_path,
+    resolve_users_store_path,
+)
 from mealplan.shared.errors import ValidationError
 from mealplan.shared.exit_codes import map_exception_to_exit_code
 from mealplan.web import run_ui_server
@@ -155,6 +162,11 @@ LOG_JSON_OPTION = typer.Option(
     "--json",
     help="One-shot JSON payload for create/update. Include uuid to update.",
 )
+USER_OPTION = typer.Option(
+    None,
+    "--user",
+    help="Optional user email for per-user calendar/log storage.",
+)
 
 
 @app.callback()
@@ -191,6 +203,7 @@ def calculate_command(
     training_before: str | None = TRAINING_BEFORE_OPTION,
     output_format: OutputFormat = OUTPUT_FORMAT_OPTION,
     date: str = DATE_OPTION,
+    user: str | None = USER_OPTION,
     debug: bool = DEBUG_OPTION,
 ) -> None:
     """Run production mealplan calculation from typed CLI inputs."""
@@ -216,7 +229,8 @@ def calculate_command(
     request = parse_contract(MealPlanRequest, request_payload)
     service = MealPlanCalculationService()
     response = service.calculate(request)
-    _persist_calendar_entry(date_key=date, response=response)
+    user_email = _resolve_user_email(user=user)
+    _persist_calendar_entry(date_key=date, response=response, user_email=user_email)
     for warning in getattr(service, "warnings", ()):
         typer.echo(f"Warning: {warning}", err=True)
     typer.echo(_render_output(response=response, output_format=output_format))
@@ -226,9 +240,11 @@ def calculate_command(
 def calendar_command(
     date: str = DATE_OPTION,
     output_format: OutputFormat = OUTPUT_FORMAT_OPTION,
+    user: str | None = USER_OPTION,
 ) -> None:
     """Retrieve a persisted meal plan by date."""
-    store = JsonCalendarStore(_calendar_store_path())
+    user_email = _resolve_user_email(user=user)
+    store = JsonCalendarStore(_calendar_store_path(user_email=user_email))
     persisted_payload = store.get(date_key=date)
     response = parse_contract(MealPlanResponse, persisted_payload)
     typer.echo(_render_output(response=response, output_format=output_format))
@@ -248,6 +264,7 @@ def log_command(
     fiber: float | None = LOG_FIBER_OPTION,
     quantity: float | None = LOG_QUANTITY_OPTION,
     json_payload: str | None = LOG_JSON_OPTION,
+    user: str | None = USER_OPTION,
 ) -> None:
     """Create or update food-log entries."""
     if ctx.invoked_subcommand is not None:
@@ -266,7 +283,8 @@ def log_command(
         json_payload=json_payload,
     )
     request = parse_contract(FoodLogUpsertRequest, payload)
-    store = JsonFoodLogStore(_food_log_store_path())
+    user_email = _resolve_user_email(user=user)
+    store = JsonFoodLogStore(_food_log_store_path(user_email=user_email))
     if request.uuid is not None:
         response = store.update(request=request)
     else:
@@ -279,34 +297,68 @@ def log_search_command(
     date: str | None = LOG_DATE_OPTION,
     name: str | None = LOG_NAME_OPTION,
     meal: str | None = LOG_MEAL_OPTION,
+    user: str | None = USER_OPTION,
 ) -> None:
     """Search food-log entries with optional filters."""
     request = parse_contract(
         FoodLogSearchRequest,
         {"date": date, "name": name, "meal": meal},
     )
-    store = JsonFoodLogStore(_food_log_store_path())
+    user_email = _resolve_user_email(user=user)
+    store = JsonFoodLogStore(_food_log_store_path(user_email=user_email))
     response = store.search(request=request)
     typer.echo(json.dumps([entry.model_dump(mode="json") for entry in response]))
 
 
-def _persist_calendar_entry(*, date_key: str, response: MealPlanResponse) -> None:
-    store = JsonCalendarStore(_calendar_store_path())
+def _persist_calendar_entry(
+    *,
+    date_key: str,
+    response: MealPlanResponse,
+    user_email: str | None = None,
+) -> None:
+    store = JsonCalendarStore(_calendar_store_path(user_email=user_email))
     store.save(date_key=date_key, payload=response.model_dump(mode="json"))
 
 
-def _calendar_store_path() -> Path:
+def _calendar_store_path(*, user_email: str | None = None) -> Path:
     configured_path = os.getenv(CALENDAR_STORE_PATH_ENV)
     if configured_path:
-        return Path(configured_path).expanduser()
-    return Path.home() / ".mealplan" / "calendar.json"
+        calendar_path = Path(configured_path).expanduser()
+    else:
+        calendar_path = Path.home() / ".mealplan" / "calendar.json"
+    if user_email is None:
+        return calendar_path
+    return resolve_user_partitioned_path(
+        storage_directory=calendar_path.parent,
+        email=user_email,
+        suffix_filename=calendar_path.name,
+    )
 
 
-def _food_log_store_path() -> Path:
+def _food_log_store_path(*, user_email: str | None = None) -> Path:
     configured_path = os.getenv(FOOD_LOG_STORE_PATH_ENV)
     if configured_path:
-        return Path(configured_path).expanduser()
-    return Path.home() / ".mealplan" / "food-log.json"
+        food_log_path = Path(configured_path).expanduser()
+    else:
+        food_log_path = Path.home() / ".mealplan" / "food-log.json"
+    if user_email is None:
+        return food_log_path
+    return resolve_user_partitioned_path(
+        storage_directory=food_log_path.parent,
+        email=user_email,
+        suffix_filename=food_log_path.name,
+    )
+
+
+def _resolve_user_email(*, user: str | None) -> str | None:
+    if user is None:
+        return None
+    canonical_email = canonicalize_user_email(user)
+    users_store = JsonUsersStore(resolve_users_store_path())
+    persisted_user = users_store.get_by_email(email=canonical_email)
+    if persisted_user is None:
+        raise ValidationError(f"user: unknown user {canonical_email!r}")
+    return persisted_user.email
 
 
 def _build_log_payload(

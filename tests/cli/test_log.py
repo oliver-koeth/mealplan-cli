@@ -13,6 +13,11 @@ import pytest
 from typer.testing import CliRunner
 
 from mealplan.cli.main import FOOD_LOG_STORE_PATH_ENV, app
+from mealplan.infrastructure import (
+    USERS_STORE_PATH_ENV,
+    JsonUsersStore,
+    user_email_to_filename_prefix,
+)
 
 runner = CliRunner()
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
@@ -85,6 +90,31 @@ def test_log_command_applies_optional_quantity_multiplier(
     assert payload["fat"] == 16.0
     assert payload["protein"] == 28.0
     assert payload["fiber"] == 18.0
+
+
+def test_log_command_uses_user_partitioned_store_when_user_provided(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "food-log.json"
+    users_path = tmp_path / "users.json"
+    users_store = JsonUsersStore(users_path)
+    users_store.upsert_user(
+        email="alice@example.com",
+        name="Alice",
+        token_verifier={"algorithm": "argon2id", "hash": "hash-a"},
+    )
+    monkeypatch.setenv(FOOD_LOG_STORE_PATH_ENV, str(storage_path))
+    monkeypatch.setenv(USERS_STORE_PATH_ENV, str(users_path))
+
+    result = runner.invoke(app, [*_required_log_args(), "--user", "alice@example.com"])
+
+    assert result.exit_code == 0
+    assert not storage_path.exists()
+    user_prefix = user_email_to_filename_prefix("alice@example.com")
+    user_storage_path = tmp_path / f"{user_prefix}-food-log.json"
+    user_payload = json.loads(user_storage_path.read_text(encoding="utf-8"))
+    assert len(user_payload) == 1
 
 
 def test_log_command_supports_json_payload_mode(
@@ -211,6 +241,48 @@ def test_log_unknown_uuid_update_returns_domain_exit_code(tmp_path: Path) -> Non
 
     assert result.returncode == 3
     assert "Error: log.00000000-0000-0000-0000-000000000001: entry not found" in result.stderr
+
+
+def test_log_unknown_user_returns_validation_exit_code(tmp_path: Path) -> None:
+    storage_path = tmp_path / "food-log.json"
+    users_path = tmp_path / "users.json"
+    env = dict(os.environ)
+    env[FOOD_LOG_STORE_PATH_ENV] = str(storage_path)
+    env[USERS_STORE_PATH_ENV] = str(users_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            "log",
+            "--date",
+            "20260408",
+            "--meal",
+            "lunch",
+            "--name",
+            "Oats",
+            "--kcal",
+            "380",
+            "--carbs",
+            "55",
+            "--fat",
+            "8",
+            "--protein",
+            "14",
+            "--fiber",
+            "9",
+            "--user",
+            "missing@example.com",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 2
+    assert "Error: user: unknown user 'missing@example.com'" in result.stderr
 
 
 def test_log_help_includes_json_payload_example() -> None:
@@ -410,3 +482,27 @@ def test_log_search_invalid_date_returns_validation_exit_code(tmp_path: Path) ->
 
     assert result.returncode == 2
     assert "Error: date: Value error, expected YYYYMMDD" in result.stderr
+
+
+def test_log_search_uses_user_partitioned_store_when_user_provided(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "food-log.json"
+    users_path = tmp_path / "users.json"
+    users_store = JsonUsersStore(users_path)
+    users_store.upsert_user(
+        email="alice@example.com",
+        name="Alice",
+        token_verifier={"algorithm": "argon2id", "hash": "hash-a"},
+    )
+    monkeypatch.setenv(FOOD_LOG_STORE_PATH_ENV, str(storage_path))
+    monkeypatch.setenv(USERS_STORE_PATH_ENV, str(users_path))
+    runner.invoke(app, [*_required_log_args(), "--user", "alice@example.com"])
+
+    result = runner.invoke(app, ["log", "search", "--user", "alice@example.com"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert len(payload) == 1
+    assert payload[0]["name"] == "Oats"

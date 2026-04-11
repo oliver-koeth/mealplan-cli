@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -14,6 +15,11 @@ from typer.testing import CliRunner
 from mealplan.application.contracts import MealPlanRequest, MealPlanResponse
 from mealplan.cli.main import CALENDAR_STORE_PATH_ENV, app
 from mealplan.domain.model import CANONICAL_MEAL_ORDER
+from mealplan.infrastructure import (
+    USERS_STORE_PATH_ENV,
+    JsonUsersStore,
+    user_email_to_filename_prefix,
+)
 
 runner = CliRunner()
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
@@ -203,6 +209,68 @@ def test_calculate_command_overwrites_existing_date_payload(
     assert result.exit_code == 0
     persisted = json.loads(storage_path.read_text(encoding="utf-8"))
     assert persisted["20260406"] == expected.model_dump(mode="json")
+
+
+def test_calculate_command_uses_user_partitioned_calendar_store_when_user_provided(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    storage_path = tmp_path / "calendar.json"
+    users_path = tmp_path / "users.json"
+    expected = MealPlanResponse.placeholder()
+    users_store = JsonUsersStore(users_path)
+    users_store.upsert_user(
+        email="alice@example.com",
+        name="Alice",
+        token_verifier={"algorithm": "argon2id", "hash": "hash-a"},
+    )
+
+    class FakeCalculationService:
+        def calculate(self, request: object) -> MealPlanResponse:
+            _ = request
+            return expected
+
+    monkeypatch.setenv(CALENDAR_STORE_PATH_ENV, str(storage_path))
+    monkeypatch.setenv(USERS_STORE_PATH_ENV, str(users_path))
+    monkeypatch.setattr(
+        "mealplan.cli.main.MealPlanCalculationService",
+        FakeCalculationService,
+    )
+
+    result = runner.invoke(app, [*_required_calculate_args(), "--user", "  ALICE@example.com "])
+
+    assert result.exit_code == 0
+    assert not storage_path.exists()
+    user_prefix = user_email_to_filename_prefix("alice@example.com")
+    user_calendar_path = tmp_path / f"{user_prefix}-calendar.json"
+    user_payload = json.loads(user_calendar_path.read_text(encoding="utf-8"))
+    assert user_payload == {"20260406": expected.model_dump(mode="json")}
+
+
+def test_calculate_command_unknown_user_returns_validation_exit_code(tmp_path: Path) -> None:
+    storage_path = tmp_path / "calendar.json"
+    users_path = tmp_path / "users.json"
+    env = dict(os.environ)
+    env[CALENDAR_STORE_PATH_ENV] = str(storage_path)
+    env[USERS_STORE_PATH_ENV] = str(users_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mealplan",
+            *_required_calculate_args(),
+            "--user",
+            "missing@example.com",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 2
+    assert "Error: user: unknown user 'missing@example.com'" in result.stderr
 
 
 def test_calculate_command_emits_non_fatal_warnings_to_stderr(monkeypatch) -> None:

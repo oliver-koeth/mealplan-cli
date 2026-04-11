@@ -11,6 +11,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For auth brute-force controls in `src/mealplan/web/ui_server.py`, keep rate limiting inside `_require_authenticated_user(...)` with a stable per-route `endpoint_key` (for example `/api/v1/log/{uuid}`), and honor `X-Forwarded-For` only when the socket remote IP is within `MEALPLAN_TRUSTED_PROXY_CIDRS`.
 - For set-user token lifecycle flows, canonicalize request emails with `canonicalize_user_email`, resolve bearer ownership via `_resolve_user_for_token(...)`, and persist user-token mutations through `JsonUsersStore` lock+fsync+atomic-rename writes.
 - For bearer-protected calendar/log handlers in `src/mealplan/web/ui_server.py`, derive storage files from authenticated user identity using `resolve_user_partitioned_path(...)` so persistence is always per-user (`<user-prefix>-calendar.json` and `<user-prefix>-food-log.json`) under the configured storage directory.
+- For CLI multi-user persistence in `src/mealplan/cli/main.py`, keep `--user` optional and enforce existence via `JsonUsersStore(resolve_users_store_path())`; only when user exists should calendar/log paths switch to `resolve_user_partitioned_path(...)`, otherwise keep legacy non-prefixed paths.
 
 ---
 
@@ -227,4 +228,29 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - `JsonCalendarStore` and `JsonFoodLogStore` auto-create missing files on first read, so isolation tests should assert empty per-user files/content rather than assuming non-existent files for untouched users.
   - Useful context (e.g., "the evaluation panel is in component X")
   - Existing helper functions (`_post_json`, `_get_json`, `_put_json`) support secondary-user auth flows by passing `auth=False` plus explicit `Authorization` headers, which is the simplest path for multi-user API isolation tests.
+---
+
+## [2026-04-11 17:04:17 CEST] - US-009
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-8.txt
+- What was implemented
+- Added optional `--user` support to CLI commands `calculate`, `calendar`, `log`, and `log search` in `src/mealplan/cli/main.py`.
+- Implemented `_resolve_user_email(...)` that canonicalizes (`trim -> lowercase`) and enforces user existence via `JsonUsersStore(resolve_users_store_path())`; unknown users now fail deterministically with `ValidationError`.
+- Updated CLI persistence path resolution so `--user` writes/reads per-user files using `resolve_user_partitioned_path(...)` (`<user-prefix>-calendar.json` / `<user-prefix>-food-log.json`), while omitted `--user` keeps legacy non-prefixed file behavior.
+- Added CLI integration coverage for user-scoped persistence and unknown-user failures across calculate/calendar/log flows.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (452 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/cli/main.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/cli/test_calculate.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/cli/test_calendar.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/cli/test_log.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - For CLI multi-user support, centralize email canonicalization + registration enforcement in one helper and call it once per command before resolving any store paths.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - User-scoped store files are created lazily by `JsonCalendarStore`/`JsonFoodLogStore`, so tests should assert the legacy base file is absent (not empty) when `--user` routing is active.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `log search` requires its own `--user` option on the subcommand signature for ergonomic invocation (`mealplan log search --user ...`) in addition to the log callback path.
 ---
