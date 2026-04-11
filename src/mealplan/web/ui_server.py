@@ -32,6 +32,12 @@ from mealplan.application.contracts import (
     FoodLogUpsertRequest,
     MealPlanRequest,
     MealPlanResponse,
+    UserAttachTokenRequest,
+    UserAttachTokenResponse,
+    UserExchangeTokenRequest,
+    UserExchangeTokenResponse,
+    UserRegisterRequest,
+    UserRegisterResponse,
 )
 from mealplan.application.orchestration import MealPlanCalculationService
 from mealplan.application.parsing import parse_contract
@@ -40,6 +46,9 @@ from mealplan.infrastructure import (
     JsonFoodLogStore,
     JsonUsersStore,
     PersistedUser,
+    canonicalize_user_email,
+    generate_bearer_token,
+    hash_bearer_token,
     resolve_users_store_path,
     verify_bearer_token,
 )
@@ -4223,30 +4232,123 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_users_register_post(self) -> None:
         request_id = str(uuid4())
-        self._write_api_error(
-            status=HTTPStatus.NOT_IMPLEMENTED,
-            code="not_implemented",
-            message="User registration endpoint is not implemented yet.",
-            request_id=request_id,
-        )
+        users_store = JsonUsersStore(resolve_users_store_path())
+        try:
+            payload = self._read_json_payload()
+            request = parse_contract(UserRegisterRequest, payload)
+            email = canonicalize_user_email(request.email)
+            if not email:
+                raise ValidationError("email: value is required")
+            token = generate_bearer_token()
+            created_user = users_store.create_user(
+                email=email,
+                name=request.name,
+                token_verifier=hash_bearer_token(token=token),
+            )
+            if created_user is None:
+                self._write_auth_error(code="user_already_exists", request_id=request_id)
+                return
+            response = UserRegisterResponse(
+                email=created_user.email,
+                name=created_user.name,
+                token=token,
+            )
+        except ValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.BAD_REQUEST,
+                code="validation_error",
+                message="Request validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except Exception as error:  # noqa: BLE001
+            self._write_api_error(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                code="internal_error",
+                message="Internal server error.",
+                request_id=request_id,
+                details=[{"message": str(error)}],
+            )
+            return
+        self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
 
     def _handle_users_attach_token_post(self) -> None:
         request_id = str(uuid4())
-        self._write_api_error(
-            status=HTTPStatus.NOT_IMPLEMENTED,
-            code="not_implemented",
-            message="Attach-token endpoint is not implemented yet.",
-            request_id=request_id,
-        )
+        users_store = JsonUsersStore(resolve_users_store_path())
+        try:
+            payload = self._read_json_payload()
+            request = parse_contract(UserAttachTokenRequest, payload)
+            email = canonicalize_user_email(request.email)
+            if not email:
+                raise ValidationError("email: value is required")
+            user = self._resolve_user_for_token(token=request.token, users_store=users_store)
+            if user is None:
+                self._write_auth_error(code="auth_invalid_token", request_id=request_id)
+                return
+            if user.email != email:
+                self._write_auth_error(code="auth_token_email_mismatch", request_id=request_id)
+                return
+            response = UserAttachTokenResponse(email=user.email, name=user.name)
+        except ValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.BAD_REQUEST,
+                code="validation_error",
+                message="Request validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except Exception as error:  # noqa: BLE001
+            self._write_api_error(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                code="internal_error",
+                message="Internal server error.",
+                request_id=request_id,
+                details=[{"message": str(error)}],
+            )
+            return
+        self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
 
     def _handle_users_exchange_token_post(self) -> None:
         request_id = str(uuid4())
-        self._write_api_error(
-            status=HTTPStatus.NOT_IMPLEMENTED,
-            code="not_implemented",
-            message="Exchange-token endpoint is not implemented yet.",
-            request_id=request_id,
-        )
+        users_store = JsonUsersStore(resolve_users_store_path())
+        try:
+            payload = self._read_json_payload()
+            request = parse_contract(UserExchangeTokenRequest, payload)
+            existing_user = self._resolve_user_for_token(
+                token=request.token,
+                users_store=users_store,
+            )
+            if existing_user is None:
+                self._write_auth_error(code="auth_invalid_token", request_id=request_id)
+                return
+            new_token = generate_bearer_token()
+            users_store.upsert_user(
+                email=existing_user.email,
+                name=existing_user.name,
+                token_verifier=hash_bearer_token(token=new_token),
+            )
+            response = UserExchangeTokenResponse(token=new_token)
+        except ValidationError as error:
+            self._write_api_error(
+                status=HTTPStatus.BAD_REQUEST,
+                code="validation_error",
+                message="Request validation failed.",
+                request_id=request_id,
+                details=[_error_detail_from_exception(error)],
+            )
+            return
+        except Exception as error:  # noqa: BLE001
+            self._write_api_error(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                code="internal_error",
+                message="Internal server error.",
+                request_id=request_id,
+                details=[{"message": str(error)}],
+            )
+            return
+        self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
 
     def _handle_log_put(self, entry_uuid: str) -> None:
         request_id = str(uuid4())
@@ -4473,6 +4575,19 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
             return None
 
         users_store = JsonUsersStore(resolve_users_store_path())
+        user = self._resolve_user_for_token(token=token, users_store=users_store)
+        if user is not None:
+            return user
+
+        self._write_auth_error(code="auth_invalid_token", request_id=request_id)
+        return None
+
+    def _resolve_user_for_token(
+        self,
+        *,
+        token: str,
+        users_store: JsonUsersStore,
+    ) -> PersistedUser | None:
         for user in users_store.list_users():
             try:
                 verification = verify_bearer_token(token=token, verifier=user.token_verifier)
@@ -4480,8 +4595,6 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
                 continue
             if verification.is_valid:
                 return user
-
-        self._write_auth_error(code="auth_invalid_token", request_id=request_id)
         return None
 
     def _resolve_client_ip(self) -> str:

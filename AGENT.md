@@ -152,6 +152,7 @@ When in doubt, update those source docs instead of expanding this file.
 121. For multi-user file partitioning, reuse `src/mealplan/infrastructure/user_paths.py` (`canonicalize_user_email`, `user_email_to_filename_prefix`, `resolve_user_partitioned_path`) so email normalization (`trim -> lowercase`), filename sanitization (`[^a-zA-Z0-9.] -> _`), and storage-directory containment checks stay consistent across CLI and web adapters.
 122. For bearer-protected web APIs in `src/mealplan/web/ui_server.py`, call `_require_authenticated_user(...)` at the start of each protected handler so auth failures return canonical `401` envelopes (`auth_missing_token`/`auth_invalid_token`) before payload parsing or domain validation.
 123. For auth brute-force protection in `src/mealplan/web/ui_server.py`, pass a stable route-pattern `endpoint_key` into `_require_authenticated_user(...)` (for example `/api/v1/log/{uuid}`) so rate limiting stays keyed by IP+endpoint, and trust `X-Forwarded-For` only when `MEALPLAN_TRUSTED_PROXY_CIDRS` contains the socket remote IP.
+124. For set-user token lifecycle routes (`/api/v1/users/register|attach-token|exchange-token`), canonicalize incoming email with `canonicalize_user_email`, resolve tokens through `_resolve_user_for_token(...)`, and persist token changes via `JsonUsersStore` mutation helpers so writes remain lock+fsync+atomic-rename safe.
 
 ## Ralph Runner
 

@@ -7,7 +7,9 @@ import logging
 import os
 import stat
 from collections.abc import Mapping
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
+from fcntl import LOCK_EX, LOCK_UN, flock
 from pathlib import Path
 from typing import Any
 
@@ -69,19 +71,53 @@ class JsonUsersStore:
         token_verifier: Mapping[str, object],
     ) -> PersistedUser:
         """Create or replace one user by email."""
+        normalized_email = email.strip()
+        if not normalized_email:
+            raise ValidationError("email: value is required")
+        if not name.strip():
+            raise ValidationError("name: value is required")
         if _contains_plaintext_token(raw_value=token_verifier):
             raise ValidationError("token: plaintext bearer token persistence is forbidden")
 
-        persisted = PersistedUser(email=email, name=name, token_verifier=dict(token_verifier))
+        persisted = PersistedUser(
+            email=normalized_email,
+            name=name,
+            token_verifier=dict(token_verifier),
+        )
 
-        existing = {user.email: user for user in self.list_users()}
-        existing[email] = persisted
-        ordered_users = [existing[key] for key in sorted(existing)]
-        payload = {
-            "schema_version": USERS_STORE_SCHEMA_VERSION,
-            "users": [user.as_dict() for user in ordered_users],
-        }
-        self._write_store(payload)
+        with self._exclusive_lock():
+            existing = {user.email: user for user in self._list_users_for_update()}
+            existing[normalized_email] = persisted
+            self._write_users(users_by_email=existing)
+        return persisted
+
+    def create_user(
+        self,
+        *,
+        email: str,
+        name: str,
+        token_verifier: Mapping[str, object],
+    ) -> PersistedUser | None:
+        """Create one user by email, returning None if email already exists."""
+        normalized_email = email.strip()
+        if not normalized_email:
+            raise ValidationError("email: value is required")
+        if not name.strip():
+            raise ValidationError("name: value is required")
+        if _contains_plaintext_token(raw_value=token_verifier):
+            raise ValidationError("token: plaintext bearer token persistence is forbidden")
+
+        persisted = PersistedUser(
+            email=normalized_email,
+            name=name,
+            token_verifier=dict(token_verifier),
+        )
+        with self._exclusive_lock():
+            existing = {user.email: user for user in self._list_users_for_update()}
+            if normalized_email in existing:
+                return None
+            existing[normalized_email] = persisted
+            self._write_users(users_by_email=existing)
         return persisted
 
     def _load_store(self) -> dict[str, Any]:
@@ -119,17 +155,49 @@ class JsonUsersStore:
         return {"schema_version": schema_version, "users": users_value}
 
     def _write_store(self, payload: Mapping[str, object]) -> None:
+        with self._exclusive_lock():
+            self._write_store_locked(payload)
+
+    def _list_users_for_update(self) -> list[PersistedUser]:
+        if not self._storage_path.exists():
+            return []
+        payload = self._load_store()
+        users_payload = payload.get("users", [])
+        if not isinstance(users_payload, list):
+            raise ConfigError("users.store: users must be an array")
+        return [
+            _parse_persisted_user(raw_user=user, index=index)
+            for index, user in enumerate(users_payload)
+        ]
+
+    def _write_users(self, *, users_by_email: Mapping[str, PersistedUser]) -> None:
+        ordered_users = [users_by_email[key] for key in sorted(users_by_email)]
+        payload = {
+            "schema_version": USERS_STORE_SCHEMA_VERSION,
+            "users": [user.as_dict() for user in ordered_users],
+        }
+        self._write_store_locked(payload)
+
+    def _write_store_locked(self, payload: Mapping[str, object]) -> None:
+        self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = self._storage_path.parent / f".{self._storage_path.name}.{os.getpid()}.tmp"
         try:
-            self._storage_path.parent.mkdir(parents=True, exist_ok=True)
-            self._storage_path.write_text(
-                json.dumps(payload, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
+            with temp_path.open("w", encoding="utf-8") as temp_file:
+                temp_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temp_path, self._storage_path)
+            self._fsync_parent_directory()
         except OSError as error:
             raise ConfigError(f"users.store: unable to write storage file: {error}") from error
+        finally:
+            try:
+                if temp_path.exists():
+                    temp_path.unlink()
+            except OSError:
+                pass
 
         self._warn_if_permissions_weaker_than_target()
-
         try:
             os.chmod(self._storage_path, 0o600)
         except OSError:
@@ -137,6 +205,33 @@ class JsonUsersStore:
                 "users.store: unable to set file mode 0600 for %s",
                 self._storage_path,
             )
+
+    def _fsync_parent_directory(self) -> None:
+        try:
+            directory_fd = os.open(self._storage_path.parent, os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(directory_fd)
+        except OSError:
+            pass
+        finally:
+            os.close(directory_fd)
+
+    @contextmanager
+    def _exclusive_lock(self) -> Any:
+        lock_path = self._storage_path.parent / f".{self._storage_path.name}.lock"
+        self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("a+", encoding="utf-8") as lock_file:
+            try:
+                flock(lock_file.fileno(), LOCK_EX)
+            except OSError as error:
+                raise ConfigError(f"users.store: unable to lock storage file: {error}") from error
+            try:
+                yield
+            finally:
+                with suppress(OSError):
+                    flock(lock_file.fileno(), LOCK_UN)
 
     def _warn_if_permissions_weaker_than_target(self) -> None:
         try:

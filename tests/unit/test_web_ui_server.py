@@ -450,19 +450,108 @@ def test_ui_server_log_post_creates_entry_and_returns_canonical_payload(
     assert response["uuid"] in stored
 
 
-@pytest.mark.parametrize(
-    "path",
-    [USERS_REGISTER_ROUTE, USERS_ATTACH_TOKEN_ROUTE, USERS_EXCHANGE_TOKEN_ROUTE],
-)
-def test_ui_server_user_management_routes_are_reserved_with_canonical_error_envelope(
-    path: str,
+def test_ui_server_register_creates_user_and_returns_token_without_persisting_plaintext(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    with _running_test_server() as port:
-        status, payload = _post_json_expect_http_error(port, path, {"placeholder": True})
+    users_store_path = tmp_path / "users.json"
+    monkeypatch.setenv("MEALPLAN_USERS_STORE_PATH", str(users_store_path))
 
-    assert status == 501
-    assert payload["error"]["code"] == "not_implemented"
+    with _running_test_server() as port:
+        status, payload = _post_json(
+            port,
+            USERS_REGISTER_ROUTE,
+            {"email": "  New.User@Example.COM  ", "name": "New User"},
+            auth=False,
+        )
+
+    assert status == 200
+    assert payload["email"] == "new.user@example.com"
+    assert payload["name"] == "New User"
+    assert payload["token"].startswith("mpu_v1_")
+    persisted = json.loads(users_store_path.read_text(encoding="utf-8"))
+    persisted_users = {entry["email"]: entry for entry in persisted["users"]}
+    assert "new.user@example.com" in persisted_users
+    assert "token" not in persisted_users["new.user@example.com"]["token_verifier"]
+
+
+def test_ui_server_register_rejects_duplicate_email(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    users_store_path = tmp_path / "users.json"
+    monkeypatch.setenv("MEALPLAN_USERS_STORE_PATH", str(users_store_path))
+
+    with _running_test_server() as port:
+        first_status, first_payload = _post_json(
+            port,
+            USERS_REGISTER_ROUTE,
+            {"email": "new.user@example.com", "name": "First"},
+            auth=False,
+        )
+        second_status, second_payload = _post_json_expect_http_error(
+            port,
+            USERS_REGISTER_ROUTE,
+            {"email": " New.User@Example.Com ", "name": "Second"},
+            auth=False,
+        )
+
+    assert first_status == 200
+    assert first_payload["email"] == "new.user@example.com"
+    assert second_status == 409
+    assert second_payload["error"]["code"] == "user_already_exists"
+    assert isinstance(second_payload["error"]["request_id"], str)
+
+
+def test_ui_server_attach_token_rejects_email_mismatch() -> None:
+    token = _DEFAULT_AUTH_HEADERS["Authorization"].removeprefix("Bearer ").strip()
+
+    with _running_test_server() as port:
+        status, payload = _post_json_expect_http_error(
+            port,
+            USERS_ATTACH_TOKEN_ROUTE,
+            {"email": "different@example.com", "token": token},
+            auth=False,
+        )
+
+    assert status == 403
+    assert payload["error"]["code"] == "auth_token_email_mismatch"
     assert isinstance(payload["error"]["request_id"], str)
+
+
+def test_ui_server_exchange_token_rotates_and_invalidates_previous_token() -> None:
+    old_token = _DEFAULT_AUTH_HEADERS["Authorization"].removeprefix("Bearer ").strip()
+
+    with _running_test_server() as port:
+        exchange_status, exchange_payload = _post_json(
+            port,
+            USERS_EXCHANGE_TOKEN_ROUTE,
+            {"token": old_token},
+            auth=False,
+        )
+        old_attach_status, old_attach_payload = _post_json_expect_http_error(
+            port,
+            USERS_ATTACH_TOKEN_ROUTE,
+            {"email": "user@example.com", "token": old_token},
+            auth=False,
+        )
+        new_attach_status, new_attach_payload = _post_json(
+            port,
+            USERS_ATTACH_TOKEN_ROUTE,
+            {
+                "email": "user@example.com",
+                "token": exchange_payload["token"],
+            },
+            auth=False,
+        )
+
+    assert exchange_status == 200
+    assert exchange_payload["token"].startswith("mpu_v1_")
+    assert exchange_payload["token"] != old_token
+    assert old_attach_status == 401
+    assert old_attach_payload["error"]["code"] == "auth_invalid_token"
+    assert new_attach_status == 200
+    assert new_attach_payload == {"email": "user@example.com", "name": "Example User"}
 
 
 def test_ui_server_auth_rate_limited_error_includes_retry_after_header(

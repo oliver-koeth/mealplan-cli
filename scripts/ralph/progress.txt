@@ -9,6 +9,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For user-partitioned storage filenames, use `src/mealplan/infrastructure/user_paths.py` helpers so email canonicalization (`trim -> lowercase`), filename sanitization (`[^a-zA-Z0-9.] -> _`), and storage-directory containment checks are applied consistently.
 - For bearer-protected API handlers in `src/mealplan/web/ui_server.py`, call `_require_authenticated_user(...)` before request parsing/store access so auth failures always short-circuit to canonical `auth_missing_token` / `auth_invalid_token` envelopes.
 - For auth brute-force controls in `src/mealplan/web/ui_server.py`, keep rate limiting inside `_require_authenticated_user(...)` with a stable per-route `endpoint_key` (for example `/api/v1/log/{uuid}`), and honor `X-Forwarded-For` only when the socket remote IP is within `MEALPLAN_TRUSTED_PROXY_CIDRS`.
+- For set-user token lifecycle flows, canonicalize request emails with `canonicalize_user_email`, resolve bearer ownership via `_resolve_user_for_token(...)`, and persist user-token mutations through `JsonUsersStore` lock+fsync+atomic-rename writes.
 
 ---
 
@@ -171,4 +172,35 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - `X-Forwarded-For` must be ignored by default in local server mode; tests should explicitly set `MEALPLAN_TRUSTED_PROXY_CIDRS` when validating forwarded-client behavior.
   - Useful context (e.g., "the evaluation panel is in component X")
   - Existing `auth=False` request helpers in `tests/unit/test_web_ui_server.py` are the simplest way to exercise invalid-token and rate-limit paths without fixture token coupling.
+---
+
+## [2026-04-11 16:54:59 CEST] - US-007
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- What was implemented
+- Implemented set-user API endpoints in `src/mealplan/web/ui_server.py`:
+  - `POST /api/v1/users/register` now canonicalizes email, creates users only when absent, returns `409 user_already_exists` on duplicates, and returns the plaintext bearer token once.
+  - `POST /api/v1/users/attach-token` now validates token ownership and returns `403 auth_token_email_mismatch` for email/token mismatch.
+  - `POST /api/v1/users/exchange-token` now validates existing token, issues a replacement token, and invalidates the old token immediately after persisted rotation.
+- Added shared `_resolve_user_for_token(...)` helper and reused it for both protected-route auth checks and set-user token flows to keep bearer resolution behavior deterministic.
+- Hardened `JsonUsersStore` mutation writes in `src/mealplan/infrastructure/users_store.py` with safe persistence semantics: exclusive file lock, temp-file write, `fsync`, atomic `os.replace`, and parent-directory `fsync`.
+- Added race-safe `create_user(...)` helper in users store so duplicate-email checks for register happen under the same lock as persistence.
+- Added/updated tests:
+  - `tests/unit/test_web_ui_server.py` now covers register success + duplicate conflict, attach mismatch behavior, and exchange rotation invalidating prior token.
+  - `tests/unit/test_users_store.py` now covers duplicate-safe `create_user(...)` and atomic write behavior (`os.replace` + `fsync` usage).
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (444 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/users_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_users_store.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - For register semantics that must return duplicate conflicts deterministically, perform existence-check and write under one users-store lock (`JsonUsersStore.create_user`) instead of split read/write operations in handlers.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `tests/unit/test_web_ui_server.py` autouse auth fixture seeds a default user/token, so set-user endpoint assertions should not assume an initially empty users store unless they override fixture setup.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `_resolve_user_for_token(...)` is now the canonical bearer-token-to-user lookup path in the web adapter; reuse it when adding future token-aware endpoints to avoid divergence from auth middleware behavior.
 ---
