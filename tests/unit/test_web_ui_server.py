@@ -24,6 +24,7 @@ from mealplan.infrastructure import (
     generate_bearer_token,
     hash_bearer_token,
     resolve_users_store_path,
+    user_email_to_filename_prefix,
 )
 from mealplan.shared.errors import DomainRuleError, ValidationError
 from mealplan.web import ui_server
@@ -311,6 +312,10 @@ def _get_html(port: int, path: str) -> tuple[int, str]:
         return response.status, response.read().decode("utf-8")
 
 
+def _user_partitioned_store_path(*, base_store_path: Path, email: str) -> Path:
+    return base_store_path.parent / f"{user_email_to_filename_prefix(email)}-{base_store_path.name}"
+
+
 def test_ui_server_calculate_endpoint_returns_canonical_response_shape(
     monkeypatch: pytest.MonkeyPatch,
     meal_plan_request_payload: dict[str, Any],
@@ -354,7 +359,11 @@ def test_ui_server_calendar_put_and_get_round_trip(
     assert put_payload == {"date": "20260406"}
     assert get_status == 200
     assert get_payload == meal_plan_response_payload
-    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    user_store_path = _user_partitioned_store_path(
+        base_store_path=store_path,
+        email="user@example.com",
+    )
+    stored = json.loads(user_store_path.read_text(encoding="utf-8"))
     assert stored == {"20260406": meal_plan_response_payload}
 
 
@@ -446,7 +455,11 @@ def test_ui_server_log_post_creates_entry_and_returns_canonical_payload(
     assert response["fat"] == 15.0
     assert response["protein"] == 18.0
     assert response["fiber"] == 0.0
-    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    user_store_path = _user_partitioned_store_path(
+        base_store_path=store_path,
+        email="user@example.com",
+    )
+    stored = json.loads(user_store_path.read_text(encoding="utf-8"))
     assert response["uuid"] in stored
 
 
@@ -809,7 +822,11 @@ def test_ui_server_log_put_updates_entry_for_uuid_path(
     assert response["meal"] == "dinner"
     assert response["name"] == "Salmon"
     assert response["kcal"] == 450.0
-    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    user_store_path = _user_partitioned_store_path(
+        base_store_path=store_path,
+        email="user@example.com",
+    )
+    stored = json.loads(user_store_path.read_text(encoding="utf-8"))
     assert stored[created["uuid"]]["name"] == "Salmon"
 
 
@@ -851,9 +868,96 @@ def test_ui_server_log_put_uses_path_uuid_even_if_body_uuid_differs(
 
     assert status == 200
     assert response["uuid"] == created["uuid"]
-    stored = json.loads(store_path.read_text(encoding="utf-8"))
+    user_store_path = _user_partitioned_store_path(
+        base_store_path=store_path,
+        email="user@example.com",
+    )
+    stored = json.loads(user_store_path.read_text(encoding="utf-8"))
     assert list(stored.keys()) == [created["uuid"]]
     assert stored[created["uuid"]]["name"] == "Salmon"
+
+
+def test_ui_server_calendar_and_log_storage_are_isolated_per_authenticated_user(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    meal_plan_response_payload: dict[str, Any],
+) -> None:
+    calendar_store_path = tmp_path / "calendar.json"
+    food_log_store_path = tmp_path / "food-log.json"
+    monkeypatch.setenv(ui_server.CALENDAR_STORE_PATH_ENV, str(calendar_store_path))
+    monkeypatch.setenv(ui_server.FOOD_LOG_STORE_PATH_ENV, str(food_log_store_path))
+
+    users_store = JsonUsersStore(resolve_users_store_path())
+    second_user_token = generate_bearer_token()
+    users_store.upsert_user(
+        email="second.user@example.com",
+        name="Second User",
+        token_verifier=hash_bearer_token(token=second_user_token),
+    )
+    second_user_headers = {"Authorization": f"Bearer {second_user_token}"}
+
+    log_payload = {
+        "date": "20260408",
+        "meal": "breakfast",
+        "name": "Eggs",
+        "kcal": 210.0,
+        "carbs": 2.0,
+        "fat": 15.0,
+        "protein": 18.0,
+        "fiber": 0.0,
+    }
+
+    with _running_test_server() as port:
+        first_calendar_status, first_calendar_response = _put_json(
+            port,
+            "/api/v1/calendar/20260408",
+            meal_plan_response_payload,
+        )
+        first_log_status, _ = _post_json(port, "/api/v1/log", log_payload)
+
+        second_calendar_status, second_calendar_response = _get_json_expect_http_error(
+            port,
+            "/api/v1/calendar/20260408",
+            headers=second_user_headers,
+            auth=False,
+        )
+        second_log_status, second_log_response = _get_json(
+            port,
+            "/api/v1/log/search",
+            headers=second_user_headers,
+            auth=False,
+        )
+
+    first_calendar_store = _user_partitioned_store_path(
+        base_store_path=calendar_store_path,
+        email="user@example.com",
+    )
+    second_calendar_store = _user_partitioned_store_path(
+        base_store_path=calendar_store_path,
+        email="second.user@example.com",
+    )
+    first_log_store = _user_partitioned_store_path(
+        base_store_path=food_log_store_path,
+        email="user@example.com",
+    )
+    second_log_store = _user_partitioned_store_path(
+        base_store_path=food_log_store_path,
+        email="second.user@example.com",
+    )
+
+    assert first_calendar_status == 200
+    assert first_calendar_response == {"date": "20260408"}
+    assert first_log_status == 200
+    assert second_calendar_status == 404
+    assert second_calendar_response["error"]["code"] == "calendar_not_found"
+    assert second_log_status == 200
+    assert second_log_response == []
+    assert first_calendar_store.exists()
+    assert first_log_store.exists()
+    assert second_calendar_store.exists()
+    assert second_log_store.exists()
+    assert json.loads(second_calendar_store.read_text(encoding="utf-8")) == {}
+    assert json.loads(second_log_store.read_text(encoding="utf-8")) == {}
 
 
 def test_ui_server_log_put_unknown_uuid_maps_to_structured_http_404(

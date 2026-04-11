@@ -10,6 +10,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For bearer-protected API handlers in `src/mealplan/web/ui_server.py`, call `_require_authenticated_user(...)` before request parsing/store access so auth failures always short-circuit to canonical `auth_missing_token` / `auth_invalid_token` envelopes.
 - For auth brute-force controls in `src/mealplan/web/ui_server.py`, keep rate limiting inside `_require_authenticated_user(...)` with a stable per-route `endpoint_key` (for example `/api/v1/log/{uuid}`), and honor `X-Forwarded-For` only when the socket remote IP is within `MEALPLAN_TRUSTED_PROXY_CIDRS`.
 - For set-user token lifecycle flows, canonicalize request emails with `canonicalize_user_email`, resolve bearer ownership via `_resolve_user_for_token(...)`, and persist user-token mutations through `JsonUsersStore` lock+fsync+atomic-rename writes.
+- For bearer-protected calendar/log handlers in `src/mealplan/web/ui_server.py`, derive storage files from authenticated user identity using `resolve_user_partitioned_path(...)` so persistence is always per-user (`<user-prefix>-calendar.json` and `<user-prefix>-food-log.json`) under the configured storage directory.
 
 ---
 
@@ -203,4 +204,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - `tests/unit/test_web_ui_server.py` autouse auth fixture seeds a default user/token, so set-user endpoint assertions should not assume an initially empty users store unless they override fixture setup.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `_resolve_user_for_token(...)` is now the canonical bearer-token-to-user lookup path in the web adapter; reuse it when adding future token-aware endpoints to avoid divergence from auth middleware behavior.
+---
+
+## [2026-04-11 16:59:56 CEST] - US-008
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-7.txt
+- What was implemented
+- Updated bearer-protected calendar/log handlers in `src/mealplan/web/ui_server.py` to capture the authenticated user once and resolve user-scoped storage paths for every calendar and food-log read/write operation.
+- Added `_user_calendar_store_path(...)` and `_user_food_log_store_path(...)` helpers that derive `<user-prefix>-calendar.json` and `<user-prefix>-food-log.json` via `resolve_user_partitioned_path(...)`, rooted at the configured storage directory (`MEALPLAN_CALENDAR_STORE_PATH` / `MEALPLAN_FOOD_LOG_STORE_PATH` parent).
+- Ensured API persistence isolation by removing shared store usage from protected handlers (`/api/v1/calendar/{date}`, `/api/v1/log`, `/api/v1/log/{uuid}`, `/api/v1/log/search`).
+- Updated existing web-server tests to assert against user-partitioned files and added explicit cross-user isolation coverage verifying one user's data is not visible to another user via authenticated API requests.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (445 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - For bearer-protected persistence handlers, bind auth once and derive all downstream store paths from that `PersistedUser` rather than calling shared `_calendar_store_path()` / `_food_log_store_path()` directly.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `JsonCalendarStore` and `JsonFoodLogStore` auto-create missing files on first read, so isolation tests should assert empty per-user files/content rather than assuming non-existent files for untouched users.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - Existing helper functions (`_post_json`, `_get_json`, `_put_json`) support secondary-user auth flows by passing `auth=False` plus explicit `Authorization` headers, which is the simplest path for multi-user API isolation tests.
 ---

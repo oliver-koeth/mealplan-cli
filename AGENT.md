@@ -153,6 +153,7 @@ When in doubt, update those source docs instead of expanding this file.
 122. For bearer-protected web APIs in `src/mealplan/web/ui_server.py`, call `_require_authenticated_user(...)` at the start of each protected handler so auth failures return canonical `401` envelopes (`auth_missing_token`/`auth_invalid_token`) before payload parsing or domain validation.
 123. For auth brute-force protection in `src/mealplan/web/ui_server.py`, pass a stable route-pattern `endpoint_key` into `_require_authenticated_user(...)` (for example `/api/v1/log/{uuid}`) so rate limiting stays keyed by IP+endpoint, and trust `X-Forwarded-For` only when `MEALPLAN_TRUSTED_PROXY_CIDRS` contains the socket remote IP.
 124. For set-user token lifecycle routes (`/api/v1/users/register|attach-token|exchange-token`), canonicalize incoming email with `canonicalize_user_email`, resolve tokens through `_resolve_user_for_token(...)`, and persist token changes via `JsonUsersStore` mutation helpers so writes remain lock+fsync+atomic-rename safe.
+125. For bearer-protected calendar/log API handlers, resolve store paths from the authenticated user via `resolve_user_partitioned_path(...)` so persistence always targets `<user-prefix>-calendar.json` / `<user-prefix>-food-log.json` under the configured storage directory.
 
 ## Ralph Runner
 

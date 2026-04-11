@@ -49,6 +49,7 @@ from mealplan.infrastructure import (
     canonicalize_user_email,
     generate_bearer_token,
     hash_bearer_token,
+    resolve_user_partitioned_path,
     resolve_users_store_path,
     verify_bearer_token,
 )
@@ -4191,12 +4192,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_log_post(self) -> None:
         request_id = str(uuid4())
-        if (
-            self._require_authenticated_user(request_id=request_id, endpoint_key="/api/v1/log")
-            is None
-        ):
+        authenticated_user = self._require_authenticated_user(
+            request_id=request_id,
+            endpoint_key="/api/v1/log",
+        )
+        if authenticated_user is None:
             return
-        store = JsonFoodLogStore(_food_log_store_path())
+        store = JsonFoodLogStore(_user_food_log_store_path(user=authenticated_user))
         try:
             payload = self._read_json_payload()
             request = parse_contract(FoodLogUpsertRequest, payload)
@@ -4352,15 +4354,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_log_put(self, entry_uuid: str) -> None:
         request_id = str(uuid4())
-        if (
-            self._require_authenticated_user(
-                request_id=request_id,
-                endpoint_key="/api/v1/log/{uuid}",
-            )
-            is None
-        ):
+        authenticated_user = self._require_authenticated_user(
+            request_id=request_id,
+            endpoint_key="/api/v1/log/{uuid}",
+        )
+        if authenticated_user is None:
             return
-        store = JsonFoodLogStore(_food_log_store_path())
+        store = JsonFoodLogStore(_user_food_log_store_path(user=authenticated_user))
         try:
             payload = dict(self._read_json_payload())
             payload["uuid"] = entry_uuid
@@ -4406,15 +4406,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_log_search_get(self) -> None:
         request_id = str(uuid4())
-        if (
-            self._require_authenticated_user(
-                request_id=request_id,
-                endpoint_key="/api/v1/log/search",
-            )
-            is None
-        ):
+        authenticated_user = self._require_authenticated_user(
+            request_id=request_id,
+            endpoint_key="/api/v1/log/search",
+        )
+        if authenticated_user is None:
             return
-        store = JsonFoodLogStore(_food_log_store_path())
+        store = JsonFoodLogStore(_user_food_log_store_path(user=authenticated_user))
         try:
             request = parse_contract(
                 FoodLogSearchRequest,
@@ -4459,15 +4457,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_calendar_get(self, date_key: str) -> None:
         request_id = str(uuid4())
-        if (
-            self._require_authenticated_user(
-                request_id=request_id,
-                endpoint_key="/api/v1/calendar/{date}",
-            )
-            is None
-        ):
+        authenticated_user = self._require_authenticated_user(
+            request_id=request_id,
+            endpoint_key="/api/v1/calendar/{date}",
+        )
+        if authenticated_user is None:
             return
-        store = JsonCalendarStore(_calendar_store_path())
+        store = JsonCalendarStore(_user_calendar_store_path(user=authenticated_user))
         try:
             canonical_date = _normalize_calendar_date(date_key)
             response_payload = store.get(date_key=canonical_date)
@@ -4512,15 +4508,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_calendar_put(self, date_key: str) -> None:
         request_id = str(uuid4())
-        if (
-            self._require_authenticated_user(
-                request_id=request_id,
-                endpoint_key="/api/v1/calendar/{date}",
-            )
-            is None
-        ):
+        authenticated_user = self._require_authenticated_user(
+            request_id=request_id,
+            endpoint_key="/api/v1/calendar/{date}",
+        )
+        if authenticated_user is None:
             return
-        store = JsonCalendarStore(_calendar_store_path())
+        store = JsonCalendarStore(_user_calendar_store_path(user=authenticated_user))
         try:
             payload = self._read_json_payload()
             response = parse_contract(MealPlanResponse, payload)
@@ -4769,6 +4763,24 @@ def _food_log_store_path() -> Path:
     if configured_path:
         return Path(configured_path).expanduser()
     return Path.home() / ".mealplan" / "food-log.json"
+
+
+def _user_calendar_store_path(*, user: PersistedUser) -> Path:
+    base_path = _calendar_store_path()
+    return resolve_user_partitioned_path(
+        storage_directory=base_path.parent,
+        email=user.email,
+        suffix_filename=base_path.name,
+    )
+
+
+def _user_food_log_store_path(*, user: PersistedUser) -> Path:
+    base_path = _food_log_store_path()
+    return resolve_user_partitioned_path(
+        storage_directory=base_path.parent,
+        email=user.email,
+        suffix_filename=base_path.name,
+    )
 
 
 def _ip_is_trusted_proxy(candidate_ip: str) -> bool:
