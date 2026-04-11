@@ -8,10 +8,13 @@ import signal
 import socketserver
 import threading
 import time
+from collections import deque
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 from pathlib import Path
 from string import Template
 from urllib.parse import parse_qs, urlsplit
@@ -50,7 +53,49 @@ UI_PORT_START_ENV = "MEALPLAN_UI_PORT_START"
 UI_PORT_END_ENV = "MEALPLAN_UI_PORT_END"
 CALENDAR_STORE_PATH_ENV = "MEALPLAN_CALENDAR_STORE_PATH"
 FOOD_LOG_STORE_PATH_ENV = "MEALPLAN_FOOD_LOG_STORE_PATH"
+TRUSTED_PROXY_CIDRS_ENV = "MEALPLAN_TRUSTED_PROXY_CIDRS"
+AUTH_RATE_LIMIT_MAX_REQUESTS = 100
+AUTH_RATE_LIMIT_WINDOW_SECONDS = 60.0
+AUTH_RATE_LIMIT_COOLDOWN_SECONDS = 60.0
 _DATE_KEY_FORMAT = "%Y%m%d"
+
+
+@dataclass
+class _AuthRateLimitEntry:
+    attempts: deque[float] = field(default_factory=deque)
+    cooldown_until: float = 0.0
+
+
+class _AuthRateLimiter:
+    def __init__(self) -> None:
+        self._entries: dict[tuple[str, str], _AuthRateLimitEntry] = {}
+        self._lock = threading.Lock()
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
+    def is_limited(self, *, client_ip: str, endpoint_key: str) -> bool:
+        now = time.monotonic()
+        window_start = now - AUTH_RATE_LIMIT_WINDOW_SECONDS
+        key = (client_ip, endpoint_key)
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                entry = _AuthRateLimitEntry()
+                self._entries[key] = entry
+            if entry.cooldown_until > now:
+                return True
+
+            while entry.attempts and entry.attempts[0] <= window_start:
+                entry.attempts.popleft()
+            entry.attempts.append(now)
+            if len(entry.attempts) > AUTH_RATE_LIMIT_MAX_REQUESTS:
+                entry.cooldown_until = now + AUTH_RATE_LIMIT_COOLDOWN_SECONDS
+                return True
+            if not entry.attempts and entry.cooldown_until <= now:
+                self._entries.pop(key, None)
+            return False
 
 _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 <html lang="en">
@@ -3997,6 +4042,7 @@ class _UiServer(ThreadingHTTPServer):
 
 class _UiRequestHandler(BaseHTTPRequestHandler):
     server: _UiServer
+    _AUTH_RATE_LIMITER = _AuthRateLimiter()
 
     def log_message(self, format: str, *args: object) -> None:  # noqa: A003
         _ = (format, args)
@@ -4082,7 +4128,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_calculate_post(self) -> None:
         request_id = str(uuid4())
-        if self._require_authenticated_user(request_id=request_id) is None:
+        if (
+            self._require_authenticated_user(
+                request_id=request_id,
+                endpoint_key="/api/v1/calculate",
+            )
+            is None
+        ):
             return
         try:
             payload = self._read_json_payload()
@@ -4130,7 +4182,10 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_log_post(self) -> None:
         request_id = str(uuid4())
-        if self._require_authenticated_user(request_id=request_id) is None:
+        if (
+            self._require_authenticated_user(request_id=request_id, endpoint_key="/api/v1/log")
+            is None
+        ):
             return
         store = JsonFoodLogStore(_food_log_store_path())
         try:
@@ -4195,7 +4250,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_log_put(self, entry_uuid: str) -> None:
         request_id = str(uuid4())
-        if self._require_authenticated_user(request_id=request_id) is None:
+        if (
+            self._require_authenticated_user(
+                request_id=request_id,
+                endpoint_key="/api/v1/log/{uuid}",
+            )
+            is None
+        ):
             return
         store = JsonFoodLogStore(_food_log_store_path())
         try:
@@ -4243,7 +4304,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_log_search_get(self) -> None:
         request_id = str(uuid4())
-        if self._require_authenticated_user(request_id=request_id) is None:
+        if (
+            self._require_authenticated_user(
+                request_id=request_id,
+                endpoint_key="/api/v1/log/search",
+            )
+            is None
+        ):
             return
         store = JsonFoodLogStore(_food_log_store_path())
         try:
@@ -4290,7 +4357,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_calendar_get(self, date_key: str) -> None:
         request_id = str(uuid4())
-        if self._require_authenticated_user(request_id=request_id) is None:
+        if (
+            self._require_authenticated_user(
+                request_id=request_id,
+                endpoint_key="/api/v1/calendar/{date}",
+            )
+            is None
+        ):
             return
         store = JsonCalendarStore(_calendar_store_path())
         try:
@@ -4337,7 +4410,13 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_calendar_put(self, date_key: str) -> None:
         request_id = str(uuid4())
-        if self._require_authenticated_user(request_id=request_id) is None:
+        if (
+            self._require_authenticated_user(
+                request_id=request_id,
+                endpoint_key="/api/v1/calendar/{date}",
+            )
+            is None
+        ):
             return
         store = JsonCalendarStore(_calendar_store_path())
         try:
@@ -4377,7 +4456,17 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
     def _request_path(self) -> str:
         return urlsplit(self.path).path
 
-    def _require_authenticated_user(self, *, request_id: str) -> PersistedUser | None:
+    def _require_authenticated_user(
+        self,
+        *,
+        request_id: str,
+        endpoint_key: str,
+    ) -> PersistedUser | None:
+        client_ip = self._resolve_client_ip()
+        if self._AUTH_RATE_LIMITER.is_limited(client_ip=client_ip, endpoint_key=endpoint_key):
+            self._write_auth_error(code="auth_rate_limited", request_id=request_id)
+            return None
+
         token = self._extract_bearer_token()
         if token is None:
             self._write_auth_error(code="auth_missing_token", request_id=request_id)
@@ -4394,6 +4483,23 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
 
         self._write_auth_error(code="auth_invalid_token", request_id=request_id)
         return None
+
+    def _resolve_client_ip(self) -> str:
+        remote_ip = self.client_address[0]
+        if not _ip_is_trusted_proxy(remote_ip):
+            return remote_ip
+
+        forwarded_for = self.headers.get("X-Forwarded-For")
+        if forwarded_for is None:
+            return remote_ip
+        candidate = forwarded_for.split(",")[0].strip()
+        if not candidate:
+            return remote_ip
+        try:
+            ip_address(candidate)
+        except ValueError:
+            return remote_ip
+        return candidate
 
     def _extract_bearer_token(self) -> str | None:
         authorization_header = self.headers.get("Authorization")
@@ -4550,6 +4656,30 @@ def _food_log_store_path() -> Path:
     if configured_path:
         return Path(configured_path).expanduser()
     return Path.home() / ".mealplan" / "food-log.json"
+
+
+def _ip_is_trusted_proxy(candidate_ip: str) -> bool:
+    try:
+        parsed_ip = ip_address(candidate_ip)
+    except ValueError:
+        return False
+    return any(parsed_ip in network for network in _trusted_proxy_networks())
+
+
+def _trusted_proxy_networks() -> tuple[IPv4Network | IPv6Network, ...]:
+    configured = os.environ.get(TRUSTED_PROXY_CIDRS_ENV, "")
+    if not configured.strip():
+        return ()
+    networks: list[IPv4Network | IPv6Network] = []
+    for raw_cidr in configured.split(","):
+        cidr = raw_cidr.strip()
+        if not cidr:
+            continue
+        try:
+            networks.append(ip_network(cidr, strict=False))
+        except ValueError:
+            continue
+    return tuple(networks)
 
 
 def _calendar_date_from_path(path: str) -> str | None:

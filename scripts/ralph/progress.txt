@@ -8,6 +8,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For set-user/auth API contract stories, define route constants and auth error defaults centrally in `src/mealplan/application/contracts.py` and use `_write_api_error` in `src/mealplan/web/ui_server.py` so canonical envelopes remain stable and `auth_rate_limited` can consistently include `Retry-After: 60`.
 - For user-partitioned storage filenames, use `src/mealplan/infrastructure/user_paths.py` helpers so email canonicalization (`trim -> lowercase`), filename sanitization (`[^a-zA-Z0-9.] -> _`), and storage-directory containment checks are applied consistently.
 - For bearer-protected API handlers in `src/mealplan/web/ui_server.py`, call `_require_authenticated_user(...)` before request parsing/store access so auth failures always short-circuit to canonical `auth_missing_token` / `auth_invalid_token` envelopes.
+- For auth brute-force controls in `src/mealplan/web/ui_server.py`, keep rate limiting inside `_require_authenticated_user(...)` with a stable per-route `endpoint_key` (for example `/api/v1/log/{uuid}`), and honor `X-Forwarded-For` only when the socket remote IP is within `MEALPLAN_TRUSTED_PROXY_CIDRS`.
 
 ---
 
@@ -147,4 +148,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Enabling bearer auth on API routes requires updating CLI/UI-mode integration tests to provision `MEALPLAN_USERS_STORE_PATH` and include an Authorization header, otherwise endpoint assertions fail with `401`.
   - Useful context (e.g., "the evaluation panel is in component X")
   - Auth is intentionally checked before request-body/query parsing in protected handlers, so unauthenticated calls return auth errors instead of validation/domain errors.
+---
+
+## [2026-04-11 16:48:51 CEST] - US-006
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-5.txt
+- What was implemented
+- Added thread-safe in-memory auth brute-force protection in `src/mealplan/web/ui_server.py` with threshold `100` requests/minute per `client_ip + endpoint_key`, plus 60-second cooldown lockout and canonical `429 auth_rate_limited` responses with `Retry-After: 60`.
+- Wired all bearer-protected handlers to pass stable endpoint keys into `_require_authenticated_user(...)` (`/api/v1/calculate`, `/api/v1/log`, `/api/v1/log/search`, `/api/v1/log/{uuid}`, `/api/v1/calendar/{date}`) so rate-limiting scope is deterministic.
+- Implemented client IP resolution rules for limiter keys: default to socket remote address, and only trust `X-Forwarded-For` when remote IP belongs to CIDRs configured in `MEALPLAN_TRUSTED_PROXY_CIDRS`.
+- Extended web unit tests to cover rate-limit enforcement headers, per-IP+endpoint keying behavior, and trusted-proxy vs non-trusted-proxy `X-Forwarded-For` handling.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (441 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Keep auth-rate limiter keys route-pattern based (not raw dynamic paths) so endpoints like `/api/v1/log/{uuid}` share one limiter bucket per client/IP pair.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - `X-Forwarded-For` must be ignored by default in local server mode; tests should explicitly set `MEALPLAN_TRUSTED_PROXY_CIDRS` when validating forwarded-client behavior.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - Existing `auth=False` request helpers in `tests/unit/test_web_ui_server.py` are the simplest way to exercise invalid-token and rate-limit paths without fixture token coupling.
 ---

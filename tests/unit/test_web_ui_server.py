@@ -98,6 +98,13 @@ def _configure_default_auth(
         _DEFAULT_AUTH_HEADERS = {}
 
 
+@pytest.fixture(autouse=True)
+def _reset_auth_rate_limiter() -> Iterator[None]:
+    ui_server._UiRequestHandler._AUTH_RATE_LIMITER.clear()
+    yield
+    ui_server._UiRequestHandler._AUTH_RATE_LIMITER.clear()
+
+
 def _post_json(
     port: int,
     path: str,
@@ -268,6 +275,31 @@ def _get_json_expect_http_error(
     http_error = error_info.value
     parsed = json.loads(http_error.read().decode("utf-8"))
     return http_error.code, parsed
+
+
+def _get_json_expect_http_error_with_headers(
+    port: int,
+    path: str,
+    *,
+    headers: dict[str, str] | None = None,
+    auth: bool = True,
+) -> tuple[int, object, dict[str, str]]:
+    request_headers: dict[str, str] = {}
+    if auth:
+        request_headers.update(_DEFAULT_AUTH_HEADERS)
+    if headers:
+        request_headers.update(headers)
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        headers=request_headers,
+        method="GET",
+    )
+    with pytest.raises(urllib.error.HTTPError) as error_info:
+        urllib.request.urlopen(request, timeout=2)  # noqa: S310
+    http_error = error_info.value
+    parsed = json.loads(http_error.read().decode("utf-8"))
+    response_headers = dict(http_error.headers.items())
+    return http_error.code, parsed, response_headers
 
 
 def _get_html(port: int, path: str) -> tuple[int, str]:
@@ -562,6 +594,90 @@ def test_ui_server_protected_routes_reject_invalid_and_unknown_tokens(
     assert health_payload == {"status": "ok"}
     assert status == 200
     assert payload == []
+
+
+def test_ui_server_auth_rate_limit_applies_per_ip_and_endpoint_pair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ui_server, "AUTH_RATE_LIMIT_MAX_REQUESTS", 1)
+    monkeypatch.setattr(ui_server, "AUTH_RATE_LIMIT_WINDOW_SECONDS", 60.0)
+    monkeypatch.setattr(ui_server, "AUTH_RATE_LIMIT_COOLDOWN_SECONDS", 60.0)
+    monkeypatch.setenv(ui_server.TRUSTED_PROXY_CIDRS_ENV, "127.0.0.1/32")
+    invalid_auth_headers = {"Authorization": "Bearer not-canonical"}
+    ip1_headers = {
+        **invalid_auth_headers,
+        "X-Forwarded-For": "198.51.100.11",
+    }
+
+    with _running_test_server() as port:
+        first_status, first_payload = _get_json_expect_http_error(
+            port,
+            "/api/v1/log/search",
+            headers=ip1_headers,
+            auth=False,
+        )
+        second_status, second_payload, second_response_headers = (
+            _get_json_expect_http_error_with_headers(
+                port,
+                "/api/v1/log/search",
+                headers=ip1_headers,
+                auth=False,
+            )
+        )
+        calendar_status, calendar_payload = _get_json_expect_http_error(
+            port,
+            "/api/v1/calendar/20260408",
+            headers=ip1_headers,
+            auth=False,
+        )
+
+    assert first_status == 401
+    assert first_payload["error"]["code"] == "auth_invalid_token"
+    assert second_status == 429
+    assert second_payload["error"]["code"] == "auth_rate_limited"
+    assert second_response_headers["Retry-After"] == "60"
+    assert calendar_status == 401
+    assert calendar_payload["error"]["code"] == "auth_invalid_token"
+
+
+def test_ui_server_auth_rate_limit_uses_remote_ip_when_proxy_not_trusted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ui_server, "AUTH_RATE_LIMIT_MAX_REQUESTS", 1)
+    monkeypatch.setattr(ui_server, "AUTH_RATE_LIMIT_WINDOW_SECONDS", 60.0)
+    monkeypatch.setattr(ui_server, "AUTH_RATE_LIMIT_COOLDOWN_SECONDS", 60.0)
+    monkeypatch.delenv(ui_server.TRUSTED_PROXY_CIDRS_ENV, raising=False)
+    invalid_auth_headers = {"Authorization": "Bearer not-canonical"}
+    forwarded_1 = {
+        **invalid_auth_headers,
+        "X-Forwarded-For": "198.51.100.21",
+    }
+    forwarded_2 = {
+        **invalid_auth_headers,
+        "X-Forwarded-For": "198.51.100.22",
+    }
+
+    with _running_test_server() as port:
+        first_status, first_payload = _get_json_expect_http_error(
+            port,
+            "/api/v1/log/search",
+            headers=forwarded_1,
+            auth=False,
+        )
+        second_status, second_payload, second_response_headers = (
+            _get_json_expect_http_error_with_headers(
+                port,
+                "/api/v1/log/search",
+                headers=forwarded_2,
+                auth=False,
+            )
+        )
+
+    assert first_status == 401
+    assert first_payload["error"]["code"] == "auth_invalid_token"
+    assert second_status == 429
+    assert second_payload["error"]["code"] == "auth_rate_limited"
+    assert second_response_headers["Retry-After"] == "60"
 
 
 def test_ui_server_log_put_updates_entry_for_uuid_path(

@@ -151,6 +151,7 @@ When in doubt, update those source docs instead of expanding this file.
 120. For set-user/auth API contract work, keep canonical user-management route constants and auth error defaults in `src/mealplan/application/contracts.py` (`USERS_*_ROUTE`, `AUTH_ERROR_DEFAULTS`) and route all web error payloads through `_write_api_error` so envelope shape remains `{error:{code,message,request_id,details?}}` and `auth_rate_limited` can consistently emit `Retry-After: 60`.
 121. For multi-user file partitioning, reuse `src/mealplan/infrastructure/user_paths.py` (`canonicalize_user_email`, `user_email_to_filename_prefix`, `resolve_user_partitioned_path`) so email normalization (`trim -> lowercase`), filename sanitization (`[^a-zA-Z0-9.] -> _`), and storage-directory containment checks stay consistent across CLI and web adapters.
 122. For bearer-protected web APIs in `src/mealplan/web/ui_server.py`, call `_require_authenticated_user(...)` at the start of each protected handler so auth failures return canonical `401` envelopes (`auth_missing_token`/`auth_invalid_token`) before payload parsing or domain validation.
+123. For auth brute-force protection in `src/mealplan/web/ui_server.py`, pass a stable route-pattern `endpoint_key` into `_require_authenticated_user(...)` (for example `/api/v1/log/{uuid}`) so rate limiting stays keyed by IP+endpoint, and trust `X-Forwarded-For` only when `MEALPLAN_TRUSTED_PROXY_CIDRS` contains the socket remote IP.
 
 ## Ralph Runner
 
