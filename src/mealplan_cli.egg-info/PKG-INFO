@@ -4,6 +4,7 @@ Version: 0.1.0
 Summary: CLI for meal planning workflows.
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
+Requires-Dist: argon2-cffi<26.0,>=23.1
 Requires-Dist: pydantic<3.0,>=2.8
 Requires-Dist: typer<1.0,>=0.12
 
@@ -36,6 +37,11 @@ Tests follow the same intent and are grouped by scope:
 3. Verify the command entrypoint:
    `uv run mealplan --help`
 
+## Deployment
+
+For Linux VPS installation and `systemd` service setup, see
+[`INSTALL.md`](INSTALL.md#linux-vps-systemd).
+
 ## Quality Checks
 
 - Run all local quality gates:
@@ -63,8 +69,9 @@ Use this workflow to validate installability outside the source tree:
    `cd /tmp`
    `/tmp/mealplan-smoke-venv/bin/mealplan --help`
    `/tmp/mealplan-smoke-venv/bin/python -m mealplan --help`
-   `/tmp/mealplan-smoke-venv/bin/mealplan calculate --age 40 --gender male --height 180 --weight 75 --activity medium --carbs low --training-tomorrow high --format json`
-   `/tmp/mealplan-smoke-venv/bin/mealplan --ui` (then verify `/calculate` and `/api/v1/health`)
+   `/tmp/mealplan-smoke-venv/bin/mealplan calculate --date 20260406 --age 40 --gender male --height 180 --weight 75 --activity medium --carbs low --training-tomorrow high --format json`
+   `/tmp/mealplan-smoke-venv/bin/mealplan calendar --date 20260406 --format json`
+   `/tmp/mealplan-smoke-venv/bin/mealplan --ui` (then verify `/calculate`, `/calendar`, `/api/v1/health`, and `/api/v1/calendar/20260406`)
 
 ## Packaged Execution Paths
 
@@ -80,11 +87,13 @@ Representative packaged usage examples:
 ```bash
 # JSON output via console script
 mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs low --training-tomorrow high --format json
 
 # Text output via module invocation
 python -m mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs periodized --training-tomorrow high \
   --training-zones '{"1": 20, "2": 40, "3": 0, "4": 0, "5": 0}' \
@@ -92,8 +101,18 @@ python -m mealplan calculate \
 
 # Table output via console script
 mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs normal --training-tomorrow medium --format table
+
+# Retrieve a previously saved plan for a date
+mealplan calendar --date 20260406 --format json
+
+# Create a food log entry
+mealplan log --date 20260408 --meal lunch --name Oats --kcal 380 --carbs 55 --fat 8 --protein 14 --fiber 9
+
+# Search persisted food log entries
+mealplan log search --date 20260408 --name yogurt --meal lunch
 ```
 
 ## CLI Usage
@@ -102,9 +121,14 @@ mealplan calculate \
   `uv run mealplan --help`
 - Show calculate help:
   `uv run mealplan calculate --help`
+- Show calendar help:
+  `uv run mealplan calendar --help`
+- Show log help:
+  `uv run mealplan log --help`
 
 `mealplan calculate` accepts these canonical required flags:
 
+- `--date` (`YYYYMMDD`)
 - `--age`
 - `--gender` (`male|female`)
 - `--height` (cm)
@@ -121,16 +145,34 @@ Optional flags:
 - `--format` (`json|text|table`, default `json`)
 - `--debug`
 
+`mealplan calendar` accepts:
+
+- `--date` (`YYYYMMDD`, required)
+- `--format` (`json|text|table`, default `json`)
+
+`mealplan log` accepts create/update inputs:
+
+- required (flag mode): `--date`, `--meal`, `--name`, `--kcal`, `--carbs`, `--fat`, `--protein`, `--fiber`
+- optional: `--uuid` (update mode), `--quantity` (defaults to `1.0`), `--json` (exclusive one-shot payload mode)
+
+`mealplan log search` accepts optional filters:
+
+- `--date` (`YYYYMMDD`)
+- `--name` (case-insensitive substring match)
+- `--meal`
+
 Concrete examples:
 
 ```bash
 # Default JSON output (stdout)
 uv run mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs low --training-tomorrow high
 
 # Explicit text output with training context
 uv run mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs periodized --training-tomorrow high \
   --vo2max 58 \
@@ -140,10 +182,29 @@ uv run mealplan calculate \
 
 # Explicit table output
 uv run mealplan calculate \
+  --date 20260406 \
   --age 40 --gender male --height 180 --weight 75 \
   --activity medium --carbs normal --training-tomorrow medium \
   --format table
+
+# Retrieve date-keyed persisted plan
+uv run mealplan calendar --date 20260406 --format text
+
+# Create via one-shot JSON payload (uuid omitted => create)
+uv run mealplan log --json '{"date":"20260408","meal":"lunch","name":"Oats","kcal":380,"carbs":55,"fat":8,"protein":14,"fiber":9}'
+
+# Update via one-shot JSON payload (uuid included => update)
+uv run mealplan log --json '{"uuid":"<entry-uuid>","date":"20260408","meal":"lunch","name":"Oats + milk","kcal":400,"carbs":58,"fat":9,"protein":15,"fiber":10}'
+
+# Search with optional-AND filters
+uv run mealplan log search --date 20260408 --name yog --meal breakfast
 ```
+
+Date-keyed storage defaults to `~/.mealplan/calendar.json`. Override with
+`MEALPLAN_CALENDAR_STORE_PATH` when needed for isolated runs or tests.
+
+Food-log storage defaults to `~/.mealplan/food-log.json`. Override with
+`MEALPLAN_FOOD_LOG_STORE_PATH` when needed for isolated runs or tests.
 
 ## Local UI Mode
 
@@ -152,12 +213,23 @@ uv run mealplan calculate \
 - Startup behavior:
   - Binds to `127.0.0.1` and prefers port `8765` (falls back sequentially through `8775`)
   - Prints:
-    - `UI available at http://127.0.0.1:<port>/calculate`
+    - `UI available at http://127.0.0.1:<port>/calendar`
     - `Health endpoint: http://127.0.0.1:<port>/api/v1/health`
   - Does not auto-launch a browser
 - Local endpoints:
-  - UI routes: `/settings`, `/calculate`
-  - API routes: `GET /api/v1/health`, `POST /api/v1/calculate`
+  - UI routes: `/settings`, `/calculate`, `/calendar`, `/log`
+  - API routes: `GET /api/v1/health`, `POST /api/v1/calculate`, `PUT /api/v1/calendar/{date}`, `GET /api/v1/calendar/{date}`, `POST /api/v1/log`, `PUT /api/v1/log/{uuid}`, `GET /api/v1/log/search`
+  - Calendar UI behavior:
+    - per meal, render planned totals from saved plan plus actual totals summed from same-day log entries
+    - `Actuals` can be expanded to view line-by-line log items
+    - calendar section title is `Day Plan`; meal list section title is `Meal Plans`
+    - show full-width daily kcal progress bars below totals cards (`Planned` in white, `Actual` in threshold color)
+    - totals cards show `Planned` and `Actual` values (no decimal places) and use a unified orange style
+    - totals cards include `Fiber` (`Planned` fixed at `30 g`, `Actual` summed from logs) and exclude `TDEE`
+    - root route `/` defaults to the Calendar view
+  - Log search behavior:
+    - date filter starts cleared/inactive by default
+    - when date is activated (focus/click), it initializes with today
 
 ## Exit Codes and Debug Behavior
 

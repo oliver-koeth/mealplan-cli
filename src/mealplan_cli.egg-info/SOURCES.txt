@@ -18,6 +18,10 @@ src/mealplan/domain/model.py
 src/mealplan/domain/services.py
 src/mealplan/domain/validation.py
 src/mealplan/infrastructure/__init__.py
+src/mealplan/infrastructure/auth_tokens.py
+src/mealplan/infrastructure/calendar_store.py
+src/mealplan/infrastructure/food_log_store.py
+src/mealplan/infrastructure/users_store.py
 src/mealplan/shared/__init__.py
 src/mealplan/shared/errors.py
 src/mealplan/shared/exit_codes.py

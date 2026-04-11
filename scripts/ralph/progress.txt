@@ -4,6 +4,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 ## Codebase Patterns
 - For multi-user identity persistence, use `JsonUsersStore` with `MEALPLAN_USERS_STORE_PATH` (default `~/.mealplan/users.json`), deterministic payload shape (`schema_version` + `users`), and sorted-by-email writes to keep diffs stable.
 - Treat users-store file permissions as a security signal: target `0600`, continue execution when weaker bits are detected, and emit warnings via `mealplan.security` instead of hard-failing runtime operations.
+- For bearer token auth primitives, use `src/mealplan/infrastructure/auth_tokens.py` so token format stays `mpu_v1_...`, Argon2id verifier metadata (`algorithm`, `version`, `params`, `salt`, `hash`) remains deterministic, and verification returns `needs_rehash` when stored parameters are weaker than current defaults.
 
 ---
 
@@ -36,4 +37,34 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Repository-level quality checks can fail on pre-existing style regressions; when the iteration requires a passing gate, include minimal lint-safe formatting fixes in touched files.
   - Useful context (e.g., "the evaluation panel is in component X")
   - Users-store warnings are emitted through the `mealplan.security` logger, so tests should use `caplog` with that logger name when asserting permission-related behavior.
+---
+
+## [2026-04-11 16:29:22 CEST] - US-002
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-9.txt
+- What was implemented
+- Added `src/mealplan/infrastructure/auth_tokens.py` with canonical bearer-token generation (`mpu_v1_` + `secrets.token_urlsafe(32)`), Argon2id hashing defaults (memory 65536 KiB, time 3, parallelism 1, hash_len 32), deterministic verifier payload metadata, and constant-time verification via `hmac.compare_digest`.
+- Added verifier parsing/validation and `TokenVerificationResult` support for rehash recommendation when stored verifier params/version are weaker than current defaults.
+- Exported token utility APIs from `src/mealplan/infrastructure/__init__.py`.
+- Added unit coverage in `tests/unit/test_auth_tokens.py` for generation, metadata shape, invalid-format handling, positive/negative verification, rehash recommendation, constant-time compare path usage, and malformed verifier handling.
+- Updated dependency manifests to include `argon2-cffi` and refreshed lock/package metadata.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (417 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/pyproject.toml
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/__init__.py
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/infrastructure/auth_tokens.py
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan_cli.egg-info/PKG-INFO
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan_cli.egg-info/SOURCES.txt
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan_cli.egg-info/requires.txt
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_auth_tokens.py
+- /Users/Oliver.Koeth/work/mealplan-cli/uv.lock
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Keep token verifier payloads as structured metadata (`algorithm`, `version`, `params`, `salt`, `hash`) rather than opaque strings so later auth middleware/endpoints can deterministically validate schema and decide rehash behavior.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - In strict mypy mode, constants re-exported from third-party modules should be assigned to local module constants (for example `ARGON2_VERSION = int(_ARGON2_VERSION)`) before exporting through package `__init__`.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `make quality` currently assumes `.venv/bin/uv`; run `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` directly when `.venv` is not present.
 ---
