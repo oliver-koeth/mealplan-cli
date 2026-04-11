@@ -1229,6 +1229,11 @@ def test_ui_server_set_user_shell_exposes_register_attach_flows_and_active_state
     assert '<form class="form-stack" data-set-user-attach-form="true">' in html
     assert 'data-set-user-attach-submit="true"' in html
     assert 'data-set-user-attach-status="true"' in html
+    assert 'data-set-user-auth-actions="true" hidden' in html
+    assert 'data-set-user-rotate-token="true"' in html
+    assert 'data-set-user-logout="true"' in html
+    assert 'data-set-user-auth-actions-status="true"' in html
+    assert "Rotate or clear the token currently stored in this browser." in html
     assert "Token shown once. Store it safely now:" in html
 
 
@@ -1305,8 +1310,10 @@ def test_ui_server_shell_includes_redirect_auth_helpers_and_external_script_deli
     ) in script
     assert "window.location.replace(\"/set-user\");" in script
     assert "merged.Authorization = \"Bearer \" + token;" in script
+    assert "window.localStorage.removeItem(authStorageKey);" in script
     assert "headers: createAuthorizedHeaders({\"Content-Type\": \"application/json\"})," in script
     assert "headers: createAuthorizedHeaders()," in script
+    assert 'window.fetch("/api/v1/users/exchange-token"' in script
 
 
 def test_ui_server_calculate_shell_exposes_navigation_and_active_state() -> None:

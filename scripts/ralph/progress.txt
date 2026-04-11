@@ -13,6 +13,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For bearer-protected calendar/log handlers in `src/mealplan/web/ui_server.py`, derive storage files from authenticated user identity using `resolve_user_partitioned_path(...)` so persistence is always per-user (`<user-prefix>-calendar.json` and `<user-prefix>-food-log.json`) under the configured storage directory.
 - For CLI multi-user persistence in `src/mealplan/cli/main.py`, keep `--user` optional and enforce existence via `JsonUsersStore(resolve_users_store_path())`; only when user exists should calendar/log paths switch to `resolve_user_partitioned_path(...)`, otherwise keep legacy non-prefixed paths.
 - For CSP-hardening of the web shell in `src/mealplan/web/ui_server.py`, keep UI logic in the inline script block but also expose the same code from a same-origin endpoint (`/static/app-shell.js`) and send strict `script-src 'self'` headers so browser behavior remains stable when inline execution is blocked.
+- For Set User token-session actions in `src/mealplan/web/ui_server.py`, derive visibility from `readAuthToken()`, clear auth with `localStorage.removeItem("mealplan.ui.auth.v1")` on logout, and rotate credentials only through `POST /api/v1/users/exchange-token` before updating local storage.
 
 ---
 
@@ -284,5 +285,28 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
   - `npx playwright` CLI availability does not guarantee the local Node module import path needed by ad-hoc script execution; browser automation setup may require dedicated project-level Playwright dependencies/config.
   - Useful context (e.g., "the evaluation panel is in component X")
-  - For this shell architecture, `data-*` markers plus script-string assertions in `tests/unit/test_web_ui_server.py` are the quickest regression net for route guards, auth header wiring, and CSP delivery without adding new frontend tooling.
+- For this shell architecture, `data-*` markers plus script-string assertions in `tests/unit/test_web_ui_server.py` are the quickest regression net for route guards, auth header wiring, and CSP delivery without adding new frontend tooling.
+---
+## [2026-04-11 17:26:54 CEST] - US-011
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
+- What was implemented
+- Added Set User token-session controls in `src/mealplan/web/ui_server.py`: `Rotate Token` (calls `POST /api/v1/users/exchange-token`) and `Logout` (clears browser auth state and returns to clean setup state).
+- Extended Set User script helpers with explicit auth lifecycle utilities (`clearAuthState`, auth-action visibility syncing, and setup reset flow) so register/attach/rotate/logout transitions keep UI state consistent.
+- Rotation flow now persists the replacement token to `mealplan.ui.auth.v1`; logout removes `mealplan.ui.auth.v1`, clears form/status/token callout state, and hides auth-action controls.
+- Added unit coverage in `tests/unit/test_web_ui_server.py` for new Set User shell markers and script wiring (`localStorage.removeItem(authStorageKey)` and exchange-token fetch path).
+- Browser verification passed using Playwright automation against a live local UI server: register user, rotate token, assert local-storage token changed, assert old token rejected (`401 auth_invalid_token`), then logout and verify auth storage removed plus clean setup state restored.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (454 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Keep Set User auth-action visibility tied to current local auth token state (`readAuthToken`) so logout and failed rotations cannot leave stale rotate/logout controls visible.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Local `npx playwright` may provide CLI commands without module imports; for scripted checks, use cached Playwright node modules via `NODE_PATH` if direct `require("playwright")` resolution fails.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - Existing shell tests intentionally assert rendered `data-*` markers and script snippets; keep this pattern when adding UI controls to avoid brittle DOM snapshot tests.
 ---

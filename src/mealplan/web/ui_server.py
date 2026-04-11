@@ -1364,6 +1364,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           window.localStorage.setItem(authStorageKey, JSON.stringify(nextState));
         };
 
+        const clearAuthState = () => {
+          window.localStorage.removeItem(authStorageKey);
+        };
+
         const applyProtectedRouteRedirect = () => {
           const currentPath = window.location.pathname;
           if (!protectedShellRoutes.has(currentPath)) {
@@ -1586,6 +1590,12 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             '[data-set-user-attach-submit="true"]'
           );
           const attachStatus = document.querySelector('[data-set-user-attach-status="true"]');
+          const authActions = document.querySelector('[data-set-user-auth-actions="true"]');
+          const rotateTokenButton = document.querySelector('[data-set-user-rotate-token="true"]');
+          const logoutButton = document.querySelector('[data-set-user-logout="true"]');
+          const authActionsStatus = document.querySelector(
+            '[data-set-user-auth-actions-status="true"]'
+          );
 
           if (
             registerEmailControl
@@ -1602,6 +1612,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             && "value" in attachTokenControl
             && attachSubmitButton
             && attachStatus
+            && authActions
+            && rotateTokenButton
+            && logoutButton
+            && authActionsStatus
           ) {
             const setRegisterStatus = (message) => {
               registerStatus.textContent = message;
@@ -1611,14 +1625,35 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               attachStatus.textContent = message;
             };
 
+            const setAuthActionsStatus = (message) => {
+              authActionsStatus.textContent = message;
+            };
+
             const hideRegisterToken = () => {
               registerTokenCard.hidden = true;
               registerTokenValue.textContent = "";
             };
 
+            const syncAuthActionsVisibility = () => {
+              authActions.hidden = !readAuthToken();
+            };
+
+            const resetSetUserState = () => {
+              clearAuthState();
+              registerEmailControl.value = "";
+              registerNameControl.value = "";
+              attachEmailControl.value = "";
+              attachTokenControl.value = "";
+              hideRegisterToken();
+              setRegisterStatus("");
+              setAttachStatus("");
+              syncAuthActionsVisibility();
+            };
+
             hideRegisterToken();
             setRegisterStatus("");
             setAttachStatus("");
+            setAuthActionsStatus("");
 
             const maybePrefillEmail = () => {
               const authState = readAuthState();
@@ -1630,11 +1665,13 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               }
             };
             maybePrefillEmail();
+            syncAuthActionsVisibility();
 
             registerSubmitButton.addEventListener("click", async () => {
               const email = registerEmailControl.value.trim();
               const name = registerNameControl.value.trim();
               hideRegisterToken();
+              setAuthActionsStatus("");
               if (!email || !name) {
                 setRegisterStatus("Email and name are required.");
                 return;
@@ -1676,6 +1713,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 registerTokenCard.hidden = false;
                 attachEmailControl.value = canonicalEmail;
                 setRegisterStatus("User registered. Token saved in this browser.");
+                syncAuthActionsVisibility();
               } catch (error) {
                 const rootCause = (
                   error && typeof error === "object" && "message" in error
@@ -1695,6 +1733,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               const email = attachEmailControl.value.trim();
               const token = attachTokenControl.value.trim();
               setAttachStatus("");
+              setAuthActionsStatus("");
               if (!email || !token) {
                 setAttachStatus("Email and token are required.");
                 return;
@@ -1729,6 +1768,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 });
                 registerEmailControl.value = canonicalEmail;
                 setAttachStatus("Token attached and saved in this browser.");
+                syncAuthActionsVisibility();
               } catch (error) {
                 const rootCause = (
                   error && typeof error === "object" && "message" in error
@@ -1741,6 +1781,72 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 );
               } finally {
                 attachSubmitButton.disabled = false;
+              }
+            });
+
+            logoutButton.addEventListener("click", () => {
+              resetSetUserState();
+              setAuthActionsStatus("Logged out. Local bearer token removed.");
+            });
+
+            rotateTokenButton.addEventListener("click", async () => {
+              const authState = readAuthState();
+              const currentToken = (
+                typeof authState.token === "string" ? authState.token.trim() : ""
+              );
+              const email = typeof authState.email === "string" ? authState.email.trim() : "";
+              if (!currentToken) {
+                setAuthActionsStatus("Attach or register a token before rotating.");
+                syncAuthActionsVisibility();
+                return;
+              }
+              rotateTokenButton.disabled = true;
+              setAuthActionsStatus("Rotating token...");
+              try {
+                const response = await window.fetch("/api/v1/users/exchange-token", {
+                  method: "POST",
+                  headers: {"Content-Type": "application/json"},
+                  body: JSON.stringify({token: currentToken}),
+                });
+                let payload = null;
+                try {
+                  payload = await response.json();
+                } catch {
+                  payload = null;
+                }
+                if (!response.ok) {
+                  const errorPayload = payload?.error ?? null;
+                  setAuthActionsStatus(
+                    formatApiErrorMessage(errorPayload, "Unable to rotate token.")
+                  );
+                  syncAuthActionsVisibility();
+                  return;
+                }
+                const rotatedToken = typeof payload?.token === "string" ? payload.token.trim() : "";
+                if (!rotatedToken) {
+                  setAuthActionsStatus("Token rotation succeeded but no token was returned.");
+                  syncAuthActionsVisibility();
+                  return;
+                }
+                writeAuthState({
+                  ...authState,
+                  email,
+                  token: rotatedToken,
+                });
+                syncAuthActionsVisibility();
+                setAuthActionsStatus("Token rotated and saved in this browser.");
+              } catch (error) {
+                const rootCause = (
+                  error && typeof error === "object" && "message" in error
+                    ? String(error.message)
+                    : ""
+                );
+                setAuthActionsStatus(
+                  rootCause ? ("Unable to reach local auth API. " + rootCause) :
+                    "Unable to reach local auth API."
+                );
+              } finally {
+                rotateTokenButton.disabled = false;
               }
             });
           }
@@ -3715,6 +3821,20 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
               </div>
             </section>
           </form>
+          <section class="form-card" data-set-user-auth-actions="true" hidden>
+            <h2>Token Session</h2>
+            <p>Rotate or clear the token currently stored in this browser.</p>
+            <div class="actions">
+              <button class="secondary-button" type="button" data-set-user-rotate-token="true">
+                Rotate Token
+              </button>
+              <button class="secondary-button" type="button" data-set-user-logout="true">
+                Logout
+              </button>
+              <span class="status-note" data-set-user-auth-actions-status="true" aria-live="polite">
+              </span>
+            </div>
+          </section>
         """,
     },
     "settings": {
