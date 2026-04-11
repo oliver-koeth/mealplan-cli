@@ -13,7 +13,12 @@ from typing import Any
 
 import pytest
 
-from mealplan.application.contracts import MealPlanResponse
+from mealplan.application.contracts import (
+    USERS_ATTACH_TOKEN_ROUTE,
+    USERS_EXCHANGE_TOKEN_ROUTE,
+    USERS_REGISTER_ROUTE,
+    MealPlanResponse,
+)
 from mealplan.shared.errors import DomainRuleError, ValidationError
 from mealplan.web import ui_server
 
@@ -83,6 +88,26 @@ def _post_json_expect_http_error(port: int, path: str, payload: object) -> tuple
     http_error = error_info.value
     parsed = json.loads(http_error.read().decode("utf-8"))
     return http_error.code, parsed
+
+
+def _post_json_expect_http_error_with_headers(
+    port: int,
+    path: str,
+    payload: object,
+) -> tuple[int, object, dict[str, str]]:
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{ui_server.UI_HOST}:{port}{path}",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with pytest.raises(urllib.error.HTTPError) as error_info:
+        urllib.request.urlopen(request, timeout=2)  # noqa: S310
+    http_error = error_info.value
+    parsed = json.loads(http_error.read().decode("utf-8"))
+    response_headers = dict(http_error.headers.items())
+    return http_error.code, parsed, response_headers
 
 
 def _put_json(port: int, path: str, payload: dict[str, Any]) -> tuple[int, object]:
@@ -277,6 +302,54 @@ def test_ui_server_log_post_creates_entry_and_returns_canonical_payload(
     assert response["fiber"] == 0.0
     stored = json.loads(store_path.read_text(encoding="utf-8"))
     assert response["uuid"] in stored
+
+
+@pytest.mark.parametrize(
+    "path",
+    [USERS_REGISTER_ROUTE, USERS_ATTACH_TOKEN_ROUTE, USERS_EXCHANGE_TOKEN_ROUTE],
+)
+def test_ui_server_user_management_routes_are_reserved_with_canonical_error_envelope(
+    path: str,
+) -> None:
+    with _running_test_server() as port:
+        status, payload = _post_json_expect_http_error(port, path, {"placeholder": True})
+
+    assert status == 501
+    assert payload["error"]["code"] == "not_implemented"
+    assert isinstance(payload["error"]["request_id"], str)
+
+
+def test_ui_server_auth_rate_limited_error_includes_retry_after_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_exchange_handler(self: ui_server._UiRequestHandler) -> None:
+        self._write_auth_error(
+            code="auth_rate_limited",
+            request_id="req-rate-limited",
+        )
+
+    monkeypatch.setattr(
+        ui_server._UiRequestHandler,
+        "_handle_users_exchange_token_post",
+        _fake_exchange_handler,
+    )
+
+    with _running_test_server() as port:
+        status, payload, headers = _post_json_expect_http_error_with_headers(
+            port,
+            USERS_EXCHANGE_TOKEN_ROUTE,
+            {},
+        )
+
+    assert status == 429
+    assert payload == {
+        "error": {
+            "code": "auth_rate_limited",
+            "message": "Authentication rate limit exceeded. Retry later.",
+            "request_id": "req-rate-limited",
+        }
+    }
+    assert headers["Retry-After"] == "60"
 
 
 def test_ui_server_log_put_updates_entry_for_uuid_path(

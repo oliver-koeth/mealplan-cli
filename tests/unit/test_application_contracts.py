@@ -8,7 +8,13 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from mealplan.application.contracts import (
+    AUTH_ERROR_DEFAULTS,
     CONTRACT_UNITS_POLICY,
+    USER_MANAGEMENT_ROUTES,
+    USERS_ATTACH_TOKEN_ROUTE,
+    USERS_EXCHANGE_TOKEN_ROUTE,
+    USERS_REGISTER_ROUTE,
+    ApiErrorEnvelope,
     FoodLogEntry,
     FoodLogSearchRequest,
     FoodLogUpsertRequest,
@@ -16,6 +22,12 @@ from mealplan.application.contracts import (
     MealPlanResponse,
     ProbeRequest,
     ProbeResponse,
+    UserAttachTokenRequest,
+    UserAttachTokenResponse,
+    UserExchangeTokenRequest,
+    UserExchangeTokenResponse,
+    UserRegisterRequest,
+    UserRegisterResponse,
 )
 
 
@@ -566,3 +578,101 @@ def test_probe_request_rejects_unknown_fields() -> None:
     """Boundary models should fail when unexpected keys are provided."""
     with pytest.raises(PydanticValidationError):
         ProbeRequest.model_validate({"simulate_error": None, "unexpected": "x"})
+
+
+def test_user_management_routes_match_canonical_contract() -> None:
+    assert USERS_REGISTER_ROUTE == "/api/v1/users/register"
+    assert USERS_ATTACH_TOKEN_ROUTE == "/api/v1/users/attach-token"
+    assert USERS_EXCHANGE_TOKEN_ROUTE == "/api/v1/users/exchange-token"
+    assert USER_MANAGEMENT_ROUTES == (
+        "/api/v1/users/register",
+        "/api/v1/users/attach-token",
+        "/api/v1/users/exchange-token",
+    )
+
+
+def test_auth_error_defaults_match_canonical_status_matrix() -> None:
+    assert AUTH_ERROR_DEFAULTS == {
+        "auth_missing_token": {
+            "status": 401,
+            "message": "Authorization bearer token is required.",
+            "retry_after_seconds": None,
+        },
+        "auth_invalid_token": {
+            "status": 401,
+            "message": "Authorization bearer token is invalid.",
+            "retry_after_seconds": None,
+        },
+        "auth_token_email_mismatch": {
+            "status": 403,
+            "message": "Bearer token does not match the requested user email.",
+            "retry_after_seconds": None,
+        },
+        "user_already_exists": {
+            "status": 409,
+            "message": "A user with the requested email already exists.",
+            "retry_after_seconds": None,
+        },
+        "auth_rate_limited": {
+            "status": 429,
+            "message": "Authentication rate limit exceeded. Retry later.",
+            "retry_after_seconds": 60,
+        },
+    }
+
+
+def test_api_error_envelope_parses_canonical_shape() -> None:
+    envelope = ApiErrorEnvelope.model_validate(
+        {
+            "error": {
+                "code": "auth_invalid_token",
+                "message": "Authorization bearer token is invalid.",
+                "request_id": "trace-123",
+                "details": [{"field": "authorization", "message": "invalid bearer token"}],
+            }
+        }
+    )
+
+    assert envelope.model_dump() == {
+        "error": {
+            "code": "auth_invalid_token",
+            "message": "Authorization bearer token is invalid.",
+            "request_id": "trace-123",
+            "details": [{"message": "invalid bearer token", "field": "authorization"}],
+        }
+    }
+
+
+def test_user_management_request_response_contracts_parse_expected_shapes() -> None:
+    register_request = UserRegisterRequest.model_validate(
+        {"email": "alex@example.com", "name": "Alex"}
+    )
+    register_response = UserRegisterResponse.model_validate(
+        {
+            "email": "alex@example.com",
+            "name": "Alex",
+            "token": "mpu_v1_abcdefghijklmnopqrstuvwxyz",
+        }
+    )
+    attach_request = UserAttachTokenRequest.model_validate(
+        {
+            "email": "alex@example.com",
+            "token": "mpu_v1_abcdefghijklmnopqrstuvwxyz",
+        }
+    )
+    attach_response = UserAttachTokenResponse.model_validate(
+        {"email": "alex@example.com", "name": "Alex"}
+    )
+    exchange_request = UserExchangeTokenRequest.model_validate(
+        {"token": "mpu_v1_abcdefghijklmnopqrstuvwxyz"}
+    )
+    exchange_response = UserExchangeTokenResponse.model_validate(
+        {"token": "mpu_v1_abcdefghijklmnopqrstuvwxyz_new"}
+    )
+
+    assert register_request.email == "alex@example.com"
+    assert register_response.token.startswith("mpu_v1_")
+    assert attach_request.email == "alex@example.com"
+    assert attach_response.name == "Alex"
+    assert exchange_request.token.startswith("mpu_v1_")
+    assert exchange_response.token.startswith("mpu_v1_")

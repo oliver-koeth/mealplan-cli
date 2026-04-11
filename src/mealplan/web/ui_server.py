@@ -20,6 +20,11 @@ from uuid import uuid4
 from pydantic import ValidationError as PydanticValidationError
 
 from mealplan.application.contracts import (
+    AUTH_ERROR_DEFAULTS,
+    USERS_ATTACH_TOKEN_ROUTE,
+    USERS_EXCHANGE_TOKEN_ROUTE,
+    USERS_REGISTER_ROUTE,
+    ApiErrorEnvelope,
     FoodLogSearchRequest,
     FoodLogUpsertRequest,
     MealPlanRequest,
@@ -4039,6 +4044,15 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/v1/log":
             self._handle_log_post()
             return
+        if path == USERS_REGISTER_ROUTE:
+            self._handle_users_register_post()
+            return
+        if path == USERS_ATTACH_TOKEN_ROUTE:
+            self._handle_users_attach_token_post()
+            return
+        if path == USERS_EXCHANGE_TOKEN_ROUTE:
+            self._handle_users_exchange_token_post()
+            return
         self._write_json(
             HTTPStatus.NOT_FOUND,
             {"error": {"code": "not_found", "message": "Not found"}},
@@ -4140,6 +4154,33 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
             )
             return
         self._write_json(HTTPStatus.OK, response.model_dump(mode="json"))
+
+    def _handle_users_register_post(self) -> None:
+        request_id = str(uuid4())
+        self._write_api_error(
+            status=HTTPStatus.NOT_IMPLEMENTED,
+            code="not_implemented",
+            message="User registration endpoint is not implemented yet.",
+            request_id=request_id,
+        )
+
+    def _handle_users_attach_token_post(self) -> None:
+        request_id = str(uuid4())
+        self._write_api_error(
+            status=HTTPStatus.NOT_IMPLEMENTED,
+            code="not_implemented",
+            message="Attach-token endpoint is not implemented yet.",
+            request_id=request_id,
+        )
+
+    def _handle_users_exchange_token_post(self) -> None:
+        request_id = str(uuid4())
+        self._write_api_error(
+            status=HTTPStatus.NOT_IMPLEMENTED,
+            code="not_implemented",
+            message="Exchange-token endpoint is not implemented yet.",
+            request_id=request_id,
+        )
 
     def _handle_log_put(self, entry_uuid: str) -> None:
         request_id = str(uuid4())
@@ -4353,6 +4394,7 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         message: str,
         request_id: str,
         details: list[dict[str, str]] | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         error_payload: dict[str, object] = {
             "code": code,
@@ -4361,7 +4403,33 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         }
         if details:
             error_payload["details"] = details
-        self._write_json(status, {"error": error_payload})
+        envelope = ApiErrorEnvelope.model_validate({"error": error_payload})
+        self._write_json(
+            status,
+            envelope.model_dump(mode="json", exclude_none=True),
+            headers=headers,
+        )
+
+    def _write_auth_error(
+        self,
+        *,
+        code: str,
+        request_id: str,
+        details: list[dict[str, str]] | None = None,
+    ) -> None:
+        defaults = AUTH_ERROR_DEFAULTS[code]
+        headers: dict[str, str] | None = None
+        retry_after = defaults["retry_after_seconds"]
+        if retry_after is not None:
+            headers = {"Retry-After": str(retry_after)}
+        self._write_api_error(
+            status=HTTPStatus(defaults["status"]),
+            code=code,
+            message=defaults["message"],
+            request_id=request_id,
+            details=details,
+            headers=headers,
+        )
 
     def _write_html(self, html: str) -> None:
         encoded = html.encode("utf-8")
@@ -4371,11 +4439,19 @@ class _UiRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
-    def _write_json(self, status: HTTPStatus, payload: object) -> None:
+    def _write_json(
+        self,
+        status: HTTPStatus,
+        payload: object,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
         encoded = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(encoded)))
+        if headers:
+            for header_name, header_value in headers.items():
+                self.send_header(header_name, header_value)
         self.end_headers()
         self.wfile.write(encoded)
 

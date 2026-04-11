@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime
-from typing import Final, Literal
+from typing import Final, Literal, TypedDict
 
 from pydantic import (
     BaseModel,
@@ -31,6 +31,50 @@ SimulatedErrorKind = Literal["validation", "domain", "config", "output", "runtim
 TrainingZoneKey = Literal["1", "2", "3", "4", "5"]
 TrainingBeforeMeal = MealName | Literal["training"]
 FoodLogMeal = MealName | Literal["training"]
+USERS_REGISTER_ROUTE: Final[str] = "/api/v1/users/register"
+USERS_ATTACH_TOKEN_ROUTE: Final[str] = "/api/v1/users/attach-token"
+USERS_EXCHANGE_TOKEN_ROUTE: Final[str] = "/api/v1/users/exchange-token"
+USER_MANAGEMENT_ROUTES: Final[tuple[str, str, str]] = (
+    USERS_REGISTER_ROUTE,
+    USERS_ATTACH_TOKEN_ROUTE,
+    USERS_EXCHANGE_TOKEN_ROUTE,
+)
+
+
+class AuthErrorDefault(TypedDict):
+    status: int
+    message: str
+    retry_after_seconds: int | None
+
+
+AUTH_ERROR_DEFAULTS: Final[dict[str, AuthErrorDefault]] = {
+    "auth_missing_token": {
+        "status": 401,
+        "message": "Authorization bearer token is required.",
+        "retry_after_seconds": None,
+    },
+    "auth_invalid_token": {
+        "status": 401,
+        "message": "Authorization bearer token is invalid.",
+        "retry_after_seconds": None,
+    },
+    "auth_token_email_mismatch": {
+        "status": 403,
+        "message": "Bearer token does not match the requested user email.",
+        "retry_after_seconds": None,
+    },
+    "user_already_exists": {
+        "status": 409,
+        "message": "A user with the requested email already exists.",
+        "retry_after_seconds": None,
+    },
+    "auth_rate_limited": {
+        "status": 429,
+        "message": "Authentication rate limit exceeded. Retry later.",
+        "retry_after_seconds": 60,
+    },
+}
+
 CONTRACT_UNITS_POLICY: Final[dict[str, str]] = {
     "age": "years",
     "height_cm": "cm",
@@ -56,6 +100,28 @@ class BoundaryModel(BaseModel):
     """Shared base contract for application input/output models."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+class ApiErrorDetail(BoundaryModel):
+    """Canonical API error detail shape."""
+
+    message: StrictStr
+    field: StrictStr | None = None
+
+
+class ApiError(BoundaryModel):
+    """Canonical API error payload used in envelopes."""
+
+    code: StrictStr
+    message: StrictStr
+    request_id: StrictStr
+    details: list[ApiErrorDetail] | None = None
+
+
+class ApiErrorEnvelope(BoundaryModel):
+    """Canonical top-level API error envelope."""
+
+    error: ApiError
 
 
 class TrainingSession(BoundaryModel):
@@ -84,6 +150,47 @@ class MealPlanRequest(BoundaryModel):
     carb_mode: CarbMode
     training_load_tomorrow: TrainingLoadTomorrow
     training_session: TrainingSession | None = None
+
+
+class UserRegisterRequest(BoundaryModel):
+    """Canonical request DTO for registering a new user."""
+
+    email: StrictStr
+    name: StrictStr
+
+
+class UserRegisterResponse(BoundaryModel):
+    """Canonical response DTO for user registration."""
+
+    email: StrictStr
+    name: StrictStr
+    token: StrictStr
+
+
+class UserAttachTokenRequest(BoundaryModel):
+    """Canonical request DTO for attaching an existing token."""
+
+    email: StrictStr
+    token: StrictStr
+
+
+class UserAttachTokenResponse(BoundaryModel):
+    """Canonical response DTO for attach-token success."""
+
+    email: StrictStr
+    name: StrictStr
+
+
+class UserExchangeTokenRequest(BoundaryModel):
+    """Canonical request DTO for exchanging an existing token."""
+
+    token: StrictStr
+
+
+class UserExchangeTokenResponse(BoundaryModel):
+    """Canonical response DTO for token exchange success."""
+
+    token: StrictStr
 
 
 class FoodLogUpsertRequest(BoundaryModel):

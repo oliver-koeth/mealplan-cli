@@ -5,6 +5,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For multi-user identity persistence, use `JsonUsersStore` with `MEALPLAN_USERS_STORE_PATH` (default `~/.mealplan/users.json`), deterministic payload shape (`schema_version` + `users`), and sorted-by-email writes to keep diffs stable.
 - Treat users-store file permissions as a security signal: target `0600`, continue execution when weaker bits are detected, and emit warnings via `mealplan.security` instead of hard-failing runtime operations.
 - For bearer token auth primitives, use `src/mealplan/infrastructure/auth_tokens.py` so token format stays `mpu_v1_...`, Argon2id verifier metadata (`algorithm`, `version`, `params`, `salt`, `hash`) remains deterministic, and verification returns `needs_rehash` when stored parameters are weaker than current defaults.
+- For set-user/auth API contract stories, define route constants and auth error defaults centrally in `src/mealplan/application/contracts.py` and use `_write_api_error` in `src/mealplan/web/ui_server.py` so canonical envelopes remain stable and `auth_rate_limited` can consistently include `Retry-After: 60`.
 
 ---
 
@@ -67,4 +68,30 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - In strict mypy mode, constants re-exported from third-party modules should be assigned to local module constants (for example `ARGON2_VERSION = int(_ARGON2_VERSION)`) before exporting through package `__init__`.
   - Useful context (e.g., "the evaluation panel is in component X")
   - `make quality` currently assumes `.venv/bin/uv`; run `uv run ruff check .`, `uv run mypy --strict src`, and `uv run pytest` directly when `.venv` is not present.
+---
+
+## [2026-04-11 16:35:01 CEST] - US-003
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-10.txt
+- What was implemented
+- Added explicit set-user/auth API contracts in `src/mealplan/application/contracts.py`: request/response DTOs for register/attach-token/exchange-token, canonical route constants, canonical API error envelope models, and auth error defaults including `auth_rate_limited` `retry_after_seconds=60`.
+- Reserved canonical user-management POST routes in `src/mealplan/web/ui_server.py` (`/api/v1/users/register`, `/api/v1/users/attach-token`, `/api/v1/users/exchange-token`) and added placeholder handlers so route contracts are fixed.
+- Updated web error writing to validate against `ApiErrorEnvelope` and serialize with `exclude_none=True` to preserve existing payload shape while standardizing envelope usage.
+- Added auth-error writer support in web adapter that maps `AUTH_ERROR_DEFAULTS` and emits `Retry-After` header when configured (for `auth_rate_limited`).
+- Added unit coverage for new contracts/defaults, route constants, reserved user route behavior, and `429` header behavior.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (425 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/application/contracts.py
+- /Users/Oliver.Koeth/work/mealplan-cli/src/mealplan/web/ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_application_contracts.py
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/unit/test_web_ui_server.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - Keep user-management route paths and auth error defaults as shared constants in `application/contracts.py` so API handlers and tests cannot drift from canonical contracts.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - When validating error payloads through pydantic envelope models, serialize with `exclude_none=True`; otherwise optional fields appear as explicit `null` and can break existing error-shape assertions.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - `tests/unit/test_web_ui_server.py` can verify response headers by reading `urllib.error.HTTPError.headers`; this is useful for `Retry-After` assertions on auth-rate-limit paths.
 ---

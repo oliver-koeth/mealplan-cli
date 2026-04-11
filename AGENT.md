@@ -148,6 +148,7 @@ When in doubt, update those source docs instead of expanding this file.
 117. In `web/ui_server.py` `_APP_SHELL_TEMPLATE` JavaScript, escape regex/string literal dollar signs as `$$` (for example `/...$$/`) because `string.Template.substitute(...)` treats unescaped `$` as placeholders and will break page rendering.
 118. For user-identity persistence, use `src/mealplan/infrastructure/users_store.py::JsonUsersStore` with canonical env override `MEALPLAN_USERS_STORE_PATH` (default `~/.mealplan/users.json`), persist only token verifier metadata (never plaintext tokens), and keep file mode hardened to `0600` with warnings logged to `mealplan.security` when weaker permissions are observed.
 119. For bearer-token credential handling, use `src/mealplan/infrastructure/auth_tokens.py` helpers (`generate_bearer_token`, `hash_bearer_token`, `verify_bearer_token`) so issued tokens keep canonical `mpu_v1_` format, Argon2id verifier metadata stays deterministic, verification uses constant-time comparison, and successful checks can surface `needs_rehash` when stored parameters are weaker than current defaults.
+120. For set-user/auth API contract work, keep canonical user-management route constants and auth error defaults in `src/mealplan/application/contracts.py` (`USERS_*_ROUTE`, `AUTH_ERROR_DEFAULTS`) and route all web error payloads through `_write_api_error` so envelope shape remains `{error:{code,message,request_id,details?}}` and `auth_rate_limited` can consistently emit `Retry-After: 60`.
 
 ## Ralph Runner
 
