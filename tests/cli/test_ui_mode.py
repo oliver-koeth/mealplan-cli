@@ -9,11 +9,14 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from mealplan.infrastructure import JsonUsersStore, generate_bearer_token, hash_bearer_token
 
@@ -100,6 +103,83 @@ def _post_json(
     return status, parsed
 
 
+def _post_json_expect_http_error(
+    port: int,
+    path: str,
+    payload: dict[str, Any],
+    *,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    request_headers = {"Content-Type": "application/json"}
+    if headers:
+        request_headers.update(headers)
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{UI_HOST}:{port}{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers=request_headers,
+        method="POST",
+    )
+    with pytest.raises(urllib.error.HTTPError) as error_info:
+        urllib.request.urlopen(request, timeout=2)  # noqa: S310
+    http_error = error_info.value
+    parsed = json.loads(http_error.read().decode("utf-8"))
+    if not isinstance(parsed, dict):
+        raise AssertionError("Expected JSON object error response")
+    return http_error.code, parsed
+
+
+def _get_json(
+    port: int,
+    path: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, object]:
+    request_headers: dict[str, str] = {}
+    if headers:
+        request_headers.update(headers)
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{UI_HOST}:{port}{path}",
+        headers=request_headers,
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
+        status = response.status
+        parsed = json.loads(response.read().decode("utf-8"))
+    return status, parsed
+
+
+def _get_json_expect_http_error(
+    port: int,
+    path: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    request_headers: dict[str, str] = {}
+    if headers:
+        request_headers.update(headers)
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{UI_HOST}:{port}{path}",
+        headers=request_headers,
+        method="GET",
+    )
+    with pytest.raises(urllib.error.HTTPError) as error_info:
+        urllib.request.urlopen(request, timeout=2)  # noqa: S310
+    http_error = error_info.value
+    parsed = json.loads(http_error.read().decode("utf-8"))
+    if not isinstance(parsed, dict):
+        raise AssertionError("Expected JSON object error response")
+    return http_error.code, parsed
+
+
+def _get_html(port: int, path: str) -> tuple[int, str]:
+    request = urllib.request.Request(  # noqa: S310
+        url=f"http://{UI_HOST}:{port}{path}",
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:  # noqa: S310
+        return response.status, response.read().decode("utf-8")
+
+
 def _create_test_user_store(path: Path) -> str:
     users_store = JsonUsersStore(path)
     token = generate_bearer_token()
@@ -109,6 +189,92 @@ def _create_test_user_store(path: Path) -> str:
         token_verifier=hash_bearer_token(token=token),
     )
     return token
+
+
+def test_ui_mode_shell_includes_set_user_redirect_logic_for_protected_routes() -> None:
+    port_start, port_end = _find_consecutive_free_ports(count=1)
+    env = os.environ | {
+        "PYTHONUNBUFFERED": "1",
+        UI_PORT_START_ENV: str(port_start),
+        UI_PORT_END_ENV: str(port_end),
+    }
+
+    process = subprocess.Popen(  # noqa: S603
+        _ui_command(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    try:
+        port = _discover_live_ui_port(port_start=port_start, port_end=port_end)
+        calculate_status, calculate_html = _get_html(port, "/calculate")
+        set_user_status, set_user_html = _get_html(port, "/set-user")
+
+        assert calculate_status == 200
+        assert set_user_status == 200
+        assert (
+            'const protectedShellRoutes = new Set(["/", "/calculate", "/calendar", '
+            '"/log", "/settings"]);'
+        ) in calculate_html
+        assert 'window.location.replace("/set-user");' in calculate_html
+        assert 'data-set-user-register-form="true"' in set_user_html
+        assert 'data-set-user-attach-form="true"' in set_user_html
+    finally:
+        process.terminate()
+        try:
+            process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate(timeout=5)
+
+
+def test_ui_mode_set_user_register_enables_authenticated_protected_requests() -> None:
+    port_start, port_end = _find_consecutive_free_ports(count=1)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        users_store_path = Path(tmp_dir) / "users.json"
+        env = os.environ | {
+            "PYTHONUNBUFFERED": "1",
+            UI_PORT_START_ENV: str(port_start),
+            UI_PORT_END_ENV: str(port_end),
+            "MEALPLAN_USERS_STORE_PATH": str(users_store_path),
+        }
+        process = subprocess.Popen(  # noqa: S603
+            _ui_command(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        try:
+            port = _discover_live_ui_port(port_start=port_start, port_end=port_end)
+            unauth_status, unauth_payload = _get_json_expect_http_error(port, "/api/v1/log/search")
+            register_status, register_payload = _post_json(
+                port,
+                "/api/v1/users/register",
+                {"email": "flow.user@example.com", "name": "Flow User"},
+            )
+            auth_headers = {"Authorization": f"Bearer {register_payload['token']}"}
+            auth_status, auth_payload = _get_json(
+                port,
+                "/api/v1/log/search",
+                headers=auth_headers,
+            )
+
+            assert unauth_status == 401
+            assert unauth_payload["error"]["code"] == "auth_missing_token"
+            assert register_status == 200
+            assert register_payload["email"] == "flow.user@example.com"
+            assert register_payload["token"].startswith("mpu_v1_")
+            assert auth_status == 200
+            assert auth_payload == []
+        finally:
+            process.terminate()
+            try:
+                process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate(timeout=5)
 
 
 def test_ui_mode_starts_on_fallback_port_serves_shell_and_health_then_gracefully_stops() -> None:

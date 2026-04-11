@@ -158,6 +158,7 @@ When in doubt, update those source docs instead of expanding this file.
 127. For UI shell script hardening in `web/ui_server.py`, keep the inline script as the canonical source but also serve it via a same-origin route (`/static/app-shell.js`) and set a strict CSP (`script-src 'self'`) on HTML responses; this preserves behavior while keeping the UI compatible with strict no-inline execution.
 128. For Set User token-session UX in `web/ui_server.py`, keep logout and rotation actions bound to auth-storage state: `logout` must remove `mealplan.ui.auth.v1` and restore a clean setup view, while `rotate` must call `POST /api/v1/users/exchange-token` and persist only the returned replacement token.
 129. For Settings token visibility in `web/ui_server.py`, render the bearer token in a read-only control that is masked by default, require an explicit Reveal/Hide toggle for plaintext display, and re-mask on auth-state changes to reduce accidental exposure.
+130. For UI mode integration coverage in `tests/cli/test_ui_mode.py`, prefer subprocess-launched `mealplan --ui` tests that verify set-user route/script markers and exercise the register-to-authenticated flow by calling `/api/v1/users/register` then a protected endpoint with/without `Authorization` headers.
 
 ## Ralph Runner
 

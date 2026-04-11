@@ -15,6 +15,7 @@ Started: Sat Apr 11 16:04:58 CEST 2026
 - For CSP-hardening of the web shell in `src/mealplan/web/ui_server.py`, keep UI logic in the inline script block but also expose the same code from a same-origin endpoint (`/static/app-shell.js`) and send strict `script-src 'self'` headers so browser behavior remains stable when inline execution is blocked.
 - For Set User token-session actions in `src/mealplan/web/ui_server.py`, derive visibility from `readAuthToken()`, clear auth with `localStorage.removeItem("mealplan.ui.auth.v1")` on logout, and rotate credentials only through `POST /api/v1/users/exchange-token` before updating local storage.
 - For Settings token display in `src/mealplan/web/ui_server.py`, keep the token control read-only, mask it by default, and allow plaintext visibility only through an explicit reveal/hide toggle that re-masks on auth-state changes.
+- For UI mode auth-flow integration in `tests/cli/test_ui_mode.py`, launch `mealplan --ui` as a subprocess, assert set-user/redirect script markers from served HTML, then validate register-to-protected-endpoint flow by calling `/api/v1/users/register` and reusing the returned bearer token on a protected API route.
 
 ---
 
@@ -332,5 +333,27 @@ Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-me
   - Gotchas encountered (e.g., "don't forget to update Z when changing W")
   - In this environment, Playwright may be available via `npx` CLI without module resolution from project root; use `NODE_PATH=$(ls -td ~/.npm/_npx/*/node_modules | head -n 1)` for scripted browser checks.
   - Useful context (e.g., "the evaluation panel is in component X")
-  - Existing shell tests assert deterministic script snippets/`data-*` markers, which is the fastest regression net for inline app-shell behavior changes.
+- Existing shell tests assert deterministic script snippets/`data-*` markers, which is the fastest regression net for inline app-shell behavior changes.
+---
+## [2026-04-11 17:36:27 CEST] - US-013
+Codex output: /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/.codex-last-message-iter-2.txt
+- What was implemented
+- Extended `tests/cli/test_ui_mode.py` with end-to-end UI mode integration coverage for set-user auth flows:
+  - Added shell-level assertions that `/calculate` serves protected-route redirect script logic to `/set-user`, and `/set-user` exposes register/attach flow markers.
+  - Added register-to-authenticated flow coverage by launching `mealplan --ui`, confirming protected endpoint rejection without bearer token, registering a user via `POST /api/v1/users/register`, and confirming the returned token authorizes protected `GET /api/v1/log/search`.
+- Added test helpers in `tests/cli/test_ui_mode.py` for GET/POST success and HTTP-error JSON parsing used by new integration tests.
+- Added reusable agent guidance in `AGENT.md` for subprocess-based UI mode auth-flow integration testing.
+- Ran quality checks successfully: `uv run ruff check .`, `uv run mypy --strict src`, `uv run pytest` (456 passed).
+- Files changed
+- /Users/Oliver.Koeth/work/mealplan-cli/AGENT.md
+- /Users/Oliver.Koeth/work/mealplan-cli/tests/cli/test_ui_mode.py
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/prd.json
+- /Users/Oliver.Koeth/work/mealplan-cli/scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered (e.g., "this codebase uses X for Y")
+  - The most reliable UI mode integration path is subprocess-driven (`python -m mealplan --ui`) with real HTTP calls; this catches auth/bootstrap wiring issues that unit script-string assertions can miss.
+  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
+  - Protected API responses in this codebase may be JSON arrays (for example `/api/v1/log/search`), so shared test helpers should not assume object-only payloads for successful calls.
+  - Useful context (e.g., "the evaluation panel is in component X")
+  - Register endpoint responses (`/api/v1/users/register`) are sufficient to seed authenticated UI-mode integration requests without pre-populating `users.json` fixtures.
 ---
