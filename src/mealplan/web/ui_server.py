@@ -93,6 +93,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
         box-sizing: border-box;
       }
 
+      [hidden] {
+        display: none !important;
+      }
+
       body {
         margin: 0;
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -308,7 +312,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       }
 
       input,
-      select {
+      select,
+      textarea {
         width: 100%;
         border-radius: 10px;
         border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
@@ -320,7 +325,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
       }
 
       input:focus,
-      select:focus {
+      select:focus,
+      textarea:focus {
         outline: none;
         border-color: var(--accent);
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
@@ -410,6 +416,33 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 
       .field-span-2 {
         grid-column: 1 / -1;
+      }
+
+      .log-entry-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.65rem;
+      }
+
+      .log-entry-view-toggle {
+        white-space: nowrap;
+      }
+
+      .log-entry-json-block {
+        margin-top: 0.65rem;
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .log-entry-json-block label {
+        margin: 0;
+      }
+
+      .log-entry-json-control {
+        min-height: 16rem;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       }
 
       .log-search-controls {
@@ -1317,6 +1350,12 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
           const logFatControl = logEntryForm.elements.namedItem("fat");
           const logProteinControl = logEntryForm.elements.namedItem("protein");
           const logFiberControl = logEntryForm.elements.namedItem("fiber");
+          const logEntryViewToggleButton = logEntryForm.querySelector(
+            '[data-log-entry-view-toggle="true"]'
+          );
+          const logEntryFormFields = logEntryForm.querySelector('[data-log-entry-form-fields="true"]');
+          const logEntryJsonFields = logEntryForm.querySelector('[data-log-entry-json-fields="true"]');
+          const logEntryJsonControl = logEntryForm.querySelector('[data-log-entry-json-input="true"]');
           const logPreviousDayButton = logEntryForm.querySelector('[data-log-date-prev="true"]');
           const logNextDayButton = logEntryForm.querySelector('[data-log-date-next="true"]');
           const logEntrySubmitButton = logEntryForm.querySelector('[data-log-entry-submit="true"]');
@@ -1340,13 +1379,63 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             && "value" in logProteinControl
             && logFiberControl
             && "value" in logFiberControl
+            && logEntryViewToggleButton
+            && logEntryFormFields
+            && logEntryJsonFields
+            && logEntryJsonControl
+            && "value" in logEntryJsonControl
             && logEntrySubmitButton
             && logEntrySuccessCallout
           ) {
+            let logEntryView = "form";
+
+            const createEmptyLogEntryJson = () => ({
+              meal: "",
+              name: "",
+              kcal: "",
+              carbs: "",
+              fat: "",
+              protein: "",
+              fiber: "",
+            });
+
+            const setLogEntryJsonValue = (entryJson) => {
+              logEntryJsonControl.value = JSON.stringify(entryJson, null, 2);
+            };
+
+            const syncLogEntryJsonFromForm = () => {
+              setLogEntryJsonValue({
+                meal: logMealControl.value,
+                name: logNameControl.value,
+                kcal: logKcalControl.value,
+                carbs: logCarbsControl.value,
+                fat: logFatControl.value,
+                protein: logProteinControl.value,
+                fiber: logFiberControl.value,
+              });
+            };
+
+            const switchLogEntryView = (nextView) => {
+              if (nextView !== "json" && nextView !== "form") {
+                return;
+              }
+              if (nextView === "json") {
+                syncLogEntryJsonFromForm();
+              }
+              logEntryView = nextView;
+              logEntryFormFields.hidden = nextView !== "form";
+              logEntryJsonFields.hidden = nextView !== "json";
+              logEntryViewToggleButton.setAttribute(
+                "aria-pressed",
+                nextView === "json" ? "true" : "false"
+              );
+            };
+
             const resetLogEntryForm = () => {
               logEntryForm.reset();
               logUuidControl.value = "";
               logDateControl.value = toIsoDate(new Date());
+              setLogEntryJsonValue(createEmptyLogEntryJson());
             };
 
             const setLogEntrySuccess = (message) => {
@@ -1368,6 +1457,7 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               if (!entry || typeof entry !== "object") {
                 return;
               }
+              switchLogEntryView("form");
               if (mode === "edit") {
                 logUuidControl.value = typeof entry.uuid === "string" ? entry.uuid : "";
                 const canonical = typeof entry.date === "string" ? entry.date.trim() : "";
@@ -1402,20 +1492,41 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
                 ? String(Number(entry.fiber))
                 : "";
               updateLogEntryMode();
+              syncLogEntryJsonFromForm();
               setLogEntrySuccess("");
             };
 
             const createLogEntryPayload = () => {
               const canonicalDate = normalizeCalendarDate(logDateControl.value);
-              const kcal = parseNumberOrNull(logKcalControl.value);
-              const carbs = parseNumberOrNull(logCarbsControl.value);
-              const fat = parseNumberOrNull(logFatControl.value);
-              const protein = parseNumberOrNull(logProteinControl.value);
-              const fiber = parseNumberOrNull(logFiberControl.value);
+              let mealValue = logMealControl.value;
+              let nameValue = logNameControl.value.trim();
+              let kcal = parseNumberOrNull(logKcalControl.value);
+              let carbs = parseNumberOrNull(logCarbsControl.value);
+              let fat = parseNumberOrNull(logFatControl.value);
+              let protein = parseNumberOrNull(logProteinControl.value);
+              let fiber = parseNumberOrNull(logFiberControl.value);
+              if (logEntryView === "json") {
+                let parsedEntry = null;
+                try {
+                  parsedEntry = JSON.parse(logEntryJsonControl.value);
+                } catch {
+                  return null;
+                }
+                if (!parsedEntry || typeof parsedEntry !== "object" || Array.isArray(parsedEntry)) {
+                  return null;
+                }
+                mealValue = typeof parsedEntry.meal === "string" ? parsedEntry.meal : "";
+                nameValue = typeof parsedEntry.name === "string" ? parsedEntry.name.trim() : "";
+                kcal = parseNumberOrNull(String(parsedEntry.kcal ?? ""));
+                carbs = parseNumberOrNull(String(parsedEntry.carbs ?? ""));
+                fat = parseNumberOrNull(String(parsedEntry.fat ?? ""));
+                protein = parseNumberOrNull(String(parsedEntry.protein ?? ""));
+                fiber = parseNumberOrNull(String(parsedEntry.fiber ?? ""));
+              }
               if (
                 !canonicalDate
-                || !logMealControl.value
-                || !logNameControl.value.trim()
+                || !mealValue
+                || !nameValue
                 || kcal === null
                 || carbs === null
                 || fat === null
@@ -1426,8 +1537,8 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
               }
               return {
                 date: canonicalDate,
-                meal: logMealControl.value,
-                name: logNameControl.value.trim(),
+                meal: mealValue,
+                name: nameValue,
                 kcal,
                 carbs,
                 fat,
@@ -1439,6 +1550,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
             if (!logDateControl.value) {
               logDateControl.value = toIsoDate(new Date());
             }
+            if (!logEntryJsonControl.value.trim()) {
+              setLogEntryJsonValue(createEmptyLogEntryJson());
+            }
+            switchLogEntryView("form");
             updateLogEntryMode();
             setLogEntrySuccess("");
             if (logPreviousDayButton) {
@@ -1456,6 +1571,10 @@ _APP_SHELL_TEMPLATE = Template("""<!doctype html>
 
             logUuidControl.addEventListener("input", () => {
               updateLogEntryMode();
+              setLogEntrySuccess("");
+            });
+            logEntryViewToggleButton.addEventListener("click", () => {
+              switchLogEntryView(logEntryView === "form" ? "json" : "form");
               setLogEntrySuccess("");
             });
             logEntryForm.addEventListener("input", () => {
@@ -3462,7 +3581,17 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
           <p class="section-label calculate-section-label">Log Entry</p>
           <form class="form-stack" data-log-entry-form="true">
             <section class="form-card">
-              <h2>Entry Form</h2>
+              <div class="log-entry-header">
+                <h2>Entry Form</h2>
+                <button
+                  class="primary-button secondary-button log-entry-view-toggle"
+                  type="button"
+                  data-log-entry-view-toggle="true"
+                  aria-pressed="false"
+                >
+                  JSON View
+                </button>
+              </div>
               <div class="date-controls">
                 <button
                   class="primary-button secondary-button"
@@ -3487,7 +3616,7 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                   &gt;
                 </button>
               </div>
-              <div class="field-grid">
+              <div class="field-grid" data-log-entry-form-fields="true">
                 <label>UUID
                   <input name="uuid" type="text" readonly />
                 </label>
@@ -3519,6 +3648,16 @@ _PAGE_CONTENT: dict[str, dict[str, str]] = {
                 </label>
                 <label class="field-span-2">Fiber
                   <input name="fiber" type="number" min="0" step="0.1" required />
+                </label>
+              </div>
+              <div class="log-entry-json-block" data-log-entry-json-fields="true" hidden>
+                <label>Entry JSON
+                  <textarea
+                    name="entry_json"
+                    class="log-entry-json-control"
+                    data-log-entry-json-input="true"
+                    aria-label="Entry JSON"
+                  ></textarea>
                 </label>
               </div>
               <div class="actions">

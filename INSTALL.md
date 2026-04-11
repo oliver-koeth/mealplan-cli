@@ -100,21 +100,11 @@ curl http://127.0.0.1:8765/api/v1/health
 
 Run updates as root with `sudo`, but execute Git/pip steps as the `mealplan` service user so file ownership stays correct.
 
-Pull latest code:
+Pull latest code, reinstall the package into the existing virtual environment, and restart the service:
 
 ```bash
 sudo -u mealplan git -C /opt/mealplan/app pull --ff-only
-```
-
-Reinstall the package into the existing virtual environment:
-
-```bash
 sudo -u mealplan /opt/mealplan/venv/bin/pip install --upgrade /opt/mealplan/app
-```
-
-Restart the service:
-
-```bash
 sudo systemctl restart mealplan
 ```
 

@@ -868,6 +868,11 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'name="uuid" type="text" readonly' in html
     assert 'data-log-date-prev="true"' in html
     assert 'data-log-date-next="true"' in html
+    assert 'data-log-entry-view-toggle="true"' in html
+    assert 'aria-pressed="false"' in html
+    assert 'data-log-entry-form-fields="true"' in html
+    assert 'data-log-entry-json-fields="true" hidden' in html
+    assert 'data-log-entry-json-input="true"' in html
     assert 'name="date"' in html
     assert 'name="meal"' in html
     assert '<option value="training">Training</option>' in html
@@ -902,9 +907,20 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     ) in html
     assert "if (!logDateControl.value) {" in html
     assert "logDateControl.value = toIsoDate(new Date());" in html
+    assert 'let logEntryView = "form";' in html
+    assert "const createEmptyLogEntryJson = () => ({" in html
+    assert 'meal: "",' in html
+    assert "const switchLogEntryView = (nextView) => {" in html
+    assert 'logEntryFormFields.hidden = nextView !== "form";' in html
+    assert 'logEntryJsonFields.hidden = nextView !== "json";' in html
+    assert 'logEntryViewToggleButton.setAttribute(' in html
+    assert '"aria-pressed",' in html
+    assert 'switchLogEntryView("form");' in html
     assert "const updateLogEntryMode = () => {" in html
     assert 'logEntrySubmitButton.textContent = isEditMode ? "Save" : "Add";' in html
     assert "const createLogEntryPayload = () => {" in html
+    assert 'if (logEntryView === "json") {' in html
+    assert "parsedEntry = JSON.parse(logEntryJsonControl.value);" in html
     assert 'const endpoint = isEditMode ? ("/api/v1/log/" + uuid) : "/api/v1/log";' in html
     assert 'const method = isEditMode ? "PUT" : "POST";' in html
     assert "await window.fetch(endpoint, {" in html
@@ -912,6 +928,7 @@ def test_ui_server_log_shell_includes_entry_search_and_results_regions() -> None
     assert 'setLogEntrySuccess(isEditMode ? "Entry saved." : "Entry added.");' in html
     assert "let logEntryBindings = null;" in html
     assert "const fillLogEntryForm = (entry, mode) => {" in html
+    assert 'logEntryViewToggleButton.addEventListener("click", () => {' in html
     assert 'logEntryBindings.applyEditEntry(entry);' in html
     assert 'logEntryBindings.applyAddEntry(entry);' in html
     assert "const logSearchSubmitButton = logSearchForm.querySelector(" in html
